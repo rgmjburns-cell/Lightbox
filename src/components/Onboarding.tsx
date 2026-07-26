@@ -74,8 +74,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           <img
             src="/welcome-lightbox-logo-opt.png"
             alt="LightBox"
+            width="600"
+            height="900"
             className="h-auto"
-            style={{ width: "clamp(180px, 70vw, 700px)" }}
+            style={{ width: "clamp(180px, 70vw, 700px)", aspectRatio: "600/900" }}
           />
 
           {/* Rex — centered between LightBox and IDX */}
