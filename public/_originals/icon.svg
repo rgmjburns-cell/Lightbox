@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="250" fill="#2D2D2D"/>
+  <circle cx="256" cy="256" r="230" fill="#F5F5F5"/>
+
+  <!-- Skull (simplified Rex) -->
+  <ellipse cx="256" cy="220" rx="100" ry="90" fill="#2D2D2D"/>
+  <ellipse cx="256" cy="220" rx="88" ry="78" fill="white"/>
+
+  <!-- Eyes -->
+  <circle cx="220" cy="210" r="20" fill="#2D2D2D"/>
+  <circle cx="292" cy="210" r="20" fill="#2D2D2D"/>
+  <!-- Eye shine -->
+  <circle cx="226" cy="204" r="7" fill="white"/>
+  <circle cx="298" cy="204" r="7" fill="white"/>
+
+  <!-- Nose -->
+  <ellipse cx="256" cy="240" rx="14" ry="11" fill="#2D2D2D"/>
+
+  <!-- Smile -->
+  <path d="M 220 260 Q 256 290 292 260" stroke="#2D2D2D" stroke-width="8" fill="none" stroke-linecap="round"/>
+
+  <!-- Crossbones accent -->
+  <line x1="160" y1="340" x2="352" y2="180" stroke="#008C95" stroke-width="16" stroke-linecap="round" opacity="0.4"/>
+  <line x1="160" y1="180" x2="352" y2="340" stroke="#008C95" stroke-width="16" stroke-linecap="round" opacity="0.4"/>
+
+  <!-- Spine -->
+  <line x1="256" y1="310" x2="256" y2="420" stroke="#2D2D2D" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Ribs -->
+  <path d="M 200 340 Q 256 310 312 340" stroke="#2D2D2D" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <path d="M 200 370 Q 256 340 312 370" stroke="#2D2D2D" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <path d="M 200 400 Q 256 370 312 400" stroke="#2D2D2D" stroke-width="7" fill="none" stroke-linecap="round"/>
+
+  <!-- "PLAY" text -->
+  <text x="256" y="480" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="36" fill="#008C95" letter-spacing="4">PLAY</text>
+</svg>

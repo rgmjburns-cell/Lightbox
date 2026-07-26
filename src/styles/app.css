@@ -1,0 +1,458 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Integral Diagnostics Brand Palette ── */
+  --color-primary: #2D2D2D;
+  --color-secondary: #008C95;
+  --color-lightTeal: #E0F5F7;
+  --color-brand-white: #FFFFFF;
+  --color-lightGrey: #F5F5F5;
+  --color-darkText: #1A1A1A;
+  --color-mutedText: #6B7280;
+}
+
+@layer base {
+  html,
+  body {
+    @apply text-darkText antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    /* ── Persistent full-bleed navy background ── */
+    background: linear-gradient(180deg, #0A1628 0%, #0F2440 30%, #132D4A 60%, #0A1628 100%);
+    background-attachment: fixed;
+  }
+
+  /* Smooth page transitions */
+  @view-transition {
+    navigation: auto;
+  }
+}
+
+/* ── Fixed background image overlay on body ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: url('/welcome-bg-opt.jpg') center / cover no-repeat;
+  opacity: 0.25;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@layer components {
+  /* ── Shared card style ── */
+  .card {
+    @apply bg-white rounded-2xl shadow-sm p-5;
+  }
+
+  /* ── Primary button ── */
+  .btn-primary {
+    @apply bg-secondary text-white font-semibold rounded-xl px-6 py-3
+           shadow-md active:scale-95 transition-all duration-150
+           hover:brightness-110;
+  }
+
+  /* ── Secondary button ── */
+  .btn-secondary {
+    @apply bg-lightTeal text-secondary font-semibold rounded-xl px-6 py-3
+           active:scale-95 transition-all duration-150;
+  }
+
+  /* ── Page container ── */
+  .page-container {
+    @apply max-w-lg mx-auto px-4 pb-24 pt-4;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* ── Bone Buster Animations ── */
+@keyframes comboPop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+  30% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -120%) scale(1);
+  }
+}
+
+@keyframes matchPop {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes flash {
+  0% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes particleBurst {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.5);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0) rotate(180deg);
+  }
+}
+
+@keyframes dropIn {
+  0% {
+    transform: translateY(-80px);
+    opacity: 0.7;
+  }
+  60% {
+    transform: translateY(4px);
+    opacity: 1;
+  }
+  80% {
+    transform: translateY(-2px);
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes rainbowShine {
+  0%, 100% {
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    filter: hue-rotate(30deg);
+  }
+}
+
+/* ── Bone Buster Premium Tile Animations ── */
+@keyframes pulseGlow {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes shimmerStripe {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes shimmerStripeV {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes rainbowPulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ── Bone Buster Premium Idle Animations ── */
+@keyframes shimmerIdle {
+  0%, 100% {
+    background-position: 200% 0%;
+  }
+  50% {
+    background-position: 0% 100%;
+  }
+}
+
+@keyframes tileIdleBreathing {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+  }
+  50% {
+    transform: scale(1.03) translateY(-2px);
+  }
+}
+
+/* ── Particle burst with custom direction ── */
+@keyframes particleFly {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  30% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--px, 0px)), calc(-50% + var(--py, 0px))) scale(1.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--px, 0px) * 1.8), calc(-50% + var(--py, 0px) * 1.8)) scale(0.2);
+  }
+}
+
+/* ── Invalid swap wiggle (M2) ── */
+@keyframes tileWiggle {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+/* ── Tile falling animation (H1) ── */
+@keyframes tileFall {
+  0% {
+    transform: translateY(var(--fall-from, -100%));
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* ── Board shake ── */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10% {
+    transform: translateX(-4px);
+  }
+  20% {
+    transform: translateX(4px);
+  }
+  30% {
+    transform: translateX(-3px);
+  }
+  40% {
+    transform: translateX(3px);
+  }
+  50% {
+    transform: translateX(-2px);
+  }
+  60% {
+    transform: translateX(2px);
+  }
+  70% {
+    transform: translateX(-1px);
+  }
+  80% {
+    transform: translateX(1px);
+  }
+  90% {
+    transform: translateX(0);
+  }
+}
+
+/* ── Welcome / Onboarding Animations ── */
+
+/* Rex gentle floating — subtle 3px bob */
+@keyframes welcomeRexFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+.welcome-rex-float {
+  animation: welcomeRexFloat 3s ease-in-out infinite;
+}
+
+/* Rex cape slight rotation */
+@keyframes welcomeRexCape {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(0.5deg);
+  }
+  75% {
+    transform: rotate(-0.5deg);
+  }
+}
+.welcome-rex-cape {
+  animation: welcomeRexCape 4s ease-in-out infinite;
+}
+
+/* Swirls glow pulse */
+@keyframes welcomeSwirlPulse1 {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+.welcome-swirl-1 {
+  animation: welcomeSwirlPulse1 3.5s ease-in-out infinite;
+}
+
+@keyframes welcomeSwirlPulse2 {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.12);
+  }
+}
+.welcome-swirl-2 {
+  animation: welcomeSwirlPulse2 4s ease-in-out infinite;
+  animation-delay: 1s;
+}
+
+/* Background X-ray subtle pulse */
+@keyframes welcomeXrayPulse {
+  0%, 100% {
+    opacity: 0.03;
+  }
+  50% {
+    opacity: 0.07;
+  }
+}
+.welcome-xray-pulse {
+  animation: welcomeXrayPulse 4s ease-in-out infinite;
+}
+
+/* Button glow — intensified premium pulse */
+@keyframes welcomeBtnGlow {
+  0%, 100% {
+    box-shadow: 0 0 22px rgba(0, 180, 196, 0.40), 0 4px 16px rgba(0, 0, 0, 0.24);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(0, 180, 196, 0.60), 0 6px 22px rgba(0, 0, 0, 0.32);
+  }
+}
+.welcome-btn-glow {
+  animation: welcomeBtnGlow 2.5s ease-in-out infinite;
+}
+
+/* Left swirl extension — bridges LightBox to Rex */
+@keyframes welcomeSwirlLeft {
+  0%, 100% {
+    opacity: 0.45;
+    transform: translateY(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: translateY(-50%) scale(1.1);
+  }
+}
+.welcome-swirl-left {
+  animation: welcomeSwirlLeft 3.8s ease-in-out infinite;
+  animation-delay: 0.6s;
+}
+
+/* Onboarding exit fade */
+@keyframes onboardingExit {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.onboarding-exit {
+  animation: onboardingExit 0.5s ease-out forwards;
+  pointer-events: none;
+}
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .welcome-rex-float,
+  .welcome-rex-cape,
+  .welcome-swirl-1,
+  .welcome-swirl-2,
+  .welcome-swirl-left,
+  .welcome-xray-pulse,
+  .welcome-btn-glow {
+    animation: none !important;
+  }
+  .onboarding-exit {
+    animation: none !important;
+    opacity: 0;
+  }
+}
