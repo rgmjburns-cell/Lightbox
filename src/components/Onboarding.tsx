@@ -90,7 +90,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             alt="Rex"
             className="welcome-rex-float welcome-rex-cape"
             style={{
-              height: "clamp(60px, 14vh, 134px)",
+              height: "clamp(60px, 14vh, 268px)",
               marginTop: "0px",
               filter: "drop-shadow(0 12px 34px rgba(0,140,149,0.28))",
             }}
