@@ -26,9 +26,9 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "manifest", href: "/manifest.json?v=2" },
-      { rel: "icon", href: "/favicon.ico?v=2" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png?v=2" },
+      { rel: "manifest", href: "/manifest.json?v=3" },
+      { rel: "icon", href: "/favicon.ico?v=3" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png?v=3" },
     ],
   }),
   notFoundComponent: () => (
@@ -77,7 +77,7 @@ function RootComponent() {
               <img
                 src="/welcome-lightbox-logo-opt.png"
                 alt="LightBox"
-                className="h-28 w-auto"
+                className="h-28 md:h-14 w-auto"
               />
             </div>
             {playerName && (
