@@ -21,7 +21,7 @@ export default function Rex({ className = "w-16 h-16", mood = "happy" }: RexProp
       <img
         src="/welcome-rex-opt.png"
         alt="Rex the skeleton mascot"
-        className={className}
+        className={`welcome-rex-float welcome-rex-cape ${className}`}
         onError={() => setImgError(true)}
         style={{ objectFit: "contain" }}
       />
@@ -41,7 +41,7 @@ export default function Rex({ className = "w-16 h-16", mood = "happy" }: RexProp
       viewBox="0 0 64 64"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={className}
+      className={`welcome-rex-float welcome-rex-cape ${className}`}
       role="img"
       aria-label="Rex the skeleton mascot"
     >
