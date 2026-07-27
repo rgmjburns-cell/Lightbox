@@ -375,8 +375,8 @@ export default function MriMixup() {
           const top = pos.row * (tileSize + TILE_GAP) + TILE_GAP;
 
           // Background position: show the portion of the image at homePos
-          const bgX = -(homePos.col * (tileSize + TILE_GAP));
-          const bgY = -(homePos.row * (tileSize + TILE_GAP));
+          const bgX = -(homePos.col * (tileSize + TILE_GAP) + TILE_GAP);
+          const bgY = -(homePos.row * (tileSize + TILE_GAP) + TILE_GAP);
 
           return (
             <div
