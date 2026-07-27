@@ -77,7 +77,7 @@ function countInversions(tiles: TileData[], emptyIdx: number, size: GridSize): n
  * For even grid (4×4): solvable if (inversions + row of empty from bottom) is odd.
  */
 function isSolvable(tiles: TileData[], size: GridSize): boolean {
-  const emptyIdx = tiles.findIndex((t) => t.id === size * size - 1);
+  const emptyIdx = tiles.findIndex((t) => t.homeIndex === size * size - 1);
   const inv = countInversions(tiles, emptyIdx, size);
   if (size % 2 === 1) {
     return inv % 2 === 0;
@@ -154,7 +154,7 @@ export default function MriMixup() {
   const highScoreKey = `mriMixupBest_${size}x${size}`;
 
   const totalTiles = size * size;
-  const emptyIdx = tiles.findIndex((t) => t.id === totalTiles - 1);
+  const emptyIdx = tiles.findIndex((t) => t.homeIndex === totalTiles - 1);
   const tileSize = Math.floor((BOARD_SIZE_PX - TILE_GAP * (size + 1)) / size);
 
   // ── Timer ──
@@ -191,9 +191,9 @@ export default function MriMixup() {
 
       setTiles((prev) => {
         const next = [...prev];
-        // Swap: tile at tilePos goes to emptyIdx, empty "tile" goes to tilePos
+        const currentEmptyIdx = next.findIndex((t) => t.homeIndex === totalTiles - 1);
         const tileAtPos = next[tilePos];
-        next[emptyIdx] = { ...tileAtPos, id: emptyIdx };
+        next[currentEmptyIdx] = { ...tileAtPos, id: currentEmptyIdx };
         next[tilePos] = { id: tilePos, homeIndex: totalTiles - 1 }; // the "empty" slot
         return next;
       });

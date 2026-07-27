@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import RexSpeechBubble from "~/components/RexSpeechBubble";
-import brand from "~/branding";
 
 export const Route = createFileRoute("/leaderboard")({
   component: Leaderboard,
@@ -21,24 +20,13 @@ function Leaderboard() {
       {/* Rex intro */}
       <div className="mb-6 mt-2">
         <RexSpeechBubble
-          message={`Compete with other patients! ${brand.rewards.monthlyPrize}`}
+          message="Compete with other patients! Play more to climb the ranks."
           mood="excited"
         />
       </div>
 
-      {/* Prize banner */}
-      <div className="card mb-6 bg-gradient-to-r from-secondary to-secondary/80 text-white">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">☕</span>
-          <div>
-            <p className="font-bold">Monthly Prize</p>
-            <p className="text-sm text-white/80">Glory and bragging rights!</p>
-          </div>
-        </div>
-      </div>
-
       {/* Leaderboard */}
-      <h2 className="text-lg font-bold text-primary mb-4">This Month's Leaders</h2>
+      <h2 className="text-lg font-bold text-white mb-4">This Month's Leaders</h2>
       <div className="flex flex-col gap-2">
         {placeholderScores.map((entry) => (
           <div
