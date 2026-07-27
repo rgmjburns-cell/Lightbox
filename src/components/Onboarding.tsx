@@ -42,7 +42,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           "linear-gradient(180deg, #0A1628 0%, #0F2440 30%, #132D4A 60%, #0A1628 100%)",
         height: "100dvh",
         overflow: "hidden",
-        justifyContent: "flex-start",
+        justifyContent: "center",
         paddingTop: "env(safe-area-inset-top, 0px)",
       }}
     >
