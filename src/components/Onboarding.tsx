@@ -58,9 +58,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       <div
         className="relative z-10 flex flex-col items-center w-full max-w-2xl px-4"
         style={{
-          gap: "clamp(4px, 1.2vh, 12px)",
-          paddingTop: "clamp(4px, 1vh, 12px)",
-          paddingBottom: "clamp(2px, 0.5vh, 8px)",
+          gap: "0px",
+          paddingTop: "0px",
+          paddingBottom: "0px",
         }}
       >
         {/* ══════════════════════════════════════════════
@@ -68,16 +68,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             ══════════════════════════════════════════════ */}
         <div
           className="flex flex-col items-center"
-          style={{ gap: "clamp(2px, 0.5vh, 6px)" }}
+          style={{ gap: "0px" }}
         >
           {/* LightBox logo */}
           <img
             src="/welcome-lightbox-logo-opt.png"
             alt="LightBox"
             style={{
-              maxWidth: "clamp(160px, 50vw, 400px)",
-              maxHeight: "clamp(60px, 12vh, 120px)",
-              objectFit: "contain",
+              width: "clamp(200px, 60vw, 500px)",
+              height: "auto",
               display: "block",
             }}
           />
