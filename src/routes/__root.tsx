@@ -77,7 +77,7 @@ function RootComponent() {
               <img
                 src="/welcome-lightbox-logo-opt.png"
                 alt="LightBox"
-                className="h-28 md:h-14 w-auto"
+                className="h-14 w-auto"
               />
             </div>
             {playerName && (
