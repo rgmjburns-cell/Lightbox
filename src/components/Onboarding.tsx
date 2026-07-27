@@ -76,11 +76,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             src="/welcome-lightbox-logo-opt.png?v=3"
             alt="LightBox"
             style={{
-              width: "clamp(100px, 30vw, 250px)",
+              width: "clamp(200px, 30vw, 250px)",
               height: "auto",
               display: "block",
               margin: "0 auto",
-              marginBottom: "-30px",
+              marginBottom: "-15px",
             }}
           />
 
