@@ -88,6 +88,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           <img
             src="/welcome-rex-opt.png"
             alt="Rex"
+            className="welcome-rex-float welcome-rex-cape"
             style={{
               height: "clamp(60px, 14vh, 134px)",
               marginTop: "0px",

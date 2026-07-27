@@ -440,6 +440,23 @@ body::after {
   pointer-events: none;
 }
 
+/* ── Rex floating animation ── */
+@keyframes welcomeRexFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.welcome-rex-float {
+  animation: welcomeRexFloat 3s ease-in-out infinite;
+}
+
+@keyframes welcomeRexCape {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+.welcome-rex-cape {
+  animation: welcomeRexCape 4s ease-in-out infinite;
+}
+
 /* Respect prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   .welcome-rex-float,
