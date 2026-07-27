@@ -42,7 +42,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           "linear-gradient(180deg, #0A1628 0%, #0F2440 30%, #132D4A 60%, #0A1628 100%)",
         height: "100dvh",
         overflow: "hidden",
-        justifyContent: "space-between",
+        justifyContent: "flex-start",
+        paddingTop: "env(safe-area-inset-top, 0px)",
       }}
     >
       {/* Background image overlay */}
@@ -72,12 +73,13 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         >
           {/* LightBox logo */}
           <img
-            src="/welcome-lightbox-logo-opt.png"
+            src="/welcome-lightbox-logo-opt.png?v=3"
             alt="LightBox"
             style={{
               width: "clamp(200px, 60vw, 500px)",
               height: "auto",
               display: "block",
+              marginBottom: "-60px",
             }}
           />
 
@@ -85,9 +87,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           <img
             src="/welcome-rex-opt.png"
             alt="Rex"
-            className="welcome-rex-float welcome-rex-cape w-auto"
             style={{
               height: "clamp(60px, 14vh, 134px)",
+              marginTop: "0px",
               filter: "drop-shadow(0 12px 34px rgba(0,140,149,0.28))",
             }}
           />
