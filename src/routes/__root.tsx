@@ -55,6 +55,7 @@ function RootComponent() {
     const name = getPlayerName();
     setPlayerNameState(name);
     setOnboarded(true);
+    window.location.href = "/";
   };
 
   return (

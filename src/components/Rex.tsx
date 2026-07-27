@@ -19,11 +19,11 @@ export default function Rex({ className = "w-16 h-16", mood = "happy" }: RexProp
   if (!imgError) {
     return (
       <img
-        src="/rex.png"
+        src="/welcome-rex-opt.png"
         alt="Rex the skeleton mascot"
         className={className}
         onError={() => setImgError(true)}
-        style={{ objectFit: "contain", mixBlendMode: "multiply" }}
+        style={{ objectFit: "contain" }}
       />
     );
   }
