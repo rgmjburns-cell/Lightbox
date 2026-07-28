@@ -65,7 +65,7 @@ const playExperiences = [
     subtitle: "Radiology crossword",
     emoji: "📝",
     color: "from-secondary to-primary/50",
-    built: false,
+    built: true,
   },
   {
     id: "spot-difference",
@@ -73,7 +73,7 @@ const playExperiences = [
     subtitle: "Spot the difference",
     emoji: "🩻",
     color: "from-secondary/80 to-primary/60",
-    built: false,
+    built: true,
   },
   {
     id: "skeleton-shuffle",

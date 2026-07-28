@@ -323,35 +323,6 @@ body::after {
 
 /* ── Welcome / Onboarding Animations ── */
 
-/* Rex gentle floating — subtle 3px bob */
-@keyframes welcomeRexFloat {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
-}
-.welcome-rex-float {
-  animation: welcomeRexFloat 3s ease-in-out infinite;
-}
-
-/* Rex cape slight rotation */
-@keyframes welcomeRexCape {
-  0%, 100% {
-    transform: rotate(0deg);
-  }
-  25% {
-    transform: rotate(0.5deg);
-  }
-  75% {
-    transform: rotate(-0.5deg);
-  }
-}
-.welcome-rex-cape {
-  animation: welcomeRexCape 4s ease-in-out infinite;
-}
-
 /* Swirls glow pulse */
 @keyframes welcomeSwirlPulse1 {
   0%, 100% {
@@ -457,6 +428,13 @@ body::after {
   animation: welcomeRexCape 4s ease-in-out infinite;
 }
 
+/* ── Page Transitions ── */
+@keyframes routeFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.route-enter { animation: routeFadeIn 0.3s ease-out; }
+
 /* Respect prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   .welcome-rex-float,
@@ -466,6 +444,9 @@ body::after {
   .welcome-swirl-left,
   .welcome-xray-pulse,
   .welcome-btn-glow {
+    animation: none !important;
+  }
+  .route-enter {
     animation: none !important;
   }
   .onboarding-exit {

@@ -3,6 +3,7 @@ import {
   Outlet,
   Scripts,
   createRootRoute,
+  useRouterState,
 } from "@tanstack/react-router";
 import { useState, useEffect, type ReactNode } from "react";
 import appCss from "~/styles/app.css?url";
@@ -40,6 +41,7 @@ export const Route = createRootRoute({
 });
 
 function RootComponent() {
+  const routerState = useRouterState();
   const [onboarded, setOnboarded] = useState(true);
   const [playerName, setPlayerNameState] = useState<string | null>(null);
 
@@ -90,7 +92,9 @@ function RootComponent() {
 
         {/* ── Main Content ── */}
         <main className="flex-1 relative z-10">
-          <Outlet />
+          <div className="route-enter" key={routerState.location.pathname}>
+            <Outlet />
+          </div>
         </main>
 
         {/* ── Bottom Nav ── */}
