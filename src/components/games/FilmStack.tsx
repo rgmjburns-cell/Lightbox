@@ -679,10 +679,6 @@ export default function FilmStack() {
                       className="w-8 h-8 object-contain"
                       draggable={false}
                     />
-                    {/* Tile label */}
-                    <span className="text-[9px] font-bold text-primary mt-0.5 leading-tight text-center">
-                      {TILE_LABELS[tile.type]}
-                    </span>
                   </div>
                 </div>
               );
