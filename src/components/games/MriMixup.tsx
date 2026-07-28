@@ -274,13 +274,13 @@ export default function MriMixup() {
 
       {/* Controls Bar */}
       <div className="flex items-center gap-3 flex-wrap justify-center">
-        <div className="flex rounded-lg overflow-hidden border border-mutedText/20">
+        <div className="flex rounded-lg overflow-hidden border border-white/20">
           <button
             onClick={() => newGame(3)}
             className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
               size === 3
                 ? "bg-secondary text-white"
-                : "bg-lightGrey text-mutedText hover:bg-secondary/10"
+                : "bg-white/10 text-white/60 hover:bg-white/20"
             }`}
           >
             3×3 Easy
@@ -290,10 +290,32 @@ export default function MriMixup() {
             className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
               size === 4
                 ? "bg-secondary text-white"
-                : "bg-lightGrey text-mutedText hover:bg-secondary/10"
+                : "bg-white/10 text-white/60 hover:bg-white/20"
             }`}
           >
             4×4 Hard
+          </button>
+        </div>
+        <div className="flex rounded-lg overflow-hidden border border-white/20">
+          <button
+            onClick={() => newGame(size)}
+            className="px-3 py-1.5 text-xs font-semibold bg-white/10 text-white/70 hover:bg-white/20 transition-colors"
+          >
+            ↺ Reset
+          </button>
+          <button
+            onClick={() => {
+              setTiles(shuffleBoard(size));
+              setPhase("idle");
+              setMoves(0);
+              setSeconds(0);
+              setSlidingTile(null);
+              setScore(0);
+              setAchievements([]);
+            }}
+            className="px-3 py-1.5 text-xs font-semibold bg-white/10 text-white/70 hover:bg-white/20 transition-colors"
+          >
+            🔀 Shuffle
           </button>
         </div>
       </div>
@@ -301,22 +323,22 @@ export default function MriMixup() {
       {/* Stats */}
       <div className="flex items-center gap-6 text-sm">
         <div className="text-center">
-          <p className="text-xs text-mutedText uppercase tracking-wide">Moves</p>
-          <p className="font-bold text-primary text-lg">{moves}</p>
+          <p className="text-xs text-white/50 uppercase tracking-wide">Moves</p>
+          <p className="font-bold text-white text-lg">{moves}</p>
         </div>
         <div className="text-center">
-          <p className="text-xs text-mutedText uppercase tracking-wide">Time</p>
-          <p className="font-bold text-primary text-lg">{formatTime(seconds)}</p>
+          <p className="text-xs text-white/50 uppercase tracking-wide">Time</p>
+          <p className="font-bold text-white text-lg">{formatTime(seconds)}</p>
         </div>
         <div className="text-center">
-          <p className="text-xs text-mutedText uppercase tracking-wide">Best</p>
+          <p className="text-xs text-white/50 uppercase tracking-wide">Best</p>
           <p className="font-bold text-secondary text-lg">{bestScore > 0 ? bestScore : "—"}</p>
         </div>
       </div>
 
       {/* Reference Thumbnail */}
       <div className="flex items-center gap-2">
-        <span className="text-xs text-mutedText">Reference:</span>
+        <span className="text-xs text-white/50">Reference:</span>
         <div
           className="rounded-lg overflow-hidden border-2 border-secondary/30 shadow-sm"
           style={{ width: tileSize * 2, height: tileSize * 2 }}
