@@ -287,6 +287,30 @@ body::after {
   }
 }
 
+/* ── Victory Confetti ── */
+@keyframes confettiFall {
+  0% {
+    opacity: 1;
+    transform: translateY(-120px) rotate(0deg) scale(1);
+  }
+  25% {
+    opacity: 1;
+    transform: translateY(30vh) rotate(180deg) scale(1.1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(55vh) rotate(320deg) scale(0.9);
+  }
+  75% {
+    opacity: 0.6;
+    transform: translateY(80vh) rotate(500deg) scale(0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(105vh) rotate(720deg) scale(0.4);
+  }
+}
+
 /* ── Board shake ── */
 @keyframes shake {
   0%, 100% {
