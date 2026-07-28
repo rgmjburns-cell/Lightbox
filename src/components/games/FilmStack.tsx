@@ -290,6 +290,7 @@ export default function FilmStack() {
   const [locked, setLocked] = useState(false);
   const [completions, setCompletions] = useState(0);
   const [shufflesUsed, setShufflesUsed] = useState(0);
+  const [shakingTileId, setShakingTileId] = useState<number | null>(null);
 
   const boardRef = useRef<HTMLDivElement>(null);
 
@@ -315,6 +316,14 @@ export default function FilmStack() {
       return () => clearTimeout(t);
     }
   }, [matchAnimIds]);
+
+  // Clear shake animation after it completes
+  useEffect(() => {
+    if (shakingTileId !== null) {
+      const t = setTimeout(() => setShakingTileId(null), 300);
+      return () => clearTimeout(t);
+    }
+  }, [shakingTileId]);
 
   const remainingTiles = useMemo(
     () => tiles.filter((t) => !t.cleared).length,
@@ -355,6 +364,7 @@ export default function FilmStack() {
     setMatchAnimIds([]);
     setLocked(false);
     setShufflesUsed(0);
+    setShakingTileId(null);
   }, []);
 
   // Shuffle remaining tiles
@@ -410,7 +420,12 @@ export default function FilmStack() {
 
       const tile = tiles.find((t) => t.id === tileId);
       if (!tile || tile.cleared) return;
-      if (!selectableIds.has(tileId)) return;
+
+      // Shake blocked tiles instead of selecting
+      if (!selectableIds.has(tileId)) {
+        setShakingTileId(tileId);
+        return;
+      }
 
       if (selectedId === null) {
         // First selection
@@ -594,6 +609,7 @@ export default function FilmStack() {
               const isHinted = hintIds.includes(tile.id);
               const isMatchAnim = matchAnimIds.includes(tile.id);
               const isSelectable = selectableIds.has(tile.id);
+              const isShaking = shakingTileId === tile.id;
 
               return (
                 <div
@@ -608,6 +624,7 @@ export default function FilmStack() {
                     width: TILE_W,
                     height: TILE_H,
                     zIndex: tile.layer * 100 + tile.row * 10 + tile.col,
+                    animation: isShaking ? "tileWiggle 0.3s ease-in-out" : undefined,
                   }}
                   onClick={() => handleTileClick(tile.id)}
                 >
