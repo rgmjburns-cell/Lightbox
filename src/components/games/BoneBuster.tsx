@@ -1111,6 +1111,12 @@ export default function BoneBuster() {
 
   // Next level
   const nextLevel = useCallback(() => {
+    // Reset fail counter for the level they just passed
+    const failKey = `boneBusterFailCount_${level}`;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(failKey, "0");
+    }
+
     if (level < LEVELS.length - 1) {
       const newLevel = level + 1;
       setLevel(newLevel);
@@ -1127,16 +1133,28 @@ export default function BoneBuster() {
   }, [level]);
 
   const retryLevel = useCallback(() => {
+    // Pity mechanic: track consecutive fails per level
+    const failKey = `boneBusterFailCount_${level}`;
+    const currentFails = parseInt(
+      typeof window !== "undefined" ? (localStorage.getItem(failKey) || "0") : "0",
+      10
+    );
+    const newFails = currentFails + 1;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(failKey, newFails.toString());
+    }
+    const bonusMoves = newFails >= 3 ? 3 : 0;
+
     setScore(0);
     setDisplayScore(0);
-    setMovesLeft(levelConfig.moves);
+    setMovesLeft(levelConfig.moves + bonusMoves);
     setGrid(generateCleanGrid());
     setPhase("playing");
     setSelected(null);
     setChainCount(0);
     setRexMood("happy");
     setRexMessage("Match 3 or more tiles!");
-  }, [levelConfig.moves]);
+  }, [levelConfig.moves, level]);
 
   // ── Rex Burst bezier path calculation ──
 
@@ -1364,8 +1382,8 @@ export default function BoneBuster() {
         <Rex className="w-10 h-10" mood={rexMood} />
       </div>
 
-      {/* ── Level Complete Modal ── */}
-      {phase === "complete" && (
+      {/* ── Level Complete Modal (Levels 1-14) ── */}
+      {phase === "complete" && level < LEVELS.length - 1 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl p-8 mx-4 max-w-sm w-full text-center animate-[scaleIn_0.4s_ease-out]">
             <Rex className="w-20 h-20 mx-auto mb-4" mood="excited" />
@@ -1394,37 +1412,131 @@ export default function BoneBuster() {
                   ? "Great job! Almost perfect!"
                   : "Level passed!"}
             </p>
-            {level < LEVELS.length - 1 ? (
-              <button
-                className="btn-primary w-full text-lg"
-                onClick={nextLevel}
-              >
-                Next Level →
-              </button>
-            ) : (
-              <div className="text-center">
-                <p className="text-secondary font-bold mb-4">
-                  🎉 You completed all levels! 🎉
-                </p>
-                <button
-                  className="btn-secondary w-full text-lg"
-                  onClick={() => {
-                    setLevel(0);
-                    setScore(0);
-                    setDisplayScore(0);
-                    setMovesLeft(LEVELS[0].moves);
-                    setGrid(generateCleanGrid());
-                    setPhase("playing");
-                    setRexMood("happy");
-                    setRexMessage("Match 3 or more tiles!");
-                  }}
-                >
-                  Play Again
-                </button>
-              </div>
-            )}
+            <button
+              className="btn-primary w-full text-lg"
+              onClick={nextLevel}
+            >
+              Next Level →
+            </button>
           </div>
         </div>
+      )}
+
+      {/* ── Victory Celebration (Level 15) ── */}
+      {phase === "complete" && level === LEVELS.length - 1 && (
+        <>
+          {/* Confetti rain */}
+          <div className="fixed inset-0 z-50 pointer-events-none overflow-hidden">
+            {Array.from({ length: 40 }, (_, i) => {
+              const colors = [
+                "#008C95", "#FBBF24", "#3B82F6", "#10B981",
+                "#EC4899", "#EF4444", "#8B5CF6", "#F97316",
+              ];
+              const color = colors[i % colors.length];
+              const left = Math.random() * 100;
+              const delay = Math.random() * 1.5;
+              const duration = 2.5 + Math.random() * 2;
+              const size = 6 + Math.random() * 8;
+              const shapes = ["■", "●", "▲", "★"];
+              const shape = shapes[Math.floor(Math.random() * shapes.length)];
+              return (
+                <span
+                  key={i}
+                  className="absolute"
+                  style={{
+                    left: `${left}%`,
+                    top: "-20px",
+                    color,
+                    fontSize: `${size}px`,
+                    animation: `confettiFall ${duration}s ease-in ${delay}s forwards`,
+                    opacity: 0,
+                  }}
+                >
+                  {shape}
+                </span>
+              );
+            })}
+          </div>
+
+          {/* Victory modal */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl shadow-2xl p-8 mx-4 max-w-sm w-full text-center animate-[scaleIn_0.4s_ease-out] relative overflow-hidden">
+              {/* Inner confetti burst ring */}
+              <div className="absolute inset-0 pointer-events-none">
+                {Array.from({ length: 12 }, (_, i) => {
+                  const angle = (i / 12) * 360;
+                  const rad = (angle * Math.PI) / 180;
+                  const dist = 45;
+                  const x = 50 + Math.cos(rad) * dist;
+                  const y = 50 + Math.sin(rad) * dist;
+                  return (
+                    <span
+                      key={i}
+                      className="absolute text-lg"
+                      style={{
+                        left: `${x}%`,
+                        top: `${y}%`,
+                        transform: "translate(-50%, -50%)",
+                        animation: `particleFly 1s ease-out ${i * 0.06}s forwards`,
+                        opacity: 0,
+                      }}
+                    >
+                      ✨
+                    </span>
+                  );
+                })}
+              </div>
+
+              <Rex className="w-24 h-24 mx-auto mb-4" mood="excited" />
+              <h2 className="text-3xl font-extrabold text-secondary mb-2">
+                🏆 You Beat Bone Buster! 🏆
+              </h2>
+              <p className="text-lg text-mutedText mb-4">
+                All 15 levels conquered!
+              </p>
+
+              {/* Stars — always 3, prominently shown */}
+              <div className="flex justify-center gap-3 mb-4 text-4xl">
+                <span className="animate-[dropIn_0.5s_ease-out]" style={{ animationDelay: "0.1s" }}>
+                  ⭐
+                </span>
+                <span className="animate-[dropIn_0.5s_ease-out]" style={{ animationDelay: "0.3s" }}>
+                  ⭐
+                </span>
+                <span className="animate-[dropIn_0.5s_ease-out]" style={{ animationDelay: "0.5s" }}>
+                  ⭐
+                </span>
+              </div>
+
+              <p className="text-lg text-mutedText mb-1">
+                Final Score:{" "}
+                <span className="font-bold text-primary">{score.toLocaleString()}</span>
+              </p>
+              <p className="text-sm text-mutedText mb-6">
+                Incredible work, {playerName}!
+              </p>
+
+              <button
+                className="btn-primary w-full text-lg"
+                onClick={() => {
+                  // Reset fail counter for last level too
+                  const fk = `boneBusterFailCount_14`;
+                  if (typeof window !== "undefined") localStorage.setItem(fk, "0");
+                  setLevel(0);
+                  setScore(0);
+                  setDisplayScore(0);
+                  setMovesLeft(LEVELS[0].moves);
+                  setGrid(generateCleanGrid());
+                  setPhase("playing");
+                  setRexMood("happy");
+                  setRexMessage("Match 3 or more tiles!");
+                }}
+              >
+                🔄 Play Again From Level 1
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* ── Level Failed Modal ── */}
