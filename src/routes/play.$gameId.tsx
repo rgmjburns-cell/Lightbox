@@ -74,9 +74,9 @@ function PlayGame() {
         ) : gameId === "memory-scan" ? (
           <MemoryScan />
         ) : gameId === "crossword" ? (
-          <ScanWords />
+          <GamePlaceholder emoji="📝" title="ScanWords" />
         ) : gameId === "spot-difference" ? (
-          <FindTheFracture />
+          <GamePlaceholder emoji="🩻" title="Find the Fracture" />
         ) : gameId === "mri-mixup" ? (
           <MriMixup />
         ) : gameId === "ecg-rhythm" ? (
