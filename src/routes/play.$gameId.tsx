@@ -20,12 +20,12 @@ const gameMeta: Record<string, { title: string; emoji: string }> = {
   "scan-search": { title: "Scan Search", emoji: "🔍" },
   "memory-scan": { title: "Memory Scan", emoji: "🧠" },
   crossword: { title: "ScanWords", emoji: "📝" },
-  "spot-difference": { title: "Find the Fracture", emoji: "🩻" },
+  "spot-difference": { title: "Find the Fracture", emoji: "🎞️" },
   "mri-mixup": { title: "MRI Mix-Up", emoji: "🧩" },
   "ecg-rhythm": { title: "Pulse Pop", emoji: "💓" },
   "whats-that-scan": { title: "What's That Scan?", emoji: "❓" },
   "colour-rex": { title: "Colour Rex", emoji: "🎨" },
-  "film-stack": { title: "Film Stack", emoji: "🎞️" },
+  "film-stack": { title: "Film Stack", emoji: "🩻" },
 };
 function GamePlaceholder({ emoji, title }: { emoji: string; title: string }) {
   return (
@@ -73,7 +73,7 @@ function PlayGame() {
         ) : gameId === "crossword" ? (
           <GamePlaceholder emoji="📝" title="ScanWords" />
         ) : gameId === "spot-difference" ? (
-          <GamePlaceholder emoji="🩻" title="Find the Fracture" />
+          <GamePlaceholder emoji="🎞️" title="Find the Fracture" />
         ) : gameId === "mri-mixup" ? (
           <MriMixup />
         ) : gameId === "ecg-rhythm" ? (
