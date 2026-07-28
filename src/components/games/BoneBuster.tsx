@@ -84,6 +84,16 @@ const LEVELS: Level[] = [
   { targetScore: 5000, moves: 28 },
   { targetScore: 8000, moves: 25 },
   { targetScore: 12000, moves: 22 },
+  { targetScore: 17000, moves: 20 },
+  { targetScore: 24000, moves: 19 },
+  { targetScore: 33000, moves: 18 },
+  { targetScore: 44000, moves: 17 },
+  { targetScore: 58000, moves: 16 },
+  { targetScore: 75000, moves: 15 },
+  { targetScore: 95000, moves: 14 },
+  { targetScore: 120000, moves: 13 },
+  { targetScore: 150000, moves: 12 },
+  { targetScore: 185000, moves: 12 },
 ];
 
 const COMBO_THRESHOLDS = [
