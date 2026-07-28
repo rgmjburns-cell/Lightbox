@@ -93,6 +93,7 @@ export default function PulsePop() {
     isOnGround: true,
     beatInterval: 1,
     scrollSpeed: 0,
+    currentMinPlayerY: 0, // tracks highest point player reached this obstacle cycle
   });
 
   // ── React UI state ──
@@ -200,6 +201,7 @@ export default function PulsePop() {
       gv.flashText = "";
       gv.flashTimer = 0;
       gv.isOnGround = true;
+      gv.currentMinPlayerY = gv.playerY; // reset per-level
       gv.phase = "playing";
 
       const bpm = LEVELS[lvl].bpm;
@@ -253,6 +255,7 @@ export default function PulsePop() {
     gv.flashText = "";
     gv.flashTimer = 0;
     gv.isOnGround = true;
+    gv.currentMinPlayerY = gv.playerY; // reset for new game
     gv.beatInterval = (60 / LEVELS[0].bpm) * BEAT_INTERVAL_MULTIPLIER;
     const travelDist = w - gv.playerX - OBSTACLE_HALF_WIDTH;
     gv.scrollSpeed = travelDist / gv.beatInterval;
@@ -545,6 +548,11 @@ export default function PulsePop() {
         gv.isOnGround = false;
       }
 
+      // Track highest point reached this obstacle cycle (smaller Y = higher)
+      if (gv.playerY < gv.currentMinPlayerY) {
+        gv.currentMinPlayerY = gv.playerY;
+      }
+
       // ── Obstacle spawning ──
       gv.obstacleTimer += dt;
       if (
@@ -557,6 +565,8 @@ export default function PulsePop() {
           cleared: false,
           perfect: false,
         });
+        // Reset jump-height tracking for the new obstacle cycle
+        gv.currentMinPlayerY = gv.playerY;
       }
 
       // ── Move obstacles ──
@@ -576,7 +586,9 @@ export default function PulsePop() {
         // Check if obstacle has fully passed the player
         if (obs.x < playerX - PLAYER_RADIUS - obsHW - 4) {
           // Player successfully jumped over — clear!
-          const nearPeak = Math.abs(gv.playerVY) < 120;
+          // Height-based perfect: player must have jumped ≥ 50px above floor
+          const jumpHeight = floorY - gv.currentMinPlayerY;
+          const nearPeak = jumpHeight > 50;
           obs.cleared = true;
           obs.perfect = nearPeak;
           gv.cleared++;
