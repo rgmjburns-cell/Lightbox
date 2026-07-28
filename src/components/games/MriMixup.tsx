@@ -308,7 +308,6 @@ export default function MriMixup() {
               setTiles(shuffleBoard(size));
               setPhase("idle");
               setMoves(0);
-              setSeconds(0);
               setSlidingTile(null);
               setScore(0);
               setAchievements([]);
