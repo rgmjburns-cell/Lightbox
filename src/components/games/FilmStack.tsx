@@ -5,7 +5,7 @@ import { getPlayerName } from "~/components/Onboarding";
 
 // ── Types ──
 
-type TileType = "bone" | "xray-hand" | "xray-chest" | "radiation" | "xray-skull";
+type TileType = "bone" | "xray-hand" | "xray-chest" | "mri" | "xray-skull";
 
 interface Tile {
   id: number;
@@ -23,7 +23,7 @@ const TILE_TYPES: TileType[] = [
   "bone",
   "xray-hand",
   "xray-chest",
-  "radiation",
+  "mri",
   "xray-skull",
 ];
 
@@ -31,7 +31,7 @@ const TILE_IMAGES: Record<TileType, string> = {
   bone: "/bone.png",
   "xray-hand": "/xray-hand.png",
   "xray-chest": "/xray-chest.png",
-  radiation: "/radiation.png",
+  mri: "/mri-puzzle.png",
   "xray-skull": "/xray-skull.png",
 };
 
@@ -39,7 +39,7 @@ const TILE_LABELS: Record<TileType, string> = {
   bone: "BONE",
   "xray-hand": "HAND",
   "xray-chest": "CHEST",
-  radiation: "RAD",
+  mri: "MRI",
   "xray-skull": "SKULL",
 };
 
