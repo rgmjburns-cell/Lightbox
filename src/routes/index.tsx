@@ -60,6 +60,14 @@ const playExperiences = [
     built: true,
   },
   {
+    id: "film-stack",
+    title: "Film Stack",
+    subtitle: "Mahjong solitaire",
+    emoji: "🎞️",
+    color: "from-primary/60 to-secondary/50",
+    built: true,
+  },
+  {
     id: "crossword",
     title: "ScanWords",
     subtitle: "Radiology crossword",

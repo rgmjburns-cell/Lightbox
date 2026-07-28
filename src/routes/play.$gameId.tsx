@@ -11,11 +11,10 @@ const ScanWords = lazy(() => import("~/components/games/ScanWords"));
 const WhatsThatScan = lazy(() => import("~/components/games/WhatsThatScan"));
 const ColourRex = lazy(() => import("~/components/games/ColourRex"));
 const MriMixup = lazy(() => import("~/components/games/MriMixup"));
-
+const FilmStack = lazy(() => import("~/components/games/FilmStack"));
 export const Route = createFileRoute("/play/$gameId")({
   component: PlayGame,
 });
-
 const gameMeta: Record<string, { title: string; emoji: string }> = {
   "bone-buster": { title: "Bone Buster", emoji: "🦴" },
   "scan-search": { title: "Scan Search", emoji: "🔍" },
@@ -26,8 +25,8 @@ const gameMeta: Record<string, { title: string; emoji: string }> = {
   "ecg-rhythm": { title: "Pulse Pop", emoji: "💓" },
   "whats-that-scan": { title: "What's That Scan?", emoji: "❓" },
   "colour-rex": { title: "Colour Rex", emoji: "🎨" },
+  "film-stack": { title: "Film Stack", emoji: "🎞️" },
 };
-
 function GamePlaceholder({ emoji, title }: { emoji: string; title: string }) {
   return (
     <div className="page-container flex flex-col items-center justify-center min-h-[60vh] text-center">
@@ -40,11 +39,9 @@ function GamePlaceholder({ emoji, title }: { emoji: string; title: string }) {
     </div>
   );
 }
-
 function PlayGame() {
   const { gameId } = Route.useParams();
   const game = gameMeta[gameId] ?? { title: gameId, emoji: "🎮" };
-
   return (
     <div className="page-container">
       <Link
@@ -85,6 +82,8 @@ function PlayGame() {
           <GamePlaceholder emoji="❓" title="What's That Scan?" />
         ) : gameId === "colour-rex" ? (
           <ColourRex />
+        ) : gameId === "film-stack" ? (
+          <FilmStack />
         ) : (
           <div className="flex flex-col items-center justify-center min-h-[40vh] text-center">
             <span className="text-6xl mb-4">🎮</span>
