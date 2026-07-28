@@ -497,7 +497,7 @@ export default function FindTheFracture() {
       </div>
 
       {/* Timer */}
-      <div className="text-center text-sm text-mutedText mb-3">
+      <div className="text-center text-sm text-white/70 mb-3">
         ⏱ {formatTime(timer)}
       </div>
 
@@ -603,13 +603,13 @@ export default function FindTheFracture() {
       </div>
 
       {/* Hint */}
-      <p className="text-center text-xs text-mutedText mb-6">
+      <p className="text-center text-xs text-white/70 mb-6">
         Tap the differences on either panel — there are 5 subtle changes in the right scan
       </p>
 
       {/* Best Score */}
       {highScore > 0 && (
-        <p className="text-center text-xs text-mutedText mb-4">
+        <p className="text-center text-xs text-white/70 mb-4">
           🏆 Best Score: {highScore.toLocaleString()}
         </p>
       )}

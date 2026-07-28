@@ -74,7 +74,22 @@ function generateCrossword(wordDefs: WordDef[], count: number): {
   grid: Cell[][];
   placedWords: PlacedWord[];
 } {
-  // Pick words
+  // Retry up to 20 times to get a decent puzzle
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const result = tryGenerate(wordDefs, count, attempt);
+    if (result.placedWords.length >= Math.min(count, 3)) {
+      return result;
+    }
+  }
+  // Last resort: return whatever we got on the first attempt
+  return tryGenerate(wordDefs, count, 0);
+}
+
+function tryGenerate(wordDefs: WordDef[], count: number, attempt: number): {
+  grid: Cell[][];
+  placedWords: PlacedWord[];
+} {
+  // Pick words — use different shuffle on retries
   const shuffled = [...wordDefs].sort(() => Math.random() - 0.5);
   const selected = shuffled.slice(0, count);
   // Sort longest first for better placement
@@ -434,7 +449,7 @@ export default function ScanWords() {
         moveSelection(1);
       }
     },
-    [showComplete, timerRunning, selectedRow, selectedCol]
+    [showComplete, timerRunning, selectedRow, selectedCol, direction, puzzle]
   );
 
   const moveSelection = (delta: number) => {
@@ -757,7 +772,7 @@ export default function ScanWords() {
 
       {/* ── Best Score ── */}
       {highScore > 0 && (
-        <p className="text-center text-xs text-mutedText mb-4">
+        <p className="text-center text-xs text-white/70 mb-4">
           🏆 Best Score: {highScore.toLocaleString()}
         </p>
       )}

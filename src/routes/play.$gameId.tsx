@@ -32,8 +32,8 @@ function GamePlaceholder({ emoji, title }: { emoji: string; title: string }) {
   return (
     <div className="page-container flex flex-col items-center justify-center min-h-[60vh] text-center">
       <span className="text-6xl mb-4">{emoji}</span>
-      <h1 className="text-2xl font-bold text-primary mb-2">{title}</h1>
-      <p className="text-mutedText">Coming soon! Our team is building this experience.</p>
+      <h1 className="text-2xl font-bold text-white mb-2">{title}</h1>
+      <p className="text-white/70">Coming soon! Our team is building this experience.</p>
       <div className="mt-8">
         <Rex className="w-16 h-16" mood="happy" />
       </div>
@@ -74,9 +74,9 @@ function PlayGame() {
         ) : gameId === "memory-scan" ? (
           <MemoryScan />
         ) : gameId === "crossword" ? (
-          <GamePlaceholder emoji="📝" title="ScanWords" />
+          <ScanWords />
         ) : gameId === "spot-difference" ? (
-          <GamePlaceholder emoji="🩻" title="Find the Fracture" />
+          <FindTheFracture />
         ) : gameId === "mri-mixup" ? (
           <MriMixup />
         ) : gameId === "ecg-rhythm" ? (

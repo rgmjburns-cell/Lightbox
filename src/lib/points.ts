@@ -18,6 +18,8 @@ const GAME_SCORE_KEYS = [
   "colourRexBest",
   "mriMixupBest_3x3",
   "mriMixupBest_4x4",
+  "scanWordsHighScore",
+  "spotDiffHighScore",
 ];
 
 // ── Public API ──
