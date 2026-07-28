@@ -307,7 +307,6 @@ export default function MriMixup() {
             onClick={() => {
               setTiles(shuffleBoard(size));
               setPhase("idle");
-              setMoves(0);
               setSlidingTile(null);
               setScore(0);
               setAchievements([]);
