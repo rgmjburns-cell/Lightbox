@@ -111,7 +111,9 @@ const INITIAL_HINTS = 5;
 
 // ── Hint Scoring ──
 
-/** Score a single swap on a copy of the grid. Returns the estimated score from the first match cycle. */
+/** Score a single swap on a copy of the grid. Simulates one full match cycle using the exact
+ *  scoring formulas from runMatchCycle: base score, chain multiplier, special tile line-clear
+ *  bonuses, match-4 striped tile creation value, and match-5+ Rex burst 3×3 area clear. */
 function scoreSwap(grid: (Tile | null)[][], a: Position, b: Position): number {
   const testGrid = deepCopyGrid(grid);
   // Perform swap
@@ -123,15 +125,84 @@ function scoreSwap(grid: (Tile | null)[][], a: Position, b: Position): number {
   if (matches.length === 0) return -1;
 
   let totalScore = 0;
+  const toRemove = new Set<string>();
+  const specialEffects: { pos: Position; special: SpecialType; tileType: TileType }[] = [];
+  let pendingRexBurst: TileType | null = null;
+  let pendingRexBurstCenter: Position | null = null;
+
+  // Process each match — same loop structure as runMatchCycle (lines 1006-1047)
   for (const match of matches) {
+    for (const pos of match.positions) {
+      const key = `${pos.row},${pos.col}`;
+      if (!toRemove.has(key)) {
+        toRemove.add(key);
+        const tile = testGrid[pos.row][pos.col];
+        if (tile?.special && tile.special !== "none") {
+          specialEffects.push({ pos, special: tile.special, tileType: tile.type });
+        }
+      }
+    }
+
+    // Base score — same formula as runMatchCycle (lines 1021-1023)
     const basePerTile =
       match.maxStraightLength >= 5 ? 60 : match.maxStraightLength === 4 ? 40 : 20;
     totalScore += basePerTile * match.length;
 
-    // Rex burst bonus: 5+ match triggers ~3x3 area clear worth ~9 * 50
+    // Special tile creation / Rex burst — same gating as runMatchCycle (lines 1026-1047)
     if (match.maxStraightLength >= 5 && match.centerPosition) {
-      totalScore += 9 * 50;
+      pendingRexBurst = match.tileType;
+      pendingRexBurstCenter = match.centerPosition;
+    } else if (match.maxStraightLength >= 4) {
+      // Match-4 creates a striped-h tile that stays on board (not removed).
+      // When matched later it clears its row → approximate value as one row clear.
+      const mid = Math.floor(match.positions.length / 2);
+      const spawnKey = `${match.positions[mid].row},${match.positions[mid].col}`;
+      toRemove.delete(spawnKey);
+      totalScore += 30 * COLS;
     }
+  }
+
+  // Chain multiplier — same as runMatchCycle (line 1051): chain=0 → factor 1
+  totalScore *= Math.min(0 + 1, 4);
+
+  // Special tile line-clear bonuses — same as runMatchCycle (lines 1054-1087)
+  for (const effect of specialEffects) {
+    if (effect.special === "striped-h") {
+      totalScore += 30 * COLS;
+    } else if (effect.special === "striped-v") {
+      totalScore += 30 * ROWS;
+    } else if (effect.special === "rex-burst") {
+      // Count all same-type tiles remaining on the board (approximate)
+      let typeCount = 0;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (testGrid[r][c]?.type === effect.tileType) typeCount++;
+        }
+      }
+      totalScore += typeCount * 20;
+    }
+  }
+
+  // Rex burst for match-5+: simulate clearing match tiles first (like triggerRexBurst
+  // operates on clearedGrid), then count non-null tiles in the 3×3 area around center.
+  // Same formula as triggerRexBurst (line 838): clearedCount * 50 * (chain + 1), chain+1=1.
+  if (pendingRexBurst && pendingRexBurstCenter) {
+    // Apply match-position clears (mirrors clearedGrid passed to triggerRexBurst)
+    for (const key of toRemove) {
+      const [r, c] = key.split(",").map(Number);
+      testGrid[r][c] = null;
+    }
+
+    let clearedCount = 0;
+    const cp = pendingRexBurstCenter;
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (Math.abs(r - cp.row) <= 1 && Math.abs(c - cp.col) <= 1) {
+          if (testGrid[r][c] !== null) clearedCount++;
+        }
+      }
+    }
+    totalScore += clearedCount * 50; // chain + 1 = 1
   }
 
   return totalScore;
