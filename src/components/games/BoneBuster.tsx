@@ -111,101 +111,168 @@ const INITIAL_HINTS = 5;
 
 // ── Hint Scoring ──
 
-/** Score a single swap on a copy of the grid. Simulates one full match cycle using the exact
- *  scoring formulas from runMatchCycle: base score, chain multiplier, special tile line-clear
- *  bonuses, match-4 striped tile creation value, and match-5+ Rex burst 3×3 area clear. */
+/** Score a single swap on a copy of the grid. Simulates the FULL cascade: swap → find matches →
+ *  score → remove tiles → gravity → spawn new tiles → repeat until no more matches.
+ *  Uses the EXACT scoring formulas from runMatchCycle (base, chain multiplier, special tile
+ *  line-clear bonuses, Rex burst) and mirrors applyGravityAndCascade for gravity/spawning. */
 function scoreSwap(grid: (Tile | null)[][], a: Position, b: Position): number {
-  const testGrid = deepCopyGrid(grid);
-  // Perform swap
-  const temp = testGrid[a.row][a.col];
-  testGrid[a.row][a.col] = testGrid[b.row][b.col];
-  testGrid[b.row][b.col] = temp;
+  const simGrid = deepCopyGrid(grid);
 
-  const matches = findMatches(testGrid);
-  if (matches.length === 0) return -1;
+  // Perform swap
+  const temp = simGrid[a.row][a.col];
+  simGrid[a.row][a.col] = simGrid[b.row][b.col];
+  simGrid[b.row][b.col] = temp;
 
   let totalScore = 0;
-  const toRemove = new Set<string>();
-  const specialEffects: { pos: Position; special: SpecialType; tileType: TileType }[] = [];
-  let pendingRexBurst: TileType | null = null;
-  let pendingRexBurstCenter: Position | null = null;
+  let chain = 0;
 
-  // Process each match — same loop structure as runMatchCycle (lines 1006-1047)
-  for (const match of matches) {
-    for (const pos of match.positions) {
-      const key = `${pos.row},${pos.col}`;
-      if (!toRemove.has(key)) {
-        toRemove.add(key);
-        const tile = testGrid[pos.row][pos.col];
-        if (tile?.special && tile.special !== "none") {
-          specialEffects.push({ pos, special: tile.special, tileType: tile.type });
+  // Cascade loop — capped at MAX_CASCADE_CHAIN for safety
+  while (chain <= MAX_CASCADE_CHAIN) {
+    const matches = findMatches(simGrid);
+    if (matches.length === 0) break;
+
+    // Return -1 if the very first swap produces no matches (invalid swap)
+    if (chain === 0 && matches.length === 0) return -1;
+
+    let baseScore = 0;
+    let specialScore = 0;
+    const toRemove = new Set<string>();
+    const specialEffects: { pos: Position; special: SpecialType; tileType: TileType }[] = [];
+    const specialSpawns: { pos: Position; tileType: TileType }[] = [];
+    let pendingRexBurst: TileType | null = null;
+    let pendingRexBurstCenter: Position | null = null;
+
+    // ── Process matches: collect toRemove, score, detect specials ──
+    // Mirrors runMatchCycle lines ~1077-1118
+    for (const match of matches) {
+      for (const pos of match.positions) {
+        const key = `${pos.row},${pos.col}`;
+        if (!toRemove.has(key)) {
+          toRemove.add(key);
+          const tile = simGrid[pos.row][pos.col];
+          if (tile?.special && tile.special !== "none") {
+            specialEffects.push({ pos, special: tile.special, tileType: tile.type });
+          }
         }
+      }
+
+      // Base score — same formula as runMatchCycle (lines 1092-1093)
+      const basePerTile =
+        match.maxStraightLength >= 5 ? 60 : match.maxStraightLength === 4 ? 40 : 20;
+      baseScore += basePerTile * match.length;
+
+      // Special tile creation / Rex burst — same gating as runMatchCycle (lines 1096-1118)
+      if (match.maxStraightLength >= 5 && match.centerPosition) {
+        pendingRexBurst = match.tileType;
+        pendingRexBurstCenter = match.centerPosition;
+      } else if (match.maxStraightLength >= 4) {
+        // Match-4 creates a striped-h tile that stays on board (not removed).
+        // It may cascade in a subsequent cycle; scored naturally when matched.
+        const mid = Math.floor(match.positions.length / 2);
+        const spawnKey = `${match.positions[mid].row},${match.positions[mid].col}`;
+        toRemove.delete(spawnKey);
+        specialSpawns.push({ pos: match.positions[mid], tileType: match.tileType });
       }
     }
 
-    // Base score — same formula as runMatchCycle (lines 1021-1023)
-    const basePerTile =
-      match.maxStraightLength >= 5 ? 60 : match.maxStraightLength === 4 ? 40 : 20;
-    totalScore += basePerTile * match.length;
-
-    // Special tile creation / Rex burst — same gating as runMatchCycle (lines 1026-1047)
-    if (match.maxStraightLength >= 5 && match.centerPosition) {
-      pendingRexBurst = match.tileType;
-      pendingRexBurstCenter = match.centerPosition;
-    } else if (match.maxStraightLength >= 4) {
-      // Match-4 creates a striped-h tile that stays on board (not removed).
-      // When matched later it clears its row → approximate value as one row clear.
-      const mid = Math.floor(match.positions.length / 2);
-      const spawnKey = `${match.positions[mid].row},${match.positions[mid].col}`;
-      toRemove.delete(spawnKey);
-      totalScore += 30 * COLS;
-    }
-  }
-
-  // Chain multiplier — same as runMatchCycle (line 1051): chain=0 → factor 1
-  totalScore *= Math.min(0 + 1, 4);
-
-  // Special tile line-clear bonuses — same as runMatchCycle (lines 1054-1087)
-  for (const effect of specialEffects) {
-    if (effect.special === "striped-h") {
-      totalScore += 30 * COLS;
-    } else if (effect.special === "striped-v") {
-      totalScore += 30 * ROWS;
-    } else if (effect.special === "rex-burst") {
-      // Count all same-type tiles remaining on the board (approximate)
-      let typeCount = 0;
-      for (let r = 0; r < ROWS; r++) {
+    // ── Apply special tile effects (pre-existing special tiles being matched) ──
+    // Mirrors runMatchCycle lines ~1125-1158 — added AFTER chain multiplier
+    for (const effect of specialEffects) {
+      if (effect.special === "striped-h") {
         for (let c = 0; c < COLS; c++) {
-          if (testGrid[r][c]?.type === effect.tileType) typeCount++;
+          toRemove.add(`${effect.pos.row},${c}`);
+        }
+        specialScore += 30 * COLS;
+      } else if (effect.special === "striped-v") {
+        for (let r = 0; r < ROWS; r++) {
+          toRemove.add(`${r},${effect.pos.col}`);
+        }
+        specialScore += 30 * ROWS;
+      } else if (effect.special === "rex-burst") {
+        // Clear all same-type tiles on the board
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            if (simGrid[r][c]?.type === effect.tileType) {
+              toRemove.add(`${r},${c}`);
+            }
+          }
         }
       }
-      totalScore += typeCount * 20;
     }
-  }
 
-  // Rex burst for match-5+: simulate clearing match tiles first (like triggerRexBurst
-  // operates on clearedGrid), then count non-null tiles in the 3×3 area around center.
-  // Same formula as triggerRexBurst (line 838): clearedCount * 50 * (chain + 1), chain+1=1.
-  if (pendingRexBurst && pendingRexBurstCenter) {
-    // Apply match-position clears (mirrors clearedGrid passed to triggerRexBurst)
+    // ── Chain multiplier on base score only (line 1122), then add special effects ──
+    // In runMatchCycle: bonusScore = (base * chainMultiplier) + specialEffects + rexBurst
+    const chainMultiplier = Math.min(chain + 1, 4);
+    totalScore += baseScore * chainMultiplier + specialScore;
+
+    // ── Create special (striped-h) tiles at spawn positions ──
+    // These survive the clear (they were removed from toRemove above).
+    for (const spawn of specialSpawns) {
+      simGrid[spawn.pos.row][spawn.pos.col] = {
+        id: nextTileId(),
+        type: spawn.tileType,
+        special: "striped-h",
+      };
+    }
+
+    // ── Remove matched tiles ──
     for (const key of toRemove) {
       const [r, c] = key.split(",").map(Number);
-      testGrid[r][c] = null;
+      simGrid[r][c] = null;
     }
 
-    let clearedCount = 0;
-    const cp = pendingRexBurstCenter;
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        if (Math.abs(r - cp.row) <= 1 && Math.abs(c - cp.col) <= 1) {
-          if (testGrid[r][c] !== null) clearedCount++;
+    // ── Rex burst for match-5+ ──
+    // Mirrors triggerRexBurst (line 909): clearedCount * 50 * (chain + 1)
+    // runMatchCycle(chain) calls triggerRexBurst(..., chain + 1, ...)
+    //   triggerRexBurst computes: 50 * (chain_param + 1)
+    // So: 50 * ((chain + 1) + 1) = 50 * (chain + 2)
+    if (pendingRexBurst && pendingRexBurstCenter) {
+      // Count non-null tiles in 3×3 area (grid already has matched tiles cleared above)
+      let clearedCount = 0;
+      const cp = pendingRexBurstCenter;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (Math.abs(r - cp.row) <= 1 && Math.abs(c - cp.col) <= 1) {
+            if (simGrid[r][c] !== null) clearedCount++;
+          }
+        }
+      }
+      totalScore += clearedCount * 50 * (chain + 2);
+
+      // Clear the 3×3 area
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (Math.abs(r - cp.row) <= 1 && Math.abs(c - cp.col) <= 1) {
+            simGrid[r][c] = null;
+          }
         }
       }
     }
-    totalScore += clearedCount * 50; // chain + 1 = 1
+
+    // ── Apply gravity and spawn new tiles ──
+    // Mirrors applyGravityAndCascade (lines 986-1013)
+    for (let c = 0; c < COLS; c++) {
+      let writeRow = ROWS - 1;
+      // Compact non-null tiles downward
+      for (let r = ROWS - 1; r >= 0; r--) {
+        if (simGrid[r][c] !== null) {
+          if (r !== writeRow) {
+            simGrid[writeRow][c] = simGrid[r][c];
+            simGrid[r][c] = null;
+          }
+          writeRow--;
+        }
+      }
+      // Spawn new random tiles from above
+      for (let r = writeRow; r >= 0; r--) {
+        simGrid[r][c] = createTile(randomTileType());
+      }
+    }
+
+    chain++;
   }
 
-  return totalScore;
+  return totalScore > 0 ? totalScore : -1;
 }
 
 /** Find the best valid swap on the current board. Returns the two positions and their score, or null if none. */
