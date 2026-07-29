@@ -277,6 +277,18 @@ body::after {
   }
 }
 
+/* ── Hint pulse glow ── */
+@keyframes hintPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.6), 0 0 18px rgba(251, 191, 36, 0.4), 0 0 36px rgba(251, 191, 36, 0.2);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(251, 191, 36, 0.9), 0 0 28px rgba(251, 191, 36, 0.7), 0 0 56px rgba(251, 191, 36, 0.45);
+    transform: scale(1.06);
+  }
+}
+
 /* ── Tile falling animation (H1) ── */
 @keyframes tileFall {
   0% {

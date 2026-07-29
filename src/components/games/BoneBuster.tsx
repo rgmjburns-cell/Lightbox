@@ -106,6 +106,64 @@ const COMBO_THRESHOLDS = [
 const SCORE_KEY = "boneBuster_score";
 const LEVEL_KEY = "boneBusterLevel";
 const MOVES_KEY = "boneBusterMoves";
+const HINTS_KEY = "boneBusterHintsRemaining";
+const INITIAL_HINTS = 5;
+
+// ── Hint Scoring ──
+
+/** Score a single swap on a copy of the grid. Returns the estimated score from the first match cycle. */
+function scoreSwap(grid: (Tile | null)[][], a: Position, b: Position): number {
+  const testGrid = deepCopyGrid(grid);
+  // Perform swap
+  const temp = testGrid[a.row][a.col];
+  testGrid[a.row][a.col] = testGrid[b.row][b.col];
+  testGrid[b.row][b.col] = temp;
+
+  const matches = findMatches(testGrid);
+  if (matches.length === 0) return -1;
+
+  let totalScore = 0;
+  for (const match of matches) {
+    const basePerTile =
+      match.maxStraightLength >= 5 ? 60 : match.maxStraightLength === 4 ? 40 : 20;
+    totalScore += basePerTile * match.length;
+
+    // Rex burst bonus: 5+ match triggers ~3x3 area clear worth ~9 * 50
+    if (match.maxStraightLength >= 5 && match.centerPosition) {
+      totalScore += 9 * 50;
+    }
+  }
+
+  return totalScore;
+}
+
+/** Find the best valid swap on the current board. Returns the two positions and their score, or null if none. */
+function findBestHintSwap(
+  grid: (Tile | null)[][]
+): { a: Position; b: Position; score: number } | null {
+  let best: { a: Position; b: Position; score: number } | null = null;
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      // Swap right
+      if (c + 1 < COLS) {
+        const score = scoreSwap(grid, { row: r, col: c }, { row: r, col: c + 1 });
+        if (score > 0 && (!best || score > best.score)) {
+          best = { a: { row: r, col: c }, b: { row: r, col: c + 1 }, score };
+        }
+      }
+      // Swap down
+      if (r + 1 < ROWS) {
+        const score = scoreSwap(grid, { row: r, col: c }, { row: r + 1, col: c });
+        if (score > 0 && (!best || score > best.score)) {
+          best = { a: { row: r, col: c }, b: { row: r + 1, col: c }, score };
+        }
+      }
+    }
+  }
+
+  return best;
+}
 
 let tileIdCounter = 0;
 function nextTileId(): number {
@@ -368,6 +426,7 @@ interface MemoBoardProps {
   wiggleTiles: Position[];
   fallingTiles: { from: Position; to: Position; tile: Tile }[];
   boardShake: boolean;
+  hintTiles: [Position, Position] | null;
   handleTileTap: (row: number, col: number) => void;
 }
 
@@ -379,6 +438,7 @@ const MemoBoard = memo(function MemoBoard({
   wiggleTiles,
   fallingTiles,
   boardShake,
+  hintTiles,
   handleTileTap,
 }: MemoBoardProps) {
   const isMatching = (row: number, col: number) =>
@@ -390,6 +450,11 @@ const MemoBoard = memo(function MemoBoard({
     if (swappingTiles[1].row === row && swappingTiles[1].col === col) return 1;
     return null;
   };
+
+  const isHinted = (row: number, col: number): boolean =>
+    hintTiles !== null &&
+    ((hintTiles[0].row === row && hintTiles[0].col === col) ||
+      (hintTiles[1].row === row && hintTiles[1].col === col));
 
   const isWiggling = (row: number, col: number) =>
     wiggleTiles.some((p) => p.row === row && p.col === col);
@@ -434,6 +499,7 @@ const MemoBoard = memo(function MemoBoard({
           const wiggling = isWiggling(r, c);
           const falling = isFalling(r, c);
           const fallOffset = getFallingOffset(r, c);
+          const hinted = isHinted(r, c);
 
           return (
             <button
@@ -449,18 +515,22 @@ const MemoBoard = memo(function MemoBoard({
                 transition: swapIdx !== null
                   ? "transform 0.25s ease-in-out"
                   : "transform 0.15s",
-                animation: isSelected
-                  ? "pulseGlow 0.8s ease-in-out infinite"
-                  : wiggling
-                    ? "tileWiggle 0.3s ease-in-out"
-                    : falling
-                      ? "tileFall 0.4s ease-out forwards"
-                      : undefined,
+                animation: hinted
+                  ? "hintPulse 1.2s ease-in-out infinite"
+                  : isSelected
+                    ? "pulseGlow 0.8s ease-in-out infinite"
+                    : wiggling
+                      ? "tileWiggle 0.3s ease-in-out"
+                      : falling
+                        ? "tileFall 0.4s ease-out forwards"
+                        : undefined,
                 "--fall-from": fallOffset,
                 // Selection ring on the button (not clipped by overflow-hidden)
-                boxShadow: isSelected && tile
-                  ? `0 0 0 3px white, 0 0 14px ${TILE_ACCENT[tile!.type].glow}, 0 0 28px ${TILE_ACCENT[tile!.type].glow}`
-                  : undefined,
+                boxShadow: hinted && tile
+                  ? `0 0 0 4px rgba(251,191,36,0.6), 0 0 18px rgba(251,191,36,0.4), 0 0 36px rgba(251,191,36,0.2)`
+                  : isSelected && tile
+                    ? `0 0 0 3px white, 0 0 14px ${TILE_ACCENT[tile!.type].glow}, 0 0 28px ${TILE_ACCENT[tile!.type].glow}`
+                    : undefined,
               } as React.CSSProperties}
               onClick={() => handleTileTap(r, c)}
               onTouchStart={(e) => {
@@ -573,6 +643,19 @@ export default function BoneBuster() {
   const [fallingTiles, setFallingTiles] = useState<{ from: Position; to: Position; tile: Tile }[]>([]);
   const [particles, setParticles] = useState<{ id: number; row: number; col: number; color: string }[]>([]);
 
+  // ── Hint System State ──
+  const [hintsRemaining, setHintsRemaining] = useState(() => {
+    if (typeof window === "undefined") return INITIAL_HINTS;
+    const saved = localStorage.getItem(HINTS_KEY);
+    if (saved === null) {
+      localStorage.setItem(HINTS_KEY, INITIAL_HINTS.toString());
+      return INITIAL_HINTS;
+    }
+    return Math.max(0, parseInt(saved, 10));
+  });
+  const [hintHighlight, setHintHighlight] = useState<[Position, Position] | null>(null);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // ── Rex Super Burst State ──
   const [rexBurst, setRexBurst] = useState<{
     active: boolean;
@@ -664,6 +747,50 @@ export default function BoneBuster() {
         setComboText((prev) => (prev?.id === id ? null : prev));
       }, 1200);
     }
+  }, []);
+
+  // ── Hint System ──
+
+  const clearHintHighlight = useCallback(() => {
+    if (hintTimerRef.current) {
+      clearTimeout(hintTimerRef.current);
+      hintTimerRef.current = null;
+    }
+    setHintHighlight(null);
+  }, []);
+
+  const useHint = useCallback(() => {
+    if (hintsRemaining <= 0) return;
+    if (phase !== "playing") return;
+
+    const best = findBestHintSwap(grid);
+    if (!best) {
+      setRexMessage("No moves to hint!");
+      return;
+    }
+
+    // Decrement hints
+    const newCount = hintsRemaining - 1;
+    setHintsRemaining(newCount);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(HINTS_KEY, newCount.toString());
+    }
+
+    // Show the highlight
+    setHintHighlight([best.a, best.b]);
+
+    // Auto-clear after 3 seconds
+    hintTimerRef.current = setTimeout(() => {
+      setHintHighlight(null);
+      hintTimerRef.current = null;
+    }, 3000);
+  }, [hintsRemaining, phase, grid]);
+
+  // Cleanup hint timer on unmount
+  useEffect(() => {
+    return () => {
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    };
   }, []);
 
   // ── Rex Super Burst Animation ──
@@ -1010,6 +1137,9 @@ export default function BoneBuster() {
       if (phaseRef.current !== "playing") return;
       if (rexBurstActiveRef.current) return; // No interaction during rex burst
 
+      // Clear hint highlight if player taps anything
+      clearHintHighlight();
+
       // We need latest selected & grid — read from closures (stable via ref pattern)
       // selected is captured by the outer scope; grid must be read fresh
       
@@ -1073,7 +1203,7 @@ export default function BoneBuster() {
         }
       }, 60);
     },
-    [selected, grid]
+    [selected, grid, clearHintHighlight]
   );
 
   // ── Keep refs in sync with latest callbacks (breaks circular dependency) ──
@@ -1227,6 +1357,28 @@ export default function BoneBuster() {
             }}
           />
         </div>
+        {/* Hint button */}
+        <div className="mt-2 flex justify-center">
+          <button
+            className={`
+              flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold
+              transition-all duration-150 active:scale-95
+              ${hintsRemaining > 0 && phase === "playing"
+                ? "bg-amber-100 text-amber-700 hover:bg-amber-200 cursor-pointer"
+                : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              }
+            `}
+            onClick={useHint}
+            disabled={hintsRemaining <= 0 || phase !== "playing"}
+          >
+            <span>💡</span>
+            <span>
+              {hintsRemaining > 0
+                ? `${hintsRemaining} left`
+                : "No hints left"}
+            </span>
+          </button>
+        </div>
         {/* Stars */}
         <div className="flex justify-center gap-1 mt-2">
           {[1, 2, 3].map((s) => (
@@ -1346,6 +1498,7 @@ export default function BoneBuster() {
             wiggleTiles={wiggleTiles}
             fallingTiles={fallingTiles}
             boardShake={boardShake}
+            hintTiles={hintHighlight}
             handleTileTap={handleTileTap}
           />
         )}
