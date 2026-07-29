@@ -134,7 +134,8 @@ function scoreSwap(grid: (Tile | null)[][], a: Position, b: Position): number {
     // Return -1 if the very first swap produces no matches (invalid swap)
     if (chain === 0 && matches.length === 0) return -1;
 
-    let cycleScore = 0;
+    let baseScore = 0;
+    let specialScore = 0;
     const toRemove = new Set<string>();
     const specialEffects: { pos: Position; special: SpecialType; tileType: TileType }[] = [];
     const specialSpawns: { pos: Position; tileType: TileType }[] = [];
@@ -158,7 +159,7 @@ function scoreSwap(grid: (Tile | null)[][], a: Position, b: Position): number {
       // Base score — same formula as runMatchCycle (lines 1092-1093)
       const basePerTile =
         match.maxStraightLength >= 5 ? 60 : match.maxStraightLength === 4 ? 40 : 20;
-      cycleScore += basePerTile * match.length;
+      baseScore += basePerTile * match.length;
 
       // Special tile creation / Rex burst — same gating as runMatchCycle (lines 1096-1118)
       if (match.maxStraightLength >= 5 && match.centerPosition) {
@@ -175,18 +176,18 @@ function scoreSwap(grid: (Tile | null)[][], a: Position, b: Position): number {
     }
 
     // ── Apply special tile effects (pre-existing special tiles being matched) ──
-    // Mirrors runMatchCycle lines ~1125-1158 — added AFTER chain multiplier below
+    // Mirrors runMatchCycle lines ~1125-1158 — added AFTER chain multiplier
     for (const effect of specialEffects) {
       if (effect.special === "striped-h") {
         for (let c = 0; c < COLS; c++) {
           toRemove.add(`${effect.pos.row},${c}`);
         }
-        cycleScore += 30 * COLS;
+        specialScore += 30 * COLS;
       } else if (effect.special === "striped-v") {
         for (let r = 0; r < ROWS; r++) {
           toRemove.add(`${r},${effect.pos.col}`);
         }
-        cycleScore += 30 * ROWS;
+        specialScore += 30 * ROWS;
       } else if (effect.special === "rex-burst") {
         // Clear all same-type tiles on the board
         for (let r = 0; r < ROWS; r++) {
@@ -199,9 +200,10 @@ function scoreSwap(grid: (Tile | null)[][], a: Position, b: Position): number {
       }
     }
 
-    // ── Chain multiplier — same as runMatchCycle (line 1122) ──
-    cycleScore *= Math.min(chain + 1, 4);
-    totalScore += cycleScore;
+    // ── Chain multiplier on base score only (line 1122), then add special effects ──
+    // In runMatchCycle: bonusScore = (base * chainMultiplier) + specialEffects + rexBurst
+    const chainMultiplier = Math.min(chain + 1, 4);
+    totalScore += baseScore * chainMultiplier + specialScore;
 
     // ── Create special (striped-h) tiles at spawn positions ──
     // These survive the clear (they were removed from toRemove above).
