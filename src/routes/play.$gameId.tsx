@@ -79,7 +79,7 @@ function PlayGame() {
         ) : gameId === "ecg-rhythm" ? (
           <PulsePop />
         ) : gameId === "whats-that-scan" ? (
-          <GamePlaceholder emoji="❓" title="What's That Scan?" />
+                    <WhatsThatScan />
         ) : gameId === "colour-rex" ? (
           <ColourRex />
         ) : gameId === "film-stack" ? (

@@ -97,7 +97,7 @@ const playExperiences = [
     subtitle: "Radiology quiz",
     emoji: "❓",
     color: "from-secondary to-primary/60",
-    built: false,
+    built: true,
   },
 ];
 
