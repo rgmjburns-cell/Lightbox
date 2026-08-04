@@ -78,22 +78,25 @@ const TILE_ACCENT: Record<TileType, { glow: string; particle: string }> = {
 
 const TILE_TYPES: TileType[] = ["bone", "xray-hand", "xray-chest", "radiation", "xray-skull"];
 
+// The original curve became punishing at level 8: targets climbed sharply while
+// moves fell every level. Keep the 15-level progression, but leave enough room for
+// normal play (and the existing +3 move pity bonus) to carry players through.
 const LEVELS: Level[] = [
-  { targetScore: 1500, moves: 35 },
-  { targetScore: 3000, moves: 30 },
-  { targetScore: 5000, moves: 28 },
-  { targetScore: 8000, moves: 25 },
-  { targetScore: 12000, moves: 22 },
-  { targetScore: 17000, moves: 20 },
-  { targetScore: 24000, moves: 19 },
-  { targetScore: 33000, moves: 18 },
-  { targetScore: 44000, moves: 17 },
-  { targetScore: 58000, moves: 16 },
-  { targetScore: 75000, moves: 15 },
-  { targetScore: 95000, moves: 14 },
-  { targetScore: 120000, moves: 13 },
-  { targetScore: 150000, moves: 12 },
-  { targetScore: 185000, moves: 12 },
+  { targetScore: 1300, moves: 38 },
+  { targetScore: 2400, moves: 36 },
+  { targetScore: 4000, moves: 34 },
+  { targetScore: 6500, moves: 32 },
+  { targetScore: 9500, moves: 30 },
+  { targetScore: 13500, moves: 28 },
+  { targetScore: 19000, moves: 27 },
+  { targetScore: 25000, moves: 26 },
+  { targetScore: 32000, moves: 25 },
+  { targetScore: 42000, moves: 24 },
+  { targetScore: 55000, moves: 23 },
+  { targetScore: 68000, moves: 22 },
+  { targetScore: 85000, moves: 21 },
+  { targetScore: 105000, moves: 20 },
+  { targetScore: 130000, moves: 20 },
 ];
 
 const COMBO_THRESHOLDS = [
