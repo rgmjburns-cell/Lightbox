@@ -4,113 +4,33 @@ import RexSpeechBubble from "~/components/RexSpeechBubble";
 import { getPlayerName } from "~/components/Onboarding";
 
 type TileType = "bone" | "xray-hand" | "xray-chest" | "mri" | "xray-skull";
-interface Tile { id: number; pairId: number; type: TileType; col: number; row: number; layer: number; cleared: boolean; inHand: boolean; }
-const TILE_TYPES: TileType[] = ["bone", "xray-hand", "xray-chest", "mri", "xray-skull"];
-const TILE_IMAGES: Record<TileType, string> = { bone: "/bone.png", "xray-hand": "/xray-hand.png", "xray-chest": "/xray-chest.png", mri: "/mri-puzzle.png", "xray-skull": "/xray-skull.png" };
-const TILE_LABELS: Record<TileType, string> = { bone: "BONE", "xray-hand": "HAND", "xray-chest": "CHEST", mri: "MRI", "xray-skull": "SKULL" };
-const COLS = 8, ROWS = 7, MAX_LAYERS = 3;
-// 1.5x the original 56x66 tile. The board scales down as one unit on narrow phones.
-const CELL_W = 72, CELL_H = 87, LAYER_OFFSET_X = 36, LAYER_OFFSET_Y = 43.5;
-const TILE_W = 84, TILE_H = 99, TOTAL_TILES = 48, HAND_SIZE = 4;
-const COMPLETIONS_KEY = "filmStackCompletions";
-function shuffleArray<T>(arr: T[]) { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
-function getAllPositions() { const out: { col: number; row: number; layer: number }[] = []; for (let layer = 0; layer < MAX_LAYERS; layer++) for (let col = 0; col < COLS - layer; col++) for (let row = 0; row < ROWS - layer; row++) out.push({ col, row, layer }); return out; }
-function generateTiles(): Tile[] {
-  const chosen = shuffleArray(getAllPositions()).slice(0, TOTAL_TILES);
-  const types: TileType[] = []; for (let i = 0; i < TOTAL_TILES / 2; i++) { const t = TILE_TYPES[i % TILE_TYPES.length]; types.push(t, t); }
-  const shuffled = shuffleArray(types); const pairIds: number[] = []; const counts = new Map<TileType, number>(); let pid = 0;
-  for (const type of shuffled) { const count = counts.get(type) || 0; if (count % 2 === 0) pid++; pairIds.push(pid); counts.set(type, count + 1); }
-  return chosen.map((p, i) => ({ ...p, id: i, pairId: pairIds[i], type: shuffled[i], cleared: false, inHand: false }));
-}
-function tilePos(t: { col: number; row: number; layer: number }) { return { x: t.col * CELL_W + t.layer * LAYER_OFFSET_X, y: t.row * CELL_H + t.layer * LAYER_OFFSET_Y }; }
-function box(t: { col: number; row: number; layer: number }) { const p = tilePos(t); return { left: p.x, right: p.x + TILE_W, top: p.y, bottom: p.y + TILE_H }; }
-function covers(a: Tile, b: Tile) { if (a.layer <= b.layer) return false; const x = box(a), y = box(b); const w = Math.min(x.right, y.right) - Math.max(x.left, y.left); const h = Math.min(x.bottom, y.bottom) - Math.max(x.top, y.top); return w > 0 && h > 0 && w * h >= TILE_W * TILE_H * .25; }
-function selectable(tile: Tile, all: Tile[]) {
-  if (tile.cleared || tile.inHand) return false;
-  if (all.some(t => !t.cleared && !t.inHand && t.id !== tile.id && covers(t, tile))) return false;
-  const left = all.some(t => !t.cleared && !t.inHand && t.layer === tile.layer && t.row === tile.row && t.col === tile.col - 1);
-  const right = all.some(t => !t.cleared && !t.inHand && t.layer === tile.layer && t.row === tile.row && t.col === tile.col + 1);
-  return !left || !right;
-}
-
-export default function FilmStack() {
-  const playerName = typeof window !== "undefined" ? getPlayerName() : "Player";
-  const [tiles, setTiles] = useState<Tile[]>(() => generateTiles());
-  const [handIds, setHandIds] = useState<number[]>([]);
-  const [matchAnimIds, setMatchAnimIds] = useState<number[]>([]);
-  const [flyingTileId, setFlyingTileId] = useState<number | null>(null);
-  const [rexMessage, setRexMessage] = useState("Tap an uncovered tile to add it to your hand!");
-  const [rexMood, setRexMood] = useState<"happy" | "excited" | "encouraging">("happy");
-  const [showWin, setShowWin] = useState(false), [locked, setLocked] = useState(false);
-  const [completions, setCompletions] = useState(0), [shufflesUsed, setShufflesUsed] = useState(0);
-  const [shakingTileId, setShakingTileId] = useState<number | null>(null);
-  useEffect(() => { const n = parseInt(localStorage.getItem(COMPLETIONS_KEY) || "0", 10); setCompletions(Number.isNaN(n) ? 0 : n); }, []);
-  useEffect(() => { if (shakingTileId !== null) { const t = setTimeout(() => setShakingTileId(null), 320); return () => clearTimeout(t); } }, [shakingTileId]);
-  const remainingTiles = useMemo(() => tiles.filter(t => !t.cleared).length, [tiles]);
-  const selectableIds = useMemo(() => new Set(tiles.filter(t => selectable(t, tiles)).map(t => t.id)), [tiles]);
-  const boardDims = useMemo(() => { let w = 0, h = 0; tiles.forEach(t => { const p = tilePos(t); w = Math.max(w, p.x + TILE_W); h = Math.max(h, p.y + TILE_H); }); return { w, h }; }, [tiles]);
-  const scaleFactor = typeof window === "undefined" ? 1 : Math.min(1, (window.innerWidth - 32) / boardDims.w);
-  const newGame = useCallback(() => { setTiles(generateTiles()); setHandIds([]); setMatchAnimIds([]); setFlyingTileId(null); setShowWin(false); setLocked(false); setShufflesUsed(0); setShakingTileId(null); setRexMessage("Tap an uncovered tile to add it to your hand!"); setRexMood("happy"); }, []);
-  const shuffleRemaining = useCallback(() => {
-    setTiles(prev => { const active = prev.filter(t => !t.cleared && !t.inHand), positions = shuffleArray(active.map(t => ({ col: t.col, row: t.row, layer: t.layer }))); return prev.map(t => { const i = active.findIndex(a => a.id === t.id); return i < 0 ? t : { ...t, ...positions[i] }; }); });
-    setShufflesUsed(n => n + 1); setRexMessage("Board shuffled — keep filling your hand!"); setRexMood("encouraging");
-  }, []);
-  const completeIfNeeded = useCallback((nextTiles: Tile[]) => {
-    if (nextTiles.every(t => t.cleared)) { setShowWin(true); setRexMessage("Board complete! Amazing! 🎉"); setRexMood("excited"); const current = parseInt(localStorage.getItem(COMPLETIONS_KEY) || "0", 10); const next = (Number.isNaN(current) ? 0 : current) + 1; localStorage.setItem(COMPLETIONS_KEY, String(next)); setCompletions(next); }
-  }, []);
-  const handleTileClick = useCallback((id: number) => {
-    if (locked || flyingTileId !== null) return;
-    const tile = tiles.find(t => t.id === id);
-    if (!tile || tile.cleared || tile.inHand) return;
-    if (!selectableIds.has(id)) { setShakingTileId(id); return; }
-    if (handIds.length >= HAND_SIZE) { setRexMessage("Your hand is full — send one tile back first."); setRexMood("encouraging"); return; }
-
-    // Keep the tile on the board until its flight finishes. This makes the
-    // board-to-hand movement visible instead of popping the tile out instantly.
-    setLocked(true);
-    setFlyingTileId(id);
-    setRexMessage("Into the hand!");
-    setRexMood("happy");
-    window.setTimeout(() => {
-      setFlyingTileId(null);
-      setTiles(prev => prev.map(t => t.id === id ? { ...t, inHand: true } : t));
-      const arrivedHand = [...handIds, id];
-      const pairId = arrivedHand.find(otherId => otherId !== id && tiles.find(t => t.id === otherId)?.type === tile.type);
-      if (pairId !== undefined) {
-        setHandIds(arrivedHand);
-        setMatchAnimIds([pairId, id]);
-        setRexMessage("Smash! Nice match!");
-        setRexMood("excited");
-        window.setTimeout(() => {
-          setTiles(prev => {
-            const updated = prev.map(t => t.id === pairId || t.id === id ? { ...t, cleared: true, inHand: false } : t);
-            completeIfNeeded(updated);
-            return updated;
-          });
-          setHandIds(current => current.filter(x => x !== pairId && x !== id));
-          setMatchAnimIds([]);
-          setLocked(false);
-        }, 620);
-      } else {
-        setHandIds(arrivedHand);
-        setRexMessage(`${HAND_SIZE - arrivedHand.length} hand slot${HAND_SIZE - arrivedHand.length === 1 ? "" : "s"} left`);
-        setLocked(false);
-      }
-    }, 430);
-  }, [locked, flyingTileId, tiles, selectableIds, handIds, completeIfNeeded]);
-  const returnFromHand = useCallback((id: number) => {
-    if (locked || handIds.length < HAND_SIZE) return;
-    setHandIds(ids => ids.filter(x => x !== id)); setTiles(prev => prev.map(t => t.id === id ? { ...t, inHand: false } : t)); setRexMessage("Tile returned to the board — make room for a match!"); setRexMood("encouraging");
-  }, [locked, handIds.length]);
-  const sorted = useMemo(() => [...tiles].sort((a, b) => a.layer - b.layer || a.row - b.row || a.col - b.col), [tiles]);
-  return <div className="page-container max-w-lg mx-auto overflow-x-hidden">
-    <div className="mb-4"><RexSpeechBubble message={rexMessage} mood={rexMood} /></div>
-    <div className="card mb-3 p-3 flex items-center justify-between"><div className="text-center flex-1"><span className="text-xs text-mutedText uppercase font-semibold">Tiles Left</span><div className="text-2xl font-bold text-primary">{remainingTiles}</div></div><div className="text-center flex-1"><span className="text-xs text-mutedText uppercase font-semibold">Boards Done</span><div className="text-2xl font-bold text-secondary">{completions}</div></div></div>
-    <div className="flex justify-center gap-2 mb-4"><button className="px-4 py-2 rounded-full text-sm font-semibold bg-white/10 text-white border border-white/20 hover:bg-white/20 active:scale-95" onClick={shuffleRemaining}>🔀 Shuffle</button><button className="px-4 py-2 rounded-full text-sm font-semibold bg-white/10 text-white border border-white/20 hover:bg-white/20 active:scale-95" onClick={newGame}>🔄 New</button></div>
-    <div className="flex justify-center mb-3 w-full"><div className="relative" style={{ width: boardDims.w * scaleFactor, height: boardDims.h * scaleFactor }}><div className="absolute top-0 left-1/2" style={{ width: boardDims.w, height: boardDims.h, transform: `translateX(-50%) scale(${scaleFactor})`, transformOrigin: "top center" }}>{sorted.filter(t => !t.cleared && (!t.inHand || t.id === flyingTileId)).map(tile => { const p = tilePos(tile), flying = flyingTileId === tile.id; return <div key={tile.id} className={`film-board-tile absolute cursor-pointer ${flying ? "film-tile-flying" : ""}`} style={{ left: p.x, top: p.y, width: TILE_W, height: TILE_H, zIndex: tile.layer * 100 + tile.row * 10 + tile.col, animation: shakingTileId === tile.id ? "tileWiggle .3s ease-in-out" : undefined }} onClick={() => handleTileClick(tile.id)}><div className="film-tile-face w-full h-full flex items-center justify-center p-2"><img src={TILE_IMAGES[tile.type]} alt={TILE_LABELS[tile.type]} className="w-12 h-12 object-contain" draggable={false} /></div></div>; })}</div></div></div>
-    <section className="rounded-2xl p-3 mb-4 border border-white/15 bg-slate-900/60 shadow-inner"><div className="flex items-center justify-between mb-2"><h3 className="text-sm font-bold text-white uppercase tracking-wide">Tile hand</h3><span className="text-xs text-white/60">{handIds.length}/{HAND_SIZE}</span></div><div className="grid grid-cols-4 gap-2">{Array.from({ length: HAND_SIZE }, (_, slot) => { const tile = tiles.find(t => t.id === handIds[slot]); return <button key={slot} aria-label={tile ? `Return ${TILE_LABELS[tile.type]} tile` : "Empty hand slot"} disabled={!tile || handIds.length < HAND_SIZE} onClick={() => tile && returnFromHand(tile.id)} className={`film-hand-slot h-[76px] rounded-xl flex items-center justify-center border transition-all ${tile ? "film-tile-face" : "bg-white/5 border-dashed border-white/20"} ${tile && matchAnimIds.includes(tile.id) ? "film-tile-smash" : ""} ${tile && handIds.length === HAND_SIZE ? "hover:scale-105 cursor-pointer" : "cursor-default"}`} style={{ ["--smash-x" as string]: tile && matchAnimIds.includes(tile.id) ? (slot < 2 ? "34px" : "-34px") : "0px" }}>{tile && <img src={TILE_IMAGES[tile.type]} alt={TILE_LABELS[tile.type]} className="w-11 h-11 object-contain" draggable={false} />}</button>; })}</div><p className="text-center text-[11px] text-white/55 mt-2">When full, tap a tile to return it to the board</p></section>
-    <div className="flex justify-center mb-20"><Rex className="w-10 h-10" mood={rexMood} /></div>
-    {showWin && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"><div className="bg-white rounded-3xl shadow-2xl p-8 mx-4 max-w-sm w-full text-center animate-[scaleIn_.4s_ease-out]"><Rex className="w-20 h-20 mx-auto mb-4" mood="excited" /><h2 className="text-2xl font-extrabold text-primary mb-2">Board Complete!</h2><p className="text-mutedText mb-1">You cleared all the tiles!</p><p className="text-sm text-secondary font-medium mb-4">Boards completed: {completions}</p><button className="btn-primary w-full" onClick={newGame}>Play Again</button></div></div>}
-    <style>{`.film-tile-face{background:linear-gradient(135deg,#ffffff 0%,#eef3f4 48%,#cbd9dc 100%);border:2px solid;border-color:#ffffff #a8bec2 #8ba6aa #e4f0f1;border-radius:8px;box-shadow:inset 1px 1px 0 rgba(255,255,255,.9),inset -2px -2px 0 rgba(25,70,75,.12),2px 4px 0 rgba(0,91,98,.22),0 6px 12px rgba(0,0,0,.24);opacity:1}.film-tile-face img{background:#f4f7f7;border-radius:5px;padding:3px;box-shadow:inset 0 0 0 1px rgba(0,140,149,.12)}.film-tile-flying{animation:filmFlyToHand .43s cubic-bezier(.2,.8,.3,1) forwards;pointer-events:none}.film-tile-smash{animation:filmSmash .62s ease-in forwards;z-index:3}@keyframes filmFlyToHand{0%{transform:translate(0,0) scale(1);opacity:1}70%{transform:translate(0,clamp(150px,35vh,360px)) scale(.82);opacity:1}100%{transform:translate(0,clamp(190px,43vh,440px)) scale(.68);opacity:0}}@keyframes filmSmash{0%{transform:translateX(0) scale(1)}38%{transform:translateX(var(--smash-x,0px)) scale(1.12);filter:brightness(1.8)}58%{transform:translateX(var(--smash-x,0px)) scale(1.25);filter:brightness(2)}100%{transform:translateX(var(--smash-x,0px)) scale(0);opacity:0;filter:brightness(3)}}@keyframes scaleIn{0%{opacity:0;transform:scale(.8)}100%{opacity:1;transform:scale(1)}} @keyframes tileSmash{0%{transform:scale(1);opacity:1}45%{transform:scale(1.35);opacity:1;filter:brightness(1.5)}100%{transform:scale(0);opacity:0}}`}</style>
-  </div>;
+type Tile = { id:number; type:TileType; col:number; row:number; layer:number; cleared:boolean; inHand:boolean };
+const TYPES:TileType[]=["bone","xray-hand","xray-chest","mri","xray-skull"];
+const IMAGES:Record<TileType,string>={bone:"/bone.png","xray-hand":"/xray-hand.png","xray-chest":"/xray-chest.png",mri:"/mri-puzzle.png","xray-skull":"/xray-skull.png"};
+const LABELS:Record<TileType,string>={bone:"BONE","xray-hand":"HAND","xray-chest":"CHEST",mri:"MRI","xray-skull":"SKULL"};
+const LEVELS=[{types:3,count:24,layers:2},{types:4,count:32,layers:2},{types:4,count:40,layers:3},{types:5,count:48,layers:3},{types:5,count:48,layers:3}];
+const COLS=8,ROWS=7,CELL_W=72,CELL_H=87,TILE_W=84,TILE_H=99,HAND_SIZE=4;
+const COMPLETIONS="filmStackCompletions", LEVEL_KEY="filmStackLevel";
+const shuffle=<T,>(a:T[])=>{const x=[...a];for(let i=x.length-1;i;i--){const j=Math.floor(Math.random()*(i+1));[x[i],x[j]]=[x[j],x[i]]}return x};
+function positions(layers:number,dense=false){const out:{col:number,row:number,layer:number}[]=[];for(let l=0;l<layers;l++)for(let c=0;c<COLS-l;c++)for(let r=0;r<ROWS-l;r++)out.push({col:c,row:r,layer:l});return shuffle(out).map(p=>dense?{...p,col:p.col+(p.layer?0:0)}:p)}
+function generate(level:number):Tile[]{const cfg=LEVELS[level-1], ps=positions(cfg.layers,level===5).slice(0,cfg.count), pool:TileType[]=[];for(let i=0;i<cfg.count/2;i++){const t=TYPES[i%cfg.types];pool.push(t,t)}const shuffled=shuffle(pool); return ps.map((p,id)=>({...p,id,type:shuffled[id],cleared:false,inHand:false}))}
+function pos(t:{col:number;row:number;layer:number}){return{x:t.col*CELL_W+t.layer*36,y:t.row*CELL_H+t.layer*43.5}}
+function covers(a:Tile,b:Tile){if(a.layer<=b.layer)return false;const x=pos(a),y=pos(b);return Math.min(x.x+TILE_W,y.x+TILE_W)-Math.max(x.x,y.x)>20&&Math.min(x.y+TILE_H,y.y+TILE_H)-Math.max(x.y,y.y)>20}
+function selectable(t:Tile,all:Tile[]){if(t.cleared||t.inHand)return false;if(all.some(x=>x.id!==t.id&&!x.cleared&&!x.inHand&&covers(x,t)))return false;const l=all.some(x=>!x.cleared&&!x.inHand&&x.layer===t.layer&&x.row===t.row&&x.col===t.col-1),r=all.some(x=>!x.cleared&&!x.inHand&&x.layer===t.layer&&x.row===t.row&&x.col===t.col+1);return !l||!r}
+export default function FilmStack(){
+ const playerName=typeof window!=="undefined"?getPlayerName():"Player"; void playerName;
+ const [level,setLevel]=useState(()=>typeof window==="undefined"?1:Math.min(5,Math.max(1,Number(localStorage.getItem(LEVEL_KEY)||1))));
+ const [tiles,setTiles]=useState(()=>generate(level)),[hand,setHand]=useState<number[]>([]),[flying,setFlying]=useState<number|null>(null),[match,setMatch]=useState<number[]>([]),[fragments,setFragments]=useState(false),[scorePop,setScorePop]=useState(false),[shake,setShake]=useState(false),[gameOver,setGameOver]=useState(false),[win,setWin]=useState(false),[locked,setLocked]=useState(false),[completions,setCompletions]=useState(0),[message,setMessage]=useState("Tap an uncovered tile to add it to your hand!"),[mood,setMood]=useState<"happy"|"excited"|"encouraging">("happy");
+ useEffect(()=>{const n=Number(localStorage.getItem(COMPLETIONS)||0);setCompletions(Number.isFinite(n)?n:0)},[]);
+ const selectableIds=useMemo(()=>new Set(tiles.filter(t=>selectable(t,tiles)).map(t=>t.id)),[tiles]);
+ const remaining=tiles.filter(t=>!t.cleared).length;
+ const boardDims=useMemo(()=>{let w=0,h=0;tiles.forEach(t=>{const p=pos(t);w=Math.max(w,p.x+TILE_W);h=Math.max(h,p.y+TILE_H)});return{w,h}},[tiles]);
+ const scale=typeof window==="undefined"?1:Math.min(1,(window.innerWidth-32)/boardDims.w);
+ const reset=useCallback((newLevel=level)=>{setLevel(newLevel);localStorage.setItem(LEVEL_KEY,String(newLevel));setTiles(generate(newLevel));setHand([]);setMatch([]);setFlying(null);setGameOver(false);setWin(false);setLocked(false);setFragments(false);setMessage("Tap an uncovered tile to add it to your hand!");setMood("happy")},[level]);
+ const complete=useCallback((updated:Tile[])=>{if(!updated.some(t=>!t.cleared)){const n=Number(localStorage.getItem(COMPLETIONS)||0)+1;localStorage.setItem(COMPLETIONS,String(n));setCompletions(n);if(level<5){setMessage(`Level ${level} complete! Next level unlocked.`);setMood("excited");setTimeout(()=>reset(level+1),900)}else{setWin(true);setMessage("All five levels complete! 🎉");setMood("excited")}}},[level,reset]);
+ const click=useCallback((id:number)=>{if(locked||gameOver||win||flying!==null)return;const tile=tiles.find(t=>t.id===id);if(!tile||tile.cleared||tile.inHand)return;if(!selectableIds.has(id)){setShake(true);setTimeout(()=>setShake(false),280);return}if(hand.length>=HAND_SIZE){setMessage("Your hand is full — return a tile first.");return}setLocked(true);setFlying(id);setTimeout(()=>{setFlying(null);setTiles(prev=>prev.map(t=>t.id===id?{...t,inHand:true}:t));const next=[...hand,id], pair=next.find(x=>x!==id&&tiles.find(t=>t.id===x)?.type===tile.type);if(pair!==undefined){setHand(next);setMatch([pair,id]);setFragments(false);setScorePop(true);setShake(true);setMessage("SMASH! Perfect match! +100");setMood("excited");setTimeout(()=>{setTiles(prev=>{const u=prev.map(t=>t.id===pair||t.id===id?{...t,cleared:true,inHand:false}:t);complete(u);return u});setHand(h=>h.filter(x=>x!==pair&&x!==id));setMatch([]);setFragments(true);setTimeout(()=>setFragments(false),500);setScorePop(false);setShake(false);setLocked(false)},650)}else{setHand(next);if(next.length===HAND_SIZE){const unique=new Set(next.map(x=>tiles.find(t=>t.id===x)?.type));if(unique.size===HAND_SIZE){setGameOver(true);setMessage("Game over — hand is full of different tiles!");setMood("encouraging")}else setMessage("A pair is ready — return a tile to make room!")}else setMessage(`${HAND_SIZE-next.length} hand slot${HAND_SIZE-next.length===1?"":"s"} left`);setLocked(false)}},380)},[locked,gameOver,win,flying,tiles,selectableIds,hand,complete]);
+ const returnTile=(id:number)=>{if(locked||hand.length<HAND_SIZE||gameOver)return;setHand(h=>h.filter(x=>x!==id));setTiles(ts=>ts.map(t=>t.id===id?{...t,inHand:false}:t));setMessage("Tile returned — choose wisely!")};
+ const shuffleBoard=()=>{if(gameOver||win)return;setTiles(ts=>{const active=shuffle(ts.filter(t=>!t.cleared&&!t.inHand).map(t=>({col:t.col,row:t.row,layer:t.layer})));let i=0;return ts.map(t=>!t.cleared&&!t.inHand?{...t,...active[i++]}:t)});setMessage("Board shuffled — your hand is safe.")};
+ const sorted=[...tiles].sort((a,b)=>a.layer-b.layer||a.row-b.row||a.col-b.col);
+ return <div className={`page-container max-w-lg mx-auto overflow-x-hidden ${shake?"film-screen-shake":""}`}><div className="mb-4"><RexSpeechBubble message={message} mood={mood}/></div><div className="card mb-3 p-3 flex items-center justify-between"><div className="text-center flex-1"><span className="text-xs text-mutedText uppercase font-semibold">Tiles Left</span><div className="text-2xl font-bold text-primary">{remaining}</div></div><div className="text-center flex-1"><span className="text-xs text-mutedText uppercase font-semibold">Level</span><div className="text-2xl font-bold text-primary">{level}/5</div></div><div className="text-center flex-1"><span className="text-xs text-mutedText uppercase font-semibold">Boards Done</span><div className="text-2xl font-bold text-secondary">{completions}</div></div></div><div className="flex justify-center gap-2 mb-4"><button className="px-4 py-2 rounded-full text-sm font-semibold bg-white/10 text-white border border-white/20" onClick={shuffleBoard}>🔀 Shuffle</button><button className="px-4 py-2 rounded-full text-sm font-semibold bg-white/10 text-white border border-white/20" onClick={()=>reset()}>🔄 New</button></div><div className="flex justify-center mb-3"><div className="relative" style={{width:boardDims.w*scale,height:boardDims.h*scale}}><div className="absolute top-0 left-1/2" style={{width:boardDims.w,height:boardDims.h,transform:`translateX(-50%) scale(${scale})`,transformOrigin:"top center"}}>{sorted.filter(t=>!t.cleared&&(!t.inHand||t.id===flying)).map(t=>{const p=pos(t);return <div key={t.id} onClick={()=>click(t.id)} className={`film-board-tile absolute ${flying===t.id?"film-tile-flying":""}`} style={{left:p.x,top:p.y,width:TILE_W,height:TILE_H,zIndex:t.layer*100+t.row*10+t.col}}><div className="film-tile-face w-full h-full flex items-center justify-center p-2"><img src={IMAGES[t.type]} alt={LABELS[t.type]} className="w-12 h-12 object-contain" draggable={false}/></div></div>})}</div></div></div><section className="rounded-2xl p-3 mb-4 border border-white/15 bg-slate-900/60"><div className="flex justify-between mb-2"><h3 className="text-sm font-bold text-white uppercase">Tile hand</h3><span className="text-xs text-white/60">{hand.length}/4</span></div><div className="grid grid-cols-4 gap-2">{Array.from({length:4},(_,slot)=>{const t=tiles.find(x=>x.id===hand[slot]);return <button key={slot} disabled={!t||hand.length<4} onClick={()=>t&&returnTile(t.id)} className={`film-hand-slot h-[76px] rounded-xl flex items-center justify-center border ${t?"film-tile-face":"bg-white/5 border-dashed border-white/20"} ${t&&match.includes(t.id)?"film-tile-smash":""}`} style={{["--smash-x" as string]:t&&match.includes(t.id)?(slot<2?"34px":"-34px"):"0px"}}>{t&&<img src={IMAGES[t.type]} alt={LABELS[t.type]} className="w-11 h-11 object-contain" draggable={false}/>}</button>})}</div><p className="text-center text-[11px] text-white/55 mt-2">When full, tap a tile to return it to the board</p></section><div className="flex justify-center mb-20"><Rex className="w-10 h-10" mood={mood}/></div>{(gameOver||win)&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"><div className="bg-white rounded-3xl shadow-2xl p-8 mx-4 max-w-sm w-full text-center">{gameOver?<><h2 className="text-2xl font-extrabold text-primary mb-2">Game Over</h2><p className="text-mutedText mb-5">Your hand is full of different tiles!</p><button className="btn-primary w-full" onClick={()=>reset()}>Try Again</button></>:<><h2 className="text-2xl font-extrabold text-primary mb-2">All Levels Complete!</h2><p className="text-mutedText mb-5">Boards completed: {completions}</p><button className="btn-primary w-full" onClick={()=>reset(1)}>Play Again</button></>}</div></div>} {scorePop&&<div className="film-score-popup">+100</div>}{fragments&&<div className="film-fragments" aria-hidden="true">✦　✧　✦　✧　✦</div>}<style>{`.film-tile-face{background:linear-gradient(135deg,#fff,#eef3f4 48%,#cbd9dc);border:2px solid #dcecef;border-radius:8px;box-shadow:inset 1px 1px 0 #fff,2px 4px 0 rgba(0,91,98,.22),0 6px 12px #0004}.film-tile-face img{background:#f4f7f7;border-radius:5px;padding:3px}.film-board-tile{cursor:pointer;transition:transform .3s ease-out}.film-tile-flying{animation:filmFly .38s ease-out forwards;pointer-events:none}.film-tile-smash{animation:filmSmash .65s ease-in forwards;z-index:3}@keyframes filmFly{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(0,clamp(190px,43vh,440px)) scale(.68);opacity:0}}@keyframes filmSmash{0%{transform:translateX(0) scale(1)}35%{transform:translateX(var(--smash-x)) scale(1.15);filter:brightness(1.8)}58%{transform:translateX(var(--smash-x)) scale(1.3);filter:brightness(3)}100%{transform:translateX(var(--smash-x)) scale(0);opacity:0}}.film-screen-shake{animation:filmShake .28s ease-out}@keyframes filmShake{25%{transform:translateX(-7px)}50%{transform:translateX(7px)}75%{transform:translateX(-4px)}}.film-score-popup{position:fixed;z-index:60;left:50%;top:55%;font-size:2rem;font-weight:900;color:#fbbf24;text-shadow:0 2px 5px #000;animation:scoreUp .7s ease-out forwards}@keyframes scoreUp{to{transform:translateY(-70px);opacity:0}}.film-fragments{position:fixed;z-index:59;left:50%;top:54%;font-size:1.5rem;color:#67e8f9;animation:burst .5s ease-out forwards}@keyframes burst{to{transform:translate(-50%,-30px) scale(2);opacity:0}}`}</style></div>;
 }
