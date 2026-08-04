@@ -1,752 +1,86 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Rex from "~/components/Rex";
 import RexSpeechBubble from "~/components/RexSpeechBubble";
 import { getPlayerName } from "~/components/Onboarding";
 
-// ── Types ──
-
 type TileType = "bone" | "xray-hand" | "xray-chest" | "mri" | "xray-skull";
-
-interface Tile {
-  id: number;
-  pairId: number;
-  type: TileType;
-  col: number;
-  row: number;
-  layer: number;
-  cleared: boolean;
-}
-
-// ── Constants ──
-
-const TILE_TYPES: TileType[] = [
-  "bone",
-  "xray-hand",
-  "xray-chest",
-  "mri",
-  "xray-skull",
-];
-
-const TILE_IMAGES: Record<TileType, string> = {
-  bone: "/bone.png",
-  "xray-hand": "/xray-hand.png",
-  "xray-chest": "/xray-chest.png",
-  mri: "/mri-puzzle.png",
-  "xray-skull": "/xray-skull.png",
-};
-
-const TILE_LABELS: Record<TileType, string> = {
-  bone: "BONE",
-  "xray-hand": "HAND",
-  "xray-chest": "CHEST",
-  mri: "MRI",
-  "xray-skull": "SKULL",
-};
-
-// Grid layout
-const COLS = 8;
-const ROWS = 7;
-const MAX_LAYERS = 3;
-const CELL_W = 48;
-const CELL_H = 58;
-const LAYER_OFFSET_X = 24; // CELL_W / 2
-const LAYER_OFFSET_Y = 29; // CELL_H / 2
-const TILE_W = 56;
-const TILE_H = 66;
-const TOTAL_TILES = 48; // 24 pairs
-
-// Completion localStorage key
+interface Tile { id: number; pairId: number; type: TileType; col: number; row: number; layer: number; cleared: boolean; inHand: boolean; }
+const TILE_TYPES: TileType[] = ["bone", "xray-hand", "xray-chest", "mri", "xray-skull"];
+const TILE_IMAGES: Record<TileType, string> = { bone: "/bone.png", "xray-hand": "/xray-hand.png", "xray-chest": "/xray-chest.png", mri: "/mri-puzzle.png", "xray-skull": "/xray-skull.png" };
+const TILE_LABELS: Record<TileType, string> = { bone: "BONE", "xray-hand": "HAND", "xray-chest": "CHEST", mri: "MRI", "xray-skull": "SKULL" };
+const COLS = 8, ROWS = 7, MAX_LAYERS = 3;
+// 1.5x the original 56x66 tile. The board scales down as one unit on narrow phones.
+const CELL_W = 72, CELL_H = 87, LAYER_OFFSET_X = 36, LAYER_OFFSET_Y = 43.5;
+const TILE_W = 84, TILE_H = 99, TOTAL_TILES = 48, HAND_SIZE = 4;
 const COMPLETIONS_KEY = "filmStackCompletions";
-
-// ── Helpers ──
-
-function shuffleArray<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-/** Get all possible tile positions across all layers */
-function getAllPositions(): { col: number; row: number; layer: number }[] {
-  const positions: { col: number; row: number; layer: number }[] = [];
-  for (let layer = 0; layer < MAX_LAYERS; layer++) {
-    const maxCol = COLS - layer;
-    const maxRow = ROWS - layer;
-    for (let col = 0; col < maxCol; col++) {
-      for (let row = 0; row < maxRow; row++) {
-        positions.push({ col, row, layer });
-      }
-    }
-  }
-  return positions;
-}
-
-/** Generate a random tile layout */
+function shuffleArray<T>(arr: T[]) { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function getAllPositions() { const out: { col: number; row: number; layer: number }[] = []; for (let layer = 0; layer < MAX_LAYERS; layer++) for (let col = 0; col < COLS - layer; col++) for (let row = 0; row < ROWS - layer; row++) out.push({ col, row, layer }); return out; }
 function generateTiles(): Tile[] {
-  const allPositions = getAllPositions();
-  const shuffled = shuffleArray(allPositions);
-  const chosen = shuffled.slice(0, TOTAL_TILES);
-
-  // Create pairs of tile types
-  const pairCount = TOTAL_TILES / 2;
-  const typesPerType = Math.floor(pairCount / TILE_TYPES.length);
-  const remainder = pairCount % TILE_TYPES.length;
-
-  const typeAssignments: TileType[] = [];
-  for (let i = 0; i < TILE_TYPES.length; i++) {
-    const count = typesPerType + (i < remainder ? 1 : 0);
-    for (let j = 0; j < count; j++) {
-      typeAssignments.push(TILE_TYPES[i]);
-    }
-  }
-  // We have pairCount type assignments, each representing a pair (so 2 tiles)
-  // But we need TOTAL_TILES tile types (2 of each pair)
-  const allTypes: TileType[] = [];
-  for (const t of typeAssignments) {
-    allTypes.push(t, t); // two tiles per pair
-  }
-  const shuffledTypes = shuffleArray(allTypes);
-
-  // Assign types and pairIds
-  // pairId groups tiles of the same type together
-  const pairIdMap = new Map<TileType, number>();
-  let nextPairId = 0;
-  const typePairIds: number[] = [];
-  for (const t of shuffledTypes) {
-    if (!pairIdMap.has(t)) {
-      pairIdMap.set(t, nextPairId++);
-    }
-    typePairIds.push(pairIdMap.get(t)!);
-  }
-  // We need unique pair IDs per pair, not per type group
-  // Let me redo: each pair (two tiles of same type) gets a unique pairId
-  const pairIds: number[] = [];
-  const typeCounters = new Map<TileType, number>();
-  let pid = 0;
-  for (const t of shuffledTypes) {
-    const count = typeCounters.get(t) || 0;
-    if (count % 2 === 0) {
-      pid++;
-    }
-    pairIds.push(pid);
-    typeCounters.set(t, count + 1);
-  }
-
-  return chosen.map((pos, i) => ({
-    id: i,
-    pairId: pairIds[i],
-    type: shuffledTypes[i],
-    col: pos.col,
-    row: pos.row,
-    layer: pos.layer,
-    cleared: false,
-  }));
+  const chosen = shuffleArray(getAllPositions()).slice(0, TOTAL_TILES);
+  const types: TileType[] = []; for (let i = 0; i < TOTAL_TILES / 2; i++) { const t = TILE_TYPES[i % TILE_TYPES.length]; types.push(t, t); }
+  const shuffled = shuffleArray(types); const pairIds: number[] = []; const counts = new Map<TileType, number>(); let pid = 0;
+  for (const type of shuffled) { const count = counts.get(type) || 0; if (count % 2 === 0) pid++; pairIds.push(pid); counts.set(type, count + 1); }
+  return chosen.map((p, i) => ({ ...p, id: i, pairId: pairIds[i], type: shuffled[i], cleared: false, inHand: false }));
 }
-
-/** Get pixel position for a tile */
-function tilePixelPos(tile: { col: number; row: number; layer: number }): {
-  x: number;
-  y: number;
-} {
-  return {
-    x: tile.col * CELL_W + tile.layer * LAYER_OFFSET_X,
-    y: tile.row * CELL_H + tile.layer * LAYER_OFFSET_Y,
-  };
+function tilePos(t: { col: number; row: number; layer: number }) { return { x: t.col * CELL_W + t.layer * LAYER_OFFSET_X, y: t.row * CELL_H + t.layer * LAYER_OFFSET_Y }; }
+function box(t: { col: number; row: number; layer: number }) { const p = tilePos(t); return { left: p.x, right: p.x + TILE_W, top: p.y, bottom: p.y + TILE_H }; }
+function covers(a: Tile, b: Tile) { if (a.layer <= b.layer) return false; const x = box(a), y = box(b); const w = Math.min(x.right, y.right) - Math.max(x.left, y.left); const h = Math.min(x.bottom, y.bottom) - Math.max(x.top, y.top); return w > 0 && h > 0 && w * h >= TILE_W * TILE_H * .25; }
+function selectable(tile: Tile, all: Tile[]) {
+  if (tile.cleared || tile.inHand) return false;
+  if (all.some(t => !t.cleared && !t.inHand && t.id !== tile.id && covers(t, tile))) return false;
+  const left = all.some(t => !t.cleared && !t.inHand && t.layer === tile.layer && t.row === tile.row && t.col === tile.col - 1);
+  const right = all.some(t => !t.cleared && !t.inHand && t.layer === tile.layer && t.row === tile.row && t.col === tile.col + 1);
+  return !left || !right;
 }
-
-/** Get pixel bounding box for a tile */
-function tileBoundingBox(tile: {
-  col: number;
-  row: number;
-  layer: number;
-}): { left: number; right: number; top: number; bottom: number } {
-  const x = tile.col * CELL_W + tile.layer * LAYER_OFFSET_X;
-  const y = tile.row * CELL_H + tile.layer * LAYER_OFFSET_Y;
-  return {
-    left: x,
-    right: x + TILE_W,
-    top: y,
-    bottom: y + TILE_H,
-  };
-}
-
-/** Check if tile A covers tile B (A is on a higher layer, bounding boxes overlap).
- *  Use an overlap threshold: at least 25% of the tile area must be covered. */
-function tileCovers(
-  higher: { col: number; row: number; layer: number },
-  lower: { col: number; row: number; layer: number }
-): boolean {
-  if (higher.layer <= lower.layer) return false;
-
-  const hBox = tileBoundingBox(higher);
-  const lBox = tileBoundingBox(lower);
-
-  // Check if bounding boxes intersect
-  const overlapLeft = Math.max(hBox.left, lBox.left);
-  const overlapRight = Math.min(hBox.right, lBox.right);
-  const overlapTop = Math.max(hBox.top, lBox.top);
-  const overlapBottom = Math.min(hBox.bottom, lBox.bottom);
-
-  if (overlapLeft >= overlapRight || overlapTop >= overlapBottom) {
-    return false; // No overlap
-  }
-
-  const overlapArea =
-    (overlapRight - overlapLeft) * (overlapBottom - overlapTop);
-  const tileArea = TILE_W * TILE_H;
-
-  // Must cover at least 25% of the tile area
-  return overlapArea >= tileArea * 0.25;
-}
-
-/** Check if a tile is selectable */
-function isTileSelectable(
-  tile: Tile,
-  allTiles: Tile[]
-): boolean {
-  if (tile.cleared) return false;
-
-  // Check if covered by any tile on a higher layer
-  const covered = allTiles.some(
-    (t) => !t.cleared && t.id !== tile.id && tileCovers(t, tile)
-  );
-  if (covered) return false;
-
-  // Check left/right blocking on same layer
-  const leftBlocked = allTiles.some(
-    (t) =>
-      !t.cleared &&
-      t.id !== tile.id &&
-      t.layer === tile.layer &&
-      t.row === tile.row &&
-      t.col === tile.col - 1
-  );
-  const rightBlocked = allTiles.some(
-    (t) =>
-      !t.cleared &&
-      t.id !== tile.id &&
-      t.layer === tile.layer &&
-      t.row === tile.row &&
-      t.col === tile.col + 1
-  );
-
-  // Selectable if at least one long side is open
-  return !leftBlocked || !rightBlocked;
-}
-
-/** Find a valid matching pair for hint */
-function findHintPair(tiles: Tile[]): [Tile, Tile] | null {
-  const selectable = tiles.filter((t) => isTileSelectable(t, tiles));
-  // Group by type
-  const byType = new Map<TileType, Tile[]>();
-  for (const t of selectable) {
-    const arr = byType.get(t.type) || [];
-    arr.push(t);
-    byType.set(t.type, arr);
-  }
-  // Find a type with at least 2 matching pairIds
-  for (const [, arr] of byType) {
-    // Group by pairId
-    const byPairId = new Map<number, Tile[]>();
-    for (const t of arr) {
-      const a = byPairId.get(t.pairId) || [];
-      a.push(t);
-      byPairId.set(t.pairId, a);
-    }
-    for (const [, pairs] of byPairId) {
-      if (pairs.length >= 2) {
-        return [pairs[0], pairs[1]];
-      }
-    }
-    // Also check: any two tiles of same type
-    if (arr.length >= 2) {
-      return [arr[0], arr[1]];
-    }
-  }
-  return null;
-}
-
-/** Check if there are any valid moves */
-function hasValidMoves(tiles: Tile[]): boolean {
-  return findHintPair(tiles) !== null;
-}
-
-// ── Component ──
 
 export default function FilmStack() {
-  const playerName =
-    typeof window !== "undefined" ? getPlayerName() : "Player";
-
+  const playerName = typeof window !== "undefined" ? getPlayerName() : "Player";
   const [tiles, setTiles] = useState<Tile[]>(() => generateTiles());
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [rexMessage, setRexMessage] = useState("Match pairs to clear the board!");
-  const [rexMood, setRexMood] = useState<"happy" | "excited" | "encouraging">("happy");
-  const [showWin, setShowWin] = useState(false);
-  const [hintIds, setHintIds] = useState<number[]>([]);
+  const [handIds, setHandIds] = useState<number[]>([]);
   const [matchAnimIds, setMatchAnimIds] = useState<number[]>([]);
-  const [locked, setLocked] = useState(false);
-  const [completions, setCompletions] = useState(0);
-  const [shufflesUsed, setShufflesUsed] = useState(0);
+  const [rexMessage, setRexMessage] = useState("Tap an uncovered tile to add it to your hand!");
+  const [rexMood, setRexMood] = useState<"happy" | "excited" | "encouraging">("happy");
+  const [showWin, setShowWin] = useState(false), [locked, setLocked] = useState(false);
+  const [completions, setCompletions] = useState(0), [shufflesUsed, setShufflesUsed] = useState(0);
   const [shakingTileId, setShakingTileId] = useState<number | null>(null);
-
-  const boardRef = useRef<HTMLDivElement>(null);
-
-  // Load completions on mount
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const val = parseInt(localStorage.getItem(COMPLETIONS_KEY) || "0", 10);
-    setCompletions(isNaN(val) ? 0 : val);
-  }, []);
-
-  // Clear hint after a delay
-  useEffect(() => {
-    if (hintIds.length > 0) {
-      const t = setTimeout(() => setHintIds([]), 2000);
-      return () => clearTimeout(t);
-    }
-  }, [hintIds]);
-
-  // Clear match animation
-  useEffect(() => {
-    if (matchAnimIds.length > 0) {
-      const t = setTimeout(() => setMatchAnimIds([]), 500);
-      return () => clearTimeout(t);
-    }
-  }, [matchAnimIds]);
-
-  // Clear shake animation after it completes
-  useEffect(() => {
-    if (shakingTileId !== null) {
-      const t = setTimeout(() => setShakingTileId(null), 300);
-      return () => clearTimeout(t);
-    }
-  }, [shakingTileId]);
-
-  const remainingTiles = useMemo(
-    () => tiles.filter((t) => !t.cleared).length,
-    [tiles]
-  );
-
-  const selectableIds = useMemo(() => {
-    const ids = new Set<number>();
-    for (const t of tiles) {
-      if (isTileSelectable(t, tiles)) {
-        ids.add(t.id);
-      }
-    }
-    return ids;
-  }, [tiles]);
-
-  const getBoardDimensions = useCallback(() => {
-    let maxX = 0;
-    let maxY = 0;
-    for (const t of tiles) {
-      const pos = tilePixelPos(t);
-      if (pos.x + TILE_W > maxX) maxX = pos.x + TILE_W;
-      if (pos.y + TILE_H > maxY) maxY = pos.y + TILE_H;
-    }
-    return { w: maxX, h: maxY };
-  }, [tiles]);
-
-  const boardDims = useMemo(() => getBoardDimensions(), [getBoardDimensions]);
-
-  // Handle new game
-  const newGame = useCallback(() => {
-    setTiles(generateTiles());
-    setSelectedId(null);
-    setRexMessage("Match pairs to clear the board!");
-    setRexMood("happy");
-    setShowWin(false);
-    setHintIds([]);
-    setMatchAnimIds([]);
-    setLocked(false);
-    setShufflesUsed(0);
-    setShakingTileId(null);
-  }, []);
-
-  // Shuffle remaining tiles
+  useEffect(() => { const n = parseInt(localStorage.getItem(COMPLETIONS_KEY) || "0", 10); setCompletions(Number.isNaN(n) ? 0 : n); }, []);
+  useEffect(() => { if (shakingTileId !== null) { const t = setTimeout(() => setShakingTileId(null), 320); return () => clearTimeout(t); } }, [shakingTileId]);
+  const remainingTiles = useMemo(() => tiles.filter(t => !t.cleared).length, [tiles]);
+  const selectableIds = useMemo(() => new Set(tiles.filter(t => selectable(t, tiles)).map(t => t.id)), [tiles]);
+  const boardDims = useMemo(() => { let w = 0, h = 0; tiles.forEach(t => { const p = tilePos(t); w = Math.max(w, p.x + TILE_W); h = Math.max(h, p.y + TILE_H); }); return { w, h }; }, [tiles]);
+  const scaleFactor = typeof window === "undefined" ? 1 : Math.min(1, (window.innerWidth - 32) / boardDims.w);
+  const newGame = useCallback(() => { setTiles(generateTiles()); setHandIds([]); setMatchAnimIds([]); setShowWin(false); setLocked(false); setShufflesUsed(0); setShakingTileId(null); setRexMessage("Tap an uncovered tile to add it to your hand!"); setRexMood("happy"); }, []);
   const shuffleRemaining = useCallback(() => {
-    setTiles((prev) => {
-      const remaining = prev.filter((t) => !t.cleared);
-      const cleared = prev.filter((t) => t.cleared);
-
-      if (remaining.length === 0) return prev;
-
-      // Get all positions of remaining tiles
-      const positions = remaining.map((t) => ({
-        col: t.col,
-        row: t.row,
-        layer: t.layer,
-      }));
-      const shuffledPositions = shuffleArray(positions);
-
-      return [
-        ...cleared,
-        ...remaining.map((t, i) => ({
-          ...t,
-          col: shuffledPositions[i].col,
-          row: shuffledPositions[i].row,
-          layer: shuffledPositions[i].layer,
-        })),
-      ];
-    });
-    setSelectedId(null);
-    setHintIds([]);
-    setRexMessage("Board shuffled! Keep matching.");
-    setRexMood("encouraging");
-    setShufflesUsed((s) => s + 1);
+    setTiles(prev => { const active = prev.filter(t => !t.cleared && !t.inHand), positions = shuffleArray(active.map(t => ({ col: t.col, row: t.row, layer: t.layer }))); return prev.map(t => { const i = active.findIndex(a => a.id === t.id); return i < 0 ? t : { ...t, ...positions[i] }; }); });
+    setShufflesUsed(n => n + 1); setRexMessage("Board shuffled — keep filling your hand!"); setRexMood("encouraging");
   }, []);
-
-  // Hint
-  const showHint = useCallback(() => {
-    const pair = findHintPair(tiles);
-    if (pair) {
-      setHintIds([pair[0].id, pair[1].id]);
-      setRexMessage("Here's a match!");
-      setRexMood("happy");
-    } else {
-      setRexMessage("No moves available — try shuffling!");
-      setRexMood("encouraging");
-    }
-  }, [tiles]);
-
-  // Handle tile click
-  const handleTileClick = useCallback(
-    (tileId: number) => {
-      if (locked) return;
-
-      const tile = tiles.find((t) => t.id === tileId);
-      if (!tile || tile.cleared) return;
-
-      // Shake blocked tiles instead of selecting
-      if (!selectableIds.has(tileId)) {
-        setShakingTileId(tileId);
-        return;
-      }
-
-      if (selectedId === null) {
-        // First selection
-        setSelectedId(tileId);
-        setRexMessage("Now find its match!");
-        setRexMood("happy");
-        setHintIds([]);
-      } else if (selectedId === tileId) {
-        // Deselect
-        setSelectedId(null);
-        setRexMessage("Match pairs to clear the board!");
-        setRexMood("happy");
-      } else {
-        // Second selection — check match
-        const firstTile = tiles.find((t) => t.id === selectedId);
-        if (!firstTile) {
-          setSelectedId(tileId);
-          return;
-        }
-
-        if (firstTile.type === tile.type) {
-          // Match!
-          setLocked(true);
-          const matchId1 = selectedId;
-          const matchId2 = tileId;
-          setMatchAnimIds([matchId1, matchId2]);
-          setSelectedId(null);
-          setRexMessage("Nice match!");
-          setRexMood("excited");
-
-          // Clear both tiles after animation
-          setTimeout(() => {
-            setTiles((prev) => {
-              const updated = prev.map((t) =>
-                t.id === matchId1 || t.id === matchId2
-                  ? { ...t, cleared: true }
-                  : t
-              );
-              const remaining = updated.filter((t) => !t.cleared);
-
-              if (remaining.length === 0) {
-                // Win!
-                setShowWin(true);
-                setRexMessage("Board complete! Amazing! 🎉");
-                setRexMood("excited");
-
-                // Increment completions
-                if (typeof window !== "undefined") {
-                  const current = parseInt(
-                    localStorage.getItem(COMPLETIONS_KEY) || "0",
-                    10
-                  );
-                  const next = (isNaN(current) ? 0 : current) + 1;
-                  localStorage.setItem(COMPLETIONS_KEY, next.toString());
-                  setCompletions(next);
-                }
-              } else {
-                setRexMessage(
-                  `${remaining.length} tile${remaining.length > 1 ? "s" : ""} left!`
-                );
-                setRexMood("happy");
-
-                // Check if there are valid moves
-                if (!hasValidMoves(updated)) {
-                  setTimeout(() => {
-                    setRexMessage("No moves left — try shuffling!");
-                    setRexMood("encouraging");
-                  }, 200);
-                }
-              }
-
-              return updated;
-            });
-            setMatchAnimIds([]);
-            setLocked(false);
-          }, 400);
-        } else {
-          // No match
-          setRexMessage("Not a match — try again!");
-          setRexMood("encouraging");
-          setSelectedId(null);
-        }
-      }
-    },
-    [locked, tiles, selectedId, selectableIds]
-  );
-
-  // Sort tiles for rendering: lower layer first, then by row, then by col
-  const sortedTiles = useMemo(() => {
-    return [...tiles].sort((a, b) => {
-      if (a.layer !== b.layer) return a.layer - b.layer;
-      if (a.row !== b.row) return a.row - b.row;
-      return a.col - b.col;
-    });
-  }, [tiles]);
-
-  const scaleFactor = useMemo(() => {
-    // Scale board to fit mobile screens
-    if (typeof window === "undefined") return 1;
-    const maxWidth = Math.min(window.innerWidth - 32, 400);
-    return Math.min(1, maxWidth / boardDims.w);
-  }, [boardDims.w]);
-
-  return (
-    <div className="page-container max-w-lg mx-auto">
-      {/* ── Rex Header ── */}
-      <div className="mb-4">
-        <RexSpeechBubble message={rexMessage} mood={rexMood} />
-      </div>
-
-      {/* ── Info Bar ── */}
-      <div className="card mb-3 p-3 flex items-center justify-between">
-        <div className="text-center flex-1">
-          <span className="text-xs text-mutedText uppercase font-semibold">
-            Tiles Left
-          </span>
-          <div className="text-2xl font-bold text-primary">
-            {remainingTiles}
-          </div>
-        </div>
-        <div className="text-center flex-1">
-          <span className="text-xs text-mutedText uppercase font-semibold">
-            Boards Done
-          </span>
-          <div className="text-2xl font-bold text-secondary">
-            {completions}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Action Buttons ── */}
-      <div className="flex justify-center gap-2 mb-4">
-        <button
-          className="px-4 py-2 rounded-full text-sm font-semibold bg-white/10 text-white
-                     border border-white/20 hover:bg-white/20 transition-all
-                     active:scale-95"
-          onClick={shuffleRemaining}
-        >
-          🔀 Shuffle
-        </button>
-        <button
-          className="px-4 py-2 rounded-full text-sm font-semibold bg-white/10 text-white
-                     border border-white/20 hover:bg-white/20 transition-all
-                     active:scale-95"
-          onClick={showHint}
-        >
-          💡 Hint
-        </button>
-        <button
-          className="px-4 py-2 rounded-full text-sm font-semibold bg-white/10 text-white
-                     border border-white/20 hover:bg-white/20 transition-all
-                     active:scale-95"
-          onClick={newGame}
-        >
-          🔄 New
-        </button>
-      </div>
-
-      {/* ── Board ── */}
-      <div className="flex justify-center mb-4">
-        <div
-          ref={boardRef}
-          className="relative"
-          style={{
-            width: boardDims.w,
-            height: boardDims.h,
-            transform: `scale(${scaleFactor})`,
-            transformOrigin: "top center",
-            marginBottom:
-              boardDims.h * scaleFactor - boardDims.h > 0
-                ? 0
-                : -(boardDims.h - boardDims.h * scaleFactor),
-          }}
-        >
-          {/* Layer shadow indicators */}
-          {sortedTiles
-            .filter((t) => !t.cleared)
-            .map((tile) => {
-              const pos = tilePixelPos(tile);
-              const isSelected = selectedId === tile.id;
-              const isHinted = hintIds.includes(tile.id);
-              const isMatchAnim = matchAnimIds.includes(tile.id);
-              const isSelectable = selectableIds.has(tile.id);
-              const isShaking = shakingTileId === tile.id;
-
-              return (
-                <div
-                  key={tile.id}
-                  className={`absolute cursor-pointer transition-all duration-200
-                    ${isMatchAnim ? "opacity-0 scale-0" : "opacity-100"}
-                    ${!isSelectable && !isSelected ? "opacity-70" : ""}
-                  `}
-                  style={{
-                    left: pos.x,
-                    top: pos.y,
-                    width: TILE_W,
-                    height: TILE_H,
-                    zIndex: tile.layer * 100 + tile.row * 10 + tile.col,
-                    animation: isShaking ? "tileWiggle 0.3s ease-in-out" : undefined,
-                  }}
-                  onClick={() => handleTileClick(tile.id)}
-                >
-                  {/* Shadow for depth */}
-                  {tile.layer > 0 && (
-                    <div
-                      className="absolute rounded-lg bg-black/20"
-                      style={{
-                        left: -2,
-                        top: -2,
-                        right: 2,
-                        bottom: 2,
-                        zIndex: -1,
-                      }}
-                    />
-                  )}
-
-                  {/* Tile card */}
-                  <div
-                    className={`relative w-full h-full rounded-lg flex flex-col items-center justify-center p-1
-                      transition-all duration-200
-                      ${isSelected ? "ring-2 ring-yellow-400 ring-offset-1 ring-offset-transparent scale-105 shadow-lg shadow-yellow-400/30" : ""}
-                      ${isHinted ? "ring-2 ring-blue-400 ring-offset-1 ring-offset-transparent animate-pulse shadow-lg shadow-blue-400/30" : ""}
-                      ${isSelectable && !isSelected && !isHinted ? "hover:brightness-110" : ""}
-                    `}
-                    style={{
-                      background: isSelected
-                        ? "linear-gradient(135deg, #fef9e7 0%, #fdebd0 100%)"
-                        : isHinted
-                          ? "linear-gradient(135deg, #e8f4fd 0%, #d1e8ff 100%)"
-                          : "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
-                      border: isSelected
-                        ? "2px solid #f59e0b"
-                        : isHinted
-                          ? "2px solid #3b82f6"
-                          : "1px solid rgba(255,255,255,0.3)",
-                      boxShadow: isSelected
-                        ? "0 4px 16px rgba(245, 158, 11, 0.3)"
-                        : isHinted
-                          ? "0 4px 16px rgba(59, 130, 246, 0.3)"
-                          : tile.layer === 0
-                            ? "0 2px 6px rgba(0,0,0,0.15)"
-                            : tile.layer === 1
-                              ? "0 3px 8px rgba(0,0,0,0.2)"
-                              : "0 4px 12px rgba(0,0,0,0.25)",
-                    }}
-                  >
-                    {/* Tile image */}
-                    <img
-                      src={TILE_IMAGES[tile.type]}
-                      alt={TILE_LABELS[tile.type]}
-                      className="w-8 h-8 object-contain"
-                      draggable={false}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-
-          {/* Cleared tiles placeholder - keep layout stable */}
-          {tiles
-            .filter((t) => t.cleared)
-            .map((tile) => {
-              const pos = tilePixelPos(tile);
-              return (
-                <div
-                  key={`cleared-${tile.id}`}
-                  className="absolute pointer-events-none"
-                  style={{
-                    left: pos.x,
-                    top: pos.y,
-                    width: TILE_W,
-                    height: TILE_H,
-                    zIndex: tile.layer,
-                  }}
-                />
-              );
-            })}
-        </div>
-      </div>
-
-      {/* ── Rex ── */}
-      <div className="flex justify-center mb-20">
-        <Rex className="w-10 h-10" mood={rexMood} />
-      </div>
-
-      {/* ── Win Modal ── */}
-      {showWin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl p-8 mx-4 max-w-sm w-full text-center animate-[scaleIn_0.4s_ease-out]">
-            <Rex className="w-20 h-20 mx-auto mb-4" mood="excited" />
-            <h2 className="text-2xl font-extrabold text-primary mb-2">
-              Board Complete!
-            </h2>
-            <p className="text-mutedText mb-1">
-              You cleared all the tiles!
-            </p>
-            <p className="text-sm text-secondary font-medium mb-4">
-              Boards completed: {completions}
-            </p>
-            {shufflesUsed > 0 && (
-              <p className="text-xs text-mutedText mb-4">
-                Shuffles used: {shufflesUsed}
-              </p>
-            )}
-            <button
-              className="btn-primary w-full"
-              onClick={newGame}
-            >
-              Play Again
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── CSS for scale animation ── */}
-      <style>{`
-        @keyframes scaleIn {
-          0% { opacity: 0; transform: scale(0.8); }
-          100% { opacity: 1; transform: scale(1); }
-        }
-      `}</style>
-    </div>
-  );
+  const completeIfNeeded = useCallback((nextTiles: Tile[]) => {
+    if (nextTiles.every(t => t.cleared)) { setShowWin(true); setRexMessage("Board complete! Amazing! 🎉"); setRexMood("excited"); const current = parseInt(localStorage.getItem(COMPLETIONS_KEY) || "0", 10); const next = (Number.isNaN(current) ? 0 : current) + 1; localStorage.setItem(COMPLETIONS_KEY, String(next)); setCompletions(next); }
+  }, []);
+  const handleTileClick = useCallback((id: number) => {
+    if (locked) return; const tile = tiles.find(t => t.id === id); if (!tile || tile.cleared || tile.inHand) return;
+    if (!selectableIds.has(id)) { setShakingTileId(id); return; }
+    if (handIds.length >= HAND_SIZE) { setRexMessage("Your hand is full — send one tile back first."); setRexMood("encouraging"); return; }
+    const nextHand = [...handIds, id]; const match = nextHand.findIndex((otherId) => otherId !== id && tiles.find(t => t.id === otherId)?.type === tile.type);
+    setTiles(prev => prev.map(t => t.id === id ? { ...t, inHand: true } : t));
+    if (match >= 0) {
+      const firstId = nextHand[match]; setLocked(true); setMatchAnimIds([firstId, id]); setHandIds(nextHand.filter(x => x !== firstId && x !== id)); setRexMessage("Smash! Nice match!"); setRexMood("excited");
+      setTimeout(() => { setTiles(prev => { const updated = prev.map(t => t.id === firstId || t.id === id ? { ...t, cleared: true, inHand: false } : t); completeIfNeeded(updated); return updated; }); setMatchAnimIds([]); setLocked(false); }, 520);
+    } else { setHandIds(nextHand); setRexMessage(`${HAND_SIZE - nextHand.length} hand slot${HAND_SIZE - nextHand.length === 1 ? "" : "s"} left`); setRexMood("happy"); }
+  }, [locked, tiles, selectableIds, handIds, completeIfNeeded]);
+  const returnFromHand = useCallback((id: number) => {
+    if (locked || handIds.length < HAND_SIZE) return;
+    setHandIds(ids => ids.filter(x => x !== id)); setTiles(prev => prev.map(t => t.id === id ? { ...t, inHand: false } : t)); setRexMessage("Tile returned to the board — make room for a match!"); setRexMood("encouraging");
+  }, [locked, handIds.length]);
+  const sorted = useMemo(() => [...tiles].sort((a, b) => a.layer - b.layer || a.row - b.row || a.col - b.col), [tiles]);
+  return <div className="page-container max-w-lg mx-auto overflow-x-hidden">
+    <div className="mb-4"><RexSpeechBubble message={rexMessage} mood={rexMood} /></div>
+    <div className="card mb-3 p-3 flex items-center justify-between"><div className="text-center flex-1"><span className="text-xs text-mutedText uppercase font-semibold">Tiles Left</span><div className="text-2xl font-bold text-primary">{remainingTiles}</div></div><div className="text-center flex-1"><span className="text-xs text-mutedText uppercase font-semibold">Boards Done</span><div className="text-2xl font-bold text-secondary">{completions}</div></div></div>
+    <div className="flex justify-center gap-2 mb-4"><button className="px-4 py-2 rounded-full text-sm font-semibold bg-white/10 text-white border border-white/20 hover:bg-white/20 active:scale-95" onClick={shuffleRemaining}>🔀 Shuffle</button><button className="px-4 py-2 rounded-full text-sm font-semibold bg-white/10 text-white border border-white/20 hover:bg-white/20 active:scale-95" onClick={newGame}>🔄 New</button></div>
+    <div className="flex justify-center mb-3 w-full"><div className="relative" style={{ width: boardDims.w * scaleFactor, height: boardDims.h * scaleFactor }}><div className="absolute top-0 left-1/2" style={{ width: boardDims.w, height: boardDims.h, transform: `translateX(-50%) scale(${scaleFactor})`, transformOrigin: "top center" }}>{sorted.filter(t => !t.cleared && !t.inHand).map(tile => { const p = tilePos(tile), can = selectableIds.has(tile.id), smash = matchAnimIds.includes(tile.id); return <div key={tile.id} className={`absolute cursor-pointer ${smash ? "animate-[tileSmash_0.52s_ease-in_forwards]" : ""} ${!can ? "opacity-65" : ""}`} style={{ left: p.x, top: p.y, width: TILE_W, height: TILE_H, zIndex: tile.layer * 100 + tile.row * 10 + tile.col, animation: shakingTileId === tile.id ? "tileWiggle .3s ease-in-out" : undefined }} onClick={() => handleTileClick(tile.id)}><div className="w-full h-full rounded-lg flex items-center justify-center p-2" style={{ background: "linear-gradient(135deg,#f8fafc,#e2e8f0)", border: "1px solid rgba(255,255,255,.4)", boxShadow: `0 ${2 + tile.layer}px ${6 + tile.layer * 3}px rgba(0,0,0,.${15 + tile.layer * 5})` }}><img src={TILE_IMAGES[tile.type]} alt={TILE_LABELS[tile.type]} className="w-12 h-12 object-contain" draggable={false} /></div></div>; })}</div></div></div>
+    <section className="rounded-2xl p-3 mb-4 border border-white/15 bg-slate-900/60 shadow-inner"><div className="flex items-center justify-between mb-2"><h3 className="text-sm font-bold text-white uppercase tracking-wide">Tile hand</h3><span className="text-xs text-white/60">{handIds.length}/{HAND_SIZE}</span></div><div className="grid grid-cols-4 gap-2">{Array.from({ length: HAND_SIZE }, (_, slot) => { const tile = tiles.find(t => t.id === handIds[slot]); return <button key={slot} aria-label={tile ? `Return ${TILE_LABELS[tile.type]} tile` : "Empty hand slot"} disabled={!tile || handIds.length < HAND_SIZE} onClick={() => tile && returnFromHand(tile.id)} className={`h-[76px] rounded-xl flex items-center justify-center border transition-all ${tile ? "bg-slate-100 border-white/50" : "bg-white/5 border-dashed border-white/20"} ${tile && handIds.length === HAND_SIZE ? "hover:scale-105 cursor-pointer" : "cursor-default"}`}>{tile && <img src={TILE_IMAGES[tile.type]} alt={TILE_LABELS[tile.type]} className="w-11 h-11 object-contain" draggable={false} />}</button>; })}</div><p className="text-center text-[11px] text-white/55 mt-2">When full, tap a tile to return it to the board</p></section>
+    <div className="flex justify-center mb-20"><Rex className="w-10 h-10" mood={rexMood} /></div>
+    {showWin && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"><div className="bg-white rounded-3xl shadow-2xl p-8 mx-4 max-w-sm w-full text-center animate-[scaleIn_.4s_ease-out]"><Rex className="w-20 h-20 mx-auto mb-4" mood="excited" /><h2 className="text-2xl font-extrabold text-primary mb-2">Board Complete!</h2><p className="text-mutedText mb-1">You cleared all the tiles!</p><p className="text-sm text-secondary font-medium mb-4">Boards completed: {completions}</p><button className="btn-primary w-full" onClick={newGame}>Play Again</button></div></div>}
+    <style>{`@keyframes scaleIn{0%{opacity:0;transform:scale(.8)}100%{opacity:1;transform:scale(1)}} @keyframes tileSmash{0%{transform:scale(1);opacity:1}45%{transform:scale(1.35);opacity:1;filter:brightness(1.5)}100%{transform:scale(0);opacity:0}}`}</style>
+  </div>;
 }
