@@ -9,14 +9,14 @@ const TYPES:TileType[]=["bone","xray-hand","xray-chest","mri","xray-skull"];
 const IMAGES:Record<TileType,string>={bone:"/bone.png","xray-hand":"/xray-hand.png","xray-chest":"/xray-chest.png",mri:"/mri-puzzle.png","xray-skull":"/xray-skull.png"};
 const LABELS:Record<TileType,string>={bone:"BONE","xray-hand":"HAND","xray-chest":"CHEST",mri:"MRI","xray-skull":"SKULL"};
 const LEVELS=[
-  {types:2,count:16,layers:1},
-  {types:3,count:24,layers:2},
-  {types:3,count:32,layers:2},
+  {types:4,count:32,layers:2},
   {types:4,count:36,layers:2},
-  {types:4,count:40,layers:3,dense:true},
+  {types:4,count:40,layers:3},
+  {types:5,count:40,layers:3},
   {types:5,count:44,layers:3},
   {types:5,count:48,layers:3},
   {types:5,count:48,layers:3,dense:true},
+  {types:5,count:52,layers:3,dense:true},
   {types:5,count:52,layers:3,dense:true},
   {types:5,count:56,layers:3,dense:true},
 ];
