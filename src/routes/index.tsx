@@ -67,6 +67,14 @@ const playExperiences = [
     color: "from-primary/60 to-secondary/50",
     built: true,
   },
+  {
+    id: "scan-rush",
+    title: "Scan Rush",
+    subtitle: "Tap the lit bay — fast!",
+    emoji: "⚡",
+    color: "from-secondary to-primary/60",
+    built: true,
+  },
 ];
 
 function Home() {
