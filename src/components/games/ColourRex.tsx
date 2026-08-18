@@ -26,6 +26,11 @@ const COLORS = [
 const CANVAS_WIDTH = 500;
 // Height computed from image aspect ratio (1086×1448)
 
+// ── Zoom & pan ──
+const ZOOM_LEVELS = [1, 2, 3, 4] as const;
+// Movement (CSS px) beyond this turns a press into a pan (instead of a tap)
+const PAN_THRESHOLD_PX = 8;
+
 interface UndoEntry {
   imageData: ImageData;
   filledMask: Uint8Array;
@@ -193,6 +198,21 @@ export default function ColourRex() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [canvasDisplaySize, setCanvasDisplaySize] = useState({ w: 0, h: 0 });
 
+  // ── Zoom & pan state (mirrored in refs so gesture handlers stay fresh) ──
+  const [zoomIdx, setZoomIdx] = useState(0);
+  const zoomRef = useRef<number>(ZOOM_LEVELS[0]);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panRef = useRef({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  // In-flight pointer gesture: "pending" (tap or pan not yet decided) → "pan"
+  const gestureRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startPan: { x: number; y: number };
+    mode: "pending" | "pan";
+  } | null>(null);
+
   const [bestScore, setBestScore] = useState(() => {
     if (typeof window === "undefined") return 0;
     return parseInt(localStorage.getItem("colourRexBest") || "0", 10);
@@ -296,25 +316,80 @@ export default function ColourRex() {
     setUndoCount((c) => c + 1);
   }, []);
 
-  // ── Handle canvas tap (pointer event) ──
-  const handleCanvasPointerDown = useCallback(
-    (e: React.PointerEvent<HTMLCanvasElement>) => {
+  // ── Zoom & pan helpers ──
+
+  /** Keep the (scaled) image covering the whole viewport. At 1× pan is (0,0). */
+  const clampPan = useCallback((p: { x: number; y: number }, zoomValue: number) => {
+    if (zoomValue <= 1) return { x: 0, y: 0 };
+    const container = containerRef.current;
+    if (!container) return p;
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+    const minX = cw - cw * zoomValue;
+    const minY = ch - ch * zoomValue;
+    return {
+      x: Math.min(0, Math.max(minX, p.x)),
+      y: Math.min(0, Math.max(minY, p.y)),
+    };
+  }, []);
+
+  /** Step zoom up/down through ZOOM_LEVELS, keeping the viewport centre fixed. */
+  const applyZoom = useCallback(
+    (dir: 1 | -1) => {
+      const next = Math.min(ZOOM_LEVELS.length - 1, Math.max(0, zoomIdx + dir));
+      if (next === zoomIdx) return;
+      const curZoom = ZOOM_LEVELS[zoomIdx];
+      const nextZoom = ZOOM_LEVELS[next];
+
+      const container = containerRef.current;
+      const cw = container?.clientWidth ?? 0;
+      const ch = container?.clientHeight ?? 0;
+      const cx = cw / 2;
+      const cy = ch / 2;
+      const p = panRef.current;
+      // Keep the point under the viewport centre fixed while zooming
+      const nextPan = clampPan(
+        {
+          x: cx - (cx - p.x) * (nextZoom / curZoom),
+          y: cy - (cy - p.y) * (nextZoom / curZoom),
+        },
+        nextZoom,
+      );
+
+      zoomRef.current = nextZoom;
+      panRef.current = nextPan;
+      setPan(nextPan);
+      setZoomIdx(next);
+    },
+    [zoomIdx, clampPan],
+  );
+
+  /** Colour the pixel at a screen position, applying the inverse of pan+zoom. */
+  const colorAtScreen = useCallback(
+    (clientX: number, clientY: number) => {
       if (showComplete || !imageLoadedRef.current) return;
 
       const canvas = visibleCanvasRef.current;
       const hidden = hiddenCanvasRef.current;
       const mask = filledMaskRef.current;
-      if (!canvas || !hidden || !mask) return;
+      const container = containerRef.current;
+      if (!canvas || !hidden || !mask || !container) return;
 
-      const rect = canvas.getBoundingClientRect();
-      const cssX = e.clientX - rect.left;
-      const cssY = e.clientY - rect.top;
+      const rect = container.getBoundingClientRect();
+      const cssX = clientX - rect.left;
+      const cssY = clientY - rect.top;
+
+      // Inverse of the canvas transform (translate(pan) scale(zoom), origin 0 0)
+      const z = zoomRef.current;
+      const p = panRef.current;
+      const unzoomedX = (cssX - p.x) / z;
+      const unzoomedY = (cssY - p.y) / z;
 
       // Scale from CSS coords to canvas internal coords
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
-      const canvasX = Math.round(cssX * scaleX);
-      const canvasY = Math.round(cssY * scaleY);
+      const canvasX = Math.round(unzoomedX * scaleX);
+      const canvasY = Math.round(unzoomedY * scaleY);
 
       // Save undo snapshot before modifying
       saveUndoSnapshot();
@@ -354,6 +429,78 @@ export default function ColourRex() {
     },
     [showComplete, selectedColor, saveUndoSnapshot],
   );
+
+  // ── Canvas pointer gestures: tap to colour, drag (beyond threshold) to pan ──
+  const handleCanvasPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (showComplete || !imageLoadedRef.current) return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (gestureRef.current) {
+        // Self-heal a stale gesture (e.g. a pointerup we never saw)
+        setIsPanning(false);
+      }
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* pointer may already be gone — ignore */
+      }
+      gestureRef.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        startPan: { ...panRef.current },
+        mode: "pending",
+      };
+    },
+    [showComplete],
+  );
+
+  const handleCanvasPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      const g = gestureRef.current;
+      if (!g || g.pointerId !== e.pointerId) return;
+      const dx = e.clientX - g.startX;
+      const dy = e.clientY - g.startY;
+
+      if (g.mode === "pending") {
+        // Small movements stay taps; beyond the threshold it becomes a pan
+        if (Math.abs(dx) <= PAN_THRESHOLD_PX && Math.abs(dy) <= PAN_THRESHOLD_PX) return;
+        g.mode = "pan";
+        setIsPanning(true);
+      }
+
+      // Pan only makes sense zoomed in; at 1× a drag is a no-op
+      if (zoomRef.current <= 1) return;
+      const nextPan = clampPan(
+        { x: g.startPan.x + dx, y: g.startPan.y + dy },
+        zoomRef.current,
+      );
+      panRef.current = nextPan;
+      setPan(nextPan);
+    },
+    [clampPan],
+  );
+
+  const handleCanvasPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      const g = gestureRef.current;
+      if (!g || g.pointerId !== e.pointerId) return;
+      gestureRef.current = null;
+      if (g.mode === "pan") {
+        // A drag panned — never colours
+        setIsPanning(false);
+        return;
+      }
+      // A tap (no significant movement) colours exactly where the finger landed
+      colorAtScreen(e.clientX, e.clientY);
+    },
+    [colorAtScreen],
+  );
+
+  const handleCanvasPointerCancel = useCallback(() => {
+    gestureRef.current = null;
+    setIsPanning(false);
+  }, []);
 
   // ── Undo ──
   const handleUndo = useCallback(() => {
@@ -447,6 +594,9 @@ export default function ColourRex() {
     }
   }, [showComplete, bestScore]);
 
+  // ── Current zoom level (state-driven render value) ──
+  const zoom = ZOOM_LEVELS[zoomIdx];
+
   return (
     <div className="page-container max-w-lg mx-auto">
       <AchievementToast achievement={toastAchievement} onDismiss={() => setToastAchievement(null)} />
@@ -465,13 +615,64 @@ export default function ColourRex() {
           aspectRatio: `${1086} / ${1448}`,
         }}
       >
-        {/* Visible canvas — flood fill target */}
+        {/* Visible canvas — flood fill target. Transform = translate(pan) scale(zoom), origin 0 0 */}
         <canvas
           ref={visibleCanvasRef}
           className="absolute inset-0 w-full h-full select-none touch-none"
-          style={{ touchAction: "none" }}
+          style={{
+            touchAction: "none",
+            transformOrigin: "0 0",
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            // Direct 1:1 while dragging; a short ease when the zoom level changes
+            transition: isPanning ? "none" : "transform 150ms ease-out",
+            cursor: zoom > 1 ? (isPanning ? "grabbing" : "grab") : undefined,
+            willChange: "transform",
+          }}
           onPointerDown={handleCanvasPointerDown}
+          onPointerMove={handleCanvasPointerMove}
+          onPointerUp={handleCanvasPointerUp}
+          onPointerCancel={handleCanvasPointerCancel}
+          onLostPointerCapture={() => {
+            gestureRef.current = null;
+            setIsPanning(false);
+          }}
         />
+
+        {/* ── Zoom controls (stacked on the right edge) ── */}
+        <div className="absolute right-2 top-2 z-10 flex flex-col items-center gap-1.5 select-none">
+          <button
+            type="button"
+            aria-label="Zoom in"
+            onClick={() => applyZoom(1)}
+            onPointerDown={(e) => e.stopPropagation()}
+            disabled={zoomIdx >= ZOOM_LEVELS.length - 1}
+            className="w-11 h-11 rounded-full bg-white/95 shadow-md text-2xl font-bold text-gray-700 flex items-center justify-center leading-none transition-transform active:scale-90 disabled:opacity-40 disabled:active:scale-100 touch-none"
+          >
+            +
+          </button>
+          <span className="bg-black/50 text-white text-[11px] font-semibold px-2 py-1 rounded-full pointer-events-none whitespace-nowrap">
+            Zoom: {zoom}×
+          </span>
+          <button
+            type="button"
+            aria-label="Zoom out"
+            onClick={() => applyZoom(-1)}
+            onPointerDown={(e) => e.stopPropagation()}
+            disabled={zoomIdx <= 0}
+            className="w-11 h-11 rounded-full bg-white/95 shadow-md text-2xl font-bold text-gray-700 flex items-center justify-center leading-none transition-transform active:scale-90 disabled:opacity-40 disabled:active:scale-100 touch-none"
+          >
+            −
+          </button>
+        </div>
+
+        {/* ── Pan hint (only while zoomed in) ── */}
+        {zoom > 1 && (
+          <div className="absolute bottom-2 inset-x-0 flex justify-center pointer-events-none select-none">
+            <span className="bg-black/50 text-white text-[11px] font-semibold px-2 py-1 rounded-full">
+              Drag to pan
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ── Colour palette ── */}
