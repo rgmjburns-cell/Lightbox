@@ -9,6 +9,8 @@ import {
   trackGameCompletion,
   type Achievement,
 } from "~/lib/achievements";
+import { getPlayerName, submitScore } from "~/lib/leaderboard";
+import LeaderboardEntry from "~/components/LeaderboardEntry";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -161,6 +163,8 @@ export default function ScanRush() {
   );
   const [shake, setShake] = useState(false);
   const [isNewBest, setIsNewBest] = useState(false);
+  // Rank returned by the leaderboard submit for this round (null until known).
+  const [submitRank, setSubmitRank] = useState<number | null>(null);
   const [toastAchievement, setToastAchievement] =
     useState<Achievement | null>(null);
   const [highScore, setHighScore] = useState(() => {
@@ -223,6 +227,13 @@ export default function ScanRush() {
     completionHandledRef.current = true;
     addPoints(score);
     trackGameCompletion("scan-rush");
+    // Live leaderboard: fire-and-forget submit when a name is stored (silent
+    // on failure — never breaks the game).
+    if (getPlayerName()) {
+      submitScore("scan-rush", score).then((r) => {
+        if (r) setSubmitRank(r.rank);
+      });
+    }
     const newAchievements = checkAchievements();
     if (newAchievements.length > 0) {
       setToastAchievement(newAchievements[0]);
@@ -477,6 +488,7 @@ export default function ScanRush() {
     endTimeRef.current = now + ROUND_SECONDS * 1000;
     nextWaveAtRef.current = now + FIRST_WAVE_DELAY_MS;
     completionHandledRef.current = false;
+    setSubmitRank(null);
     highScoreAtStartRef.current =
       typeof window !== "undefined"
         ? parseInt(localStorage.getItem(SCORE_KEY) || "0", 10)
@@ -776,6 +788,12 @@ export default function ScanRush() {
                 🏆 New Best Score!
               </p>
             )}
+            <LeaderboardEntry
+              game="scan-rush"
+              score={score}
+              rank={submitRank}
+              onRank={setSubmitRank}
+            />
             <button className="btn-primary w-full text-lg" onClick={startGame}>
               🔄 Play Again
             </button>

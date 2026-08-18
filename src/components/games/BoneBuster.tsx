@@ -4,6 +4,8 @@ import RexSpeechBubble from "~/components/RexSpeechBubble";
 import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
 import { addPoints } from "~/lib/points";
+import { getPlayerName as getLbPlayerName, submitScore } from "~/lib/leaderboard";
+import LeaderboardEntry from "~/components/LeaderboardEntry";
 import {
   checkAchievements,
   trackGameCompletion,
@@ -776,6 +778,8 @@ export default function BoneBuster() {
   // Achievement toast
   const [toastAchievement, setToastAchievement] = useState<Achievement | null>(null);
   const levelCompletedRef = useRef(false);
+  // Rank returned by the leaderboard submit for this level (null until known).
+  const [submitRank, setSubmitRank] = useState<number | null>(null);
 
   // Animation state
   const [swappingTiles, setSwappingTiles] = useState<[Position, Position] | null>(null);
@@ -1360,8 +1364,14 @@ export default function BoneBuster() {
       addPoints(score);
 
       // Daily challenge bonus
-
       trackGameCompletion("bone-buster");
+      // Live leaderboard: fire-and-forget submit when a name is stored (silent
+      // on failure — never breaks the game). Backend keeps the month's best.
+      if (getLbPlayerName()) {
+        submitScore("bone-buster", score).then((r) => {
+          if (r) setSubmitRank(r.rank);
+        });
+      }
       const newAchievements = checkAchievements();
       if (newAchievements.length > 0) {
         setToastAchievement(newAchievements[0]);
@@ -1396,6 +1406,7 @@ export default function BoneBuster() {
       setMovesLeft(LEVELS[newLevel].moves);
       setGrid(generateCleanGrid());
       setPhase("playing");
+      setSubmitRank(null);
       setSelected(null);
       setChainCount(0);
       setRexMood("happy");
@@ -1421,6 +1432,7 @@ export default function BoneBuster() {
     setMovesLeft(levelConfig.moves + bonusMoves);
     setGrid(generateCleanGrid());
     setPhase("playing");
+    setSubmitRank(null);
     setSelected(null);
     setChainCount(0);
     setRexMood("happy");
@@ -1706,6 +1718,12 @@ export default function BoneBuster() {
                   ? "Great job! Almost perfect!"
                   : "Level passed!"}
             </p>
+            <LeaderboardEntry
+              game="bone-buster"
+              score={score}
+              rank={submitRank}
+              onRank={setSubmitRank}
+            />
             <button
               className="btn-primary w-full text-lg"
               onClick={nextLevel}
@@ -1809,6 +1827,12 @@ export default function BoneBuster() {
               <p className="text-sm text-mutedText mb-6">
                 Incredible work, {playerName}!
               </p>
+              <LeaderboardEntry
+                game="bone-buster"
+                score={score}
+                rank={submitRank}
+                onRank={setSubmitRank}
+              />
 
               <button
                 className="btn-primary w-full text-lg"
@@ -1822,6 +1846,7 @@ export default function BoneBuster() {
                   setMovesLeft(LEVELS[0].moves);
                   setGrid(generateCleanGrid());
                   setPhase("playing");
+                  setSubmitRank(null);
                   setRexMood("happy");
                   setRexMessage("Match 3 or more tiles!");
                 }}
