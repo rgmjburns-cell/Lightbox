@@ -8,6 +8,7 @@ const PulsePop = lazy(() => import("~/components/games/PulsePop"));
 const ColourRex = lazy(() => import("~/components/games/ColourRex"));
 const MriMixup = lazy(() => import("~/components/games/MriMixup"));
 const FilmStack = lazy(() => import("~/components/games/FilmStack"));
+const ScanRush = lazy(() => import("~/components/games/ScanRush"));
 export const Route = createFileRoute("/play/$gameId")({
   component: PlayGame,
 });
@@ -19,6 +20,7 @@ const gameMeta: Record<string, { title: string; emoji: string }> = {
   "ecg-rhythm": { title: "Pulse Pop", emoji: "💓" },
   "colour-rex": { title: "Colour Rex", emoji: "🎨" },
   "film-stack": { title: "Film Stack", emoji: "🩻" },
+  "scan-rush": { title: "Scan Rush", emoji: "⚡" },
 };
 function PlayGame() {
   const { gameId } = Route.useParams();
@@ -59,6 +61,8 @@ function PlayGame() {
           <ColourRex />
         ) : gameId === "film-stack" ? (
           <FilmStack />
+        ) : gameId === "scan-rush" ? (
+          <ScanRush />
         ) : (
           <div className="flex flex-col items-center justify-center min-h-[40vh] text-center">
             <span className="text-6xl mb-4">🎮</span>

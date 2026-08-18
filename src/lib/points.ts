@@ -20,6 +20,7 @@ const GAME_SCORE_KEYS = [
   "mriMixupBest_4x4",
   "scanWordsHighScore",
   "spotDiffHighScore",
+  "scanRushHighScore",
 ];
 
 // ── Public API ──
