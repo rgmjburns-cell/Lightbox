@@ -1,6 +1,8 @@
 node_modules
 
 .env
+# Runtime SQLite database for the shared leaderboard (created on first request).
+/data/
 .env.local
 .DS_Store
 .cache
