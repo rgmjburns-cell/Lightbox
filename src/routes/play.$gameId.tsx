@@ -1,14 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
-import Rex from "~/components/Rex";
 import brand from "~/branding";
 const BoneBuster = lazy(() => import("~/components/games/BoneBuster"));
 const ScanSearch = lazy(() => import("~/components/games/ScanSearch"));
 const MemoryScan = lazy(() => import("~/components/games/MemoryScan"));
-const FindTheFracture = lazy(() => import("~/components/games/FindTheFracture"));
 const PulsePop = lazy(() => import("~/components/games/PulsePop"));
-const ScanWords = lazy(() => import("~/components/games/ScanWords"));
-const WhatsThatScan = lazy(() => import("~/components/games/WhatsThatScan"));
 const ColourRex = lazy(() => import("~/components/games/ColourRex"));
 const MriMixup = lazy(() => import("~/components/games/MriMixup"));
 const FilmStack = lazy(() => import("~/components/games/FilmStack"));
@@ -19,26 +15,11 @@ const gameMeta: Record<string, { title: string; emoji: string }> = {
   "bone-buster": { title: "Bone Buster", emoji: "🦴" },
   "scan-search": { title: "Scan Search", emoji: "🔍" },
   "memory-scan": { title: "Memory Scan", emoji: "🧠" },
-  crossword: { title: "ScanWords", emoji: "📝" },
-  "spot-difference": { title: "Find the Fracture", emoji: "🎞️" },
   "mri-mixup": { title: "MRI Mix-Up", emoji: "🧩" },
   "ecg-rhythm": { title: "Pulse Pop", emoji: "💓" },
-  "whats-that-scan": { title: "What's That Scan?", emoji: "❓" },
   "colour-rex": { title: "Colour Rex", emoji: "🎨" },
   "film-stack": { title: "Film Stack", emoji: "🩻" },
 };
-function GamePlaceholder({ emoji, title }: { emoji: string; title: string }) {
-  return (
-    <div className="page-container flex flex-col items-center justify-center min-h-[60vh] text-center">
-      <span className="text-6xl mb-4">{emoji}</span>
-      <h1 className="text-2xl font-bold text-primary mb-2">{title}</h1>
-      <p className="text-mutedText">Coming soon! Our team is building this experience.</p>
-      <div className="mt-8">
-        <Rex className="w-16 h-16" mood="happy" />
-      </div>
-    </div>
-  );
-}
 function PlayGame() {
   const { gameId } = Route.useParams();
   const game = gameMeta[gameId] ?? { title: gameId, emoji: "🎮" };
@@ -70,16 +51,10 @@ function PlayGame() {
           <ScanSearch />
         ) : gameId === "memory-scan" ? (
           <MemoryScan />
-        ) : gameId === "crossword" ? (
-          <GamePlaceholder emoji="📝" title="ScanWords" />
-        ) : gameId === "spot-difference" ? (
-          <GamePlaceholder emoji="🎞️" title="Find the Fracture" />
         ) : gameId === "mri-mixup" ? (
           <MriMixup />
         ) : gameId === "ecg-rhythm" ? (
           <PulsePop />
-        ) : gameId === "whats-that-scan" ? (
-                    <WhatsThatScan />
         ) : gameId === "colour-rex" ? (
           <ColourRex />
         ) : gameId === "film-stack" ? (
