@@ -67,38 +67,6 @@ const playExperiences = [
     color: "from-primary/60 to-secondary/50",
     built: true,
   },
-  {
-    id: "crossword",
-    title: "ScanWords",
-    subtitle: "Radiology crossword",
-    emoji: "📝",
-    color: "from-secondary to-primary/50",
-    built: false,
-  },
-  {
-    id: "spot-difference",
-    title: "Find the Fracture",
-    subtitle: "Spot the difference",
-    emoji: "🎞️",
-    color: "from-secondary/80 to-primary/60",
-    built: false,
-  },
-  {
-    id: "skeleton-shuffle",
-    title: "Skeleton Shuffle",
-    subtitle: "Drag & drop bones",
-    emoji: "💀",
-    color: "from-primary/80 to-secondary/60",
-    built: false,
-  },
-  {
-    id: "whats-that-scan",
-    title: "What's That Scan?",
-    subtitle: "Radiology quiz",
-    emoji: "❓",
-    color: "from-secondary to-primary/60",
-    built: true,
-  },
 ];
 
 function Home() {
