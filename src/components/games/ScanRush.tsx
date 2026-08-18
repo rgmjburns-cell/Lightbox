@@ -19,18 +19,26 @@ const ROUND_SECONDS = 120; // fixed 2:00 round
 const FIRST_WAVE_DELAY_MS = 800; // grace before the first wave after Start
 
 // Scoring
-const BASE_POINTS = 10; // earned per correct tap = BASE × combo
-const BAD_PENALTY = 25; // fixed penalty for tapping a bad bay
+const BASE_POINTS = 10; // earned per correct tap = BASE × combo × speedFactor
+// speedFactor = 1 + SPEED_MAX × (1 − reactionMs/windowMs), clamped to [1, 1+SPEED_MAX].
+// A tap at ~20% of the window ≈ 4.2×, at 80% ≈ 1.8×, right at the timeout edge ≈ 1×.
+const SPEED_MAX = 4;
+// Show the ⚡ bolt on the float when the tap earned a meaningful speed boost.
+const SPEED_BOLT_FACTOR = 1.15;
+// Bad tap penalty scales with the combo it breaks: −(rate × combo), floor, cap.
+const BAD_PENALTY_RATE = 20;
+const BAD_PENALTY_FLOOR = 20;
+const BAD_PENALTY_CAP = 200;
 
 // Difficulty ramp — everything interpolated linearly by elapsed fraction t = elapsed/120
-const TIME_ON_SCREEN_START = 1200; // ms a lit bay stays up at t = 0
-const TIME_ON_SCREEN_END = 600; // ms at t = 1
-const WAVE_GAP_START = 1200; // ms idle between waves at t = 0
-const WAVE_GAP_END = 600; // ms at t = 1
-const BAD_PROB_START = 1 / 8; // chance a lit bay is bad at t = 0
-const BAD_PROB_END = 1 / 5; // chance at t = 1
+const TIME_ON_SCREEN_START = 1100; // ms a lit bay stays up at t = 0
+const TIME_ON_SCREEN_END = 500; // ms at t = 1
+const WAVE_GAP_START = 300; // ms idle between waves at t = 0 (player-paced: gap runs from wave resolution)
+const WAVE_GAP_END = 150; // ms at t = 1
+const BAD_PROB_START = 1 / 7; // chance a lit bay is bad at t = 0
+const BAD_PROB_END = 1 / 4; // chance at t = 1
 const DOUBLE_AFTER_SECONDS = 60; // double bays only in the back half
-const DOUBLE_CHANCE_MAX = 0.3; // chance a wave is a double at t = 1
+const DOUBLE_CHANCE_MAX = 0.35; // chance a wave is a double at t = 1
 
 type TileType =
   | "bone"
@@ -88,6 +96,8 @@ interface Bay {
   type: TileType | null;
   state: "idle" | "lit" | "tapped" | "expired";
   expiresAt: number;
+  litAt: number; // timestamp the bay lit — reaction = tapTime − litAt
+  windowMs: number; // time-on-screen this bay was spawned with (its speed window)
   fxId: number; // bumped each time a bay lights so animations re-trigger
 }
 
@@ -110,6 +120,8 @@ const makeIdleBay = (): Bay => ({
   type: null,
   state: "idle",
   expiresAt: 0,
+  litAt: 0,
+  windowMs: 0,
   fxId: 0,
 });
 
@@ -256,6 +268,8 @@ export default function ScanRush() {
       b.type = null;
       b.state = "idle";
       b.expiresAt = 0;
+      b.litAt = 0;
+      b.windowMs = 0;
     }
     litRef.current.clear();
     const elapsed = (now - startedAtRef.current) / 1000;
@@ -280,7 +294,8 @@ export default function ScanRush() {
     }
 
     const pb = badProb(elapsed);
-    const expiresAt = now + timeOnScreen(elapsed);
+    const windowMs = timeOnScreen(elapsed);
+    const expiresAt = now + windowMs;
 
     for (const i of indices) {
       const bay = baysArr[i];
@@ -291,6 +306,8 @@ export default function ScanRush() {
           : TILE_TYPES[Math.floor(Math.random() * TILE_TYPES.length)];
       bay.state = "lit";
       bay.expiresAt = expiresAt;
+      bay.litAt = now; // exact lit timestamp — reaction is measured from this
+      bay.windowMs = windowMs; // the speed window this bay was spawned with
       bay.fxId = ++fxIdRef.current;
       lit.add(i);
     }
@@ -394,22 +411,37 @@ export default function ScanRush() {
         litRef.current.delete(idx);
         const newCombo = comboRef.current + 1;
         comboRef.current = newCombo;
-        const earned = BASE_POINTS * newCombo;
+
+        // Speed-scaled scoring: reaction measured from the exact lit timestamp
+        // (same timestamps the timeout logic uses), relative to this bay's window.
+        const windowMs = bay.windowMs;
+        const reaction = Math.min(Math.max(now - bay.litAt, 0), windowMs);
+        const speedFactor = 1 + SPEED_MAX * (1 - reaction / windowMs);
+        const earned = Math.round(BASE_POINTS * newCombo * speedFactor);
         scoreRef.current += earned;
         setScore(scoreRef.current);
         setCombo(newCombo);
-        addFloat(idx, `+${earned}`, TILE_ACCENT[bay.type].particle, now);
+        addFloat(
+          idx,
+          `+${earned}${speedFactor > SPEED_BOLT_FACTOR ? "⚡" : ""}`,
+          TILE_ACCENT[bay.type].particle,
+          now
+        );
         triggerCallout(newCombo);
         if (newCombo >= 10) setRexMood("excited");
       } else {
-        // Bad tap: penalty + combo reset + clear red feedback
+        // Bad tap: penalty scales with the combo it breaks (combo still resets)
+        const penalty = Math.max(
+          BAD_PENALTY_FLOOR,
+          Math.min(BAD_PENALTY_CAP, BAD_PENALTY_RATE * comboRef.current)
+        );
         bay.state = "tapped";
         litRef.current.delete(idx);
         comboRef.current = 0;
         setCombo(0);
-        scoreRef.current = Math.max(0, scoreRef.current - BAD_PENALTY);
+        scoreRef.current = Math.max(0, scoreRef.current - penalty);
         setScore(scoreRef.current);
-        addFloat(idx, `−${BAD_PENALTY}`, "#DC2626", now);
+        addFloat(idx, `−${penalty}`, "#DC2626", now);
         setShake(true);
         window.setTimeout(() => setShake(false), 450);
         setRexMessage("Ouch! That was a trap bay!");
@@ -709,7 +741,8 @@ export default function ScanRush() {
               left: `${((f.col + 0.5) / COLS) * 100}%`,
               top: `${((f.row + 0.5) / ROWS) * 100}%`,
               color: f.color,
-              fontSize: "1.4rem",
+              fontSize: f.text.length > 6 ? "1.05rem" : "1.4rem",
+              whiteSpace: "nowrap",
               textShadow: "0 2px 6px rgba(0,0,0,0.35)",
               animation: "srFloatUp 0.9s ease-out forwards",
             }}
