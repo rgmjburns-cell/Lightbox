@@ -12,19 +12,19 @@ const ScanRush = lazy(() => import("~/components/games/ScanRush"));
 export const Route = createFileRoute("/play/$gameId")({
   component: PlayGame,
 });
-const gameMeta: Record<string, { title: string; emoji: string }> = {
-  "bone-buster": { title: "Bone Buster", emoji: "🦴" },
-  "scan-search": { title: "Scan Search", emoji: "🔍" },
-  "memory-scan": { title: "Memory Scan", emoji: "🧠" },
-  "mri-mixup": { title: "MRI Mix-Up", emoji: "🧩" },
-  "ecg-rhythm": { title: "Pulse Pop", emoji: "💓" },
-  "colour-rex": { title: "Colour Rex", emoji: "🎨" },
-  "film-stack": { title: "Film Stack", emoji: "🩻" },
-  "scan-rush": { title: "Scan Rush", emoji: "⚡" },
+const gameMeta: Record<string, { title: string; icon: string }> = {
+  "bone-buster": { title: "Bone Buster", icon: "/icons/icon-bone-buster.png" },
+  "scan-search": { title: "Scan Search", icon: "/icons/icon-scan-search.png" },
+  "memory-scan": { title: "Memory Scan", icon: "/icons/icon-memory-scan.png" },
+  "mri-mixup": { title: "MRI Mix-Up", icon: "/icons/icon-mri-mixup.png" },
+  "ecg-rhythm": { title: "Pulse Pop", icon: "/icons/icon-pulse-pop.png" },
+  "colour-rex": { title: "Colour Rex", icon: "/icons/icon-colour-rex.png" },
+  "film-stack": { title: "Film Stack", icon: "/icons/icon-film-stack.png" },
+  "scan-rush": { title: "Scan Rush", icon: "/icons/icon-scan-rush.png" },
 };
 function PlayGame() {
   const { gameId } = Route.useParams();
-  const game = gameMeta[gameId] ?? { title: gameId, emoji: "🎮" };
+  const game = gameMeta[gameId] ?? { title: gameId, icon: "" };
   return (
     <div className="page-container">
       <Link
@@ -34,7 +34,11 @@ function PlayGame() {
         ← Back to games
       </Link>
       <div className="card mb-6 flex items-center gap-4">
-        <span className="text-4xl">{game.emoji}</span>
+        {game.icon ? (
+          <img src={game.icon} alt={game.title} draggable={false} className="w-14 h-14 rounded-xl object-contain select-none" />
+        ) : (
+          <span className="text-4xl">🎮</span>
+        )}
         <div>
           <h1 className="text-xl font-bold text-primary">{game.title}</h1>
           <p className="text-sm text-mutedText">PLAY Experience</p>

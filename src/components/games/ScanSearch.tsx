@@ -577,9 +577,7 @@ export default function ScanSearch() {
             >
               Play Again
             </button>
-            <Link to="/" className="btn-secondary w-full text-lg mt-3">
-              🏠 Back to Games
-            </Link>
+            <Link to="/" className="btn-secondary w-full text-lg mt-4 block">Back to Games</Link>
           </div>
         </div>
       )}
