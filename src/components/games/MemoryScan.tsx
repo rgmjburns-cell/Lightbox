@@ -95,6 +95,10 @@ export default function MemoryScan() {
     return parseInt(localStorage.getItem("memoryScanBestHard") || "0", 10);
   });
   const [submitRank, setSubmitRank] = useState<number | null>(null);
+  // Leaderboard score: 100 * (maxMoves - moves), where maxMoves = total cards.
+  // Fewer moves → higher bonus → higher leaderboard rank (fewer moves is better play).
+  // Hard: 24 cards, perfect = 1200. Easy: 16 cards, perfect = 800.
+  const bonus = Math.max(0, 100 * (cards.length - moves));
 
   // Timer
   useEffect(() => {
@@ -109,19 +113,16 @@ export default function MemoryScan() {
   useEffect(() => {
     if (showComplete && !completedRef.current) {
       completedRef.current = true;
-      // Bonus: 100 * (maxMoves - moves), where maxMoves = total cards
-      const maxMoves = cards.length;
-      const bonus = Math.max(0, 100 * (maxMoves - moves));
       if (bonus > 0) addPoints(bonus);
 
       // Daily challenge bonus
 
       trackGameCompletion("memory-scan");
       trackMemoryScanCompletion(moves);
-      // Live leaderboard: submit the stored best (max across difficulties),
+      // Live leaderboard: submit this run's bonus (100 * (cards - moves)),
       // fire-and-forget when a name is stored (silent on failure).
       if (getLbPlayerName()) {
-        submitScore("memory-scan", Math.max(bestEasy, bestHard)).then((r) => {
+        submitScore("memory-scan", bonus).then((r) => {
           if (r) setSubmitRank(r.rank);
         });
       }
@@ -454,7 +455,7 @@ export default function MemoryScan() {
             )}
             <LeaderboardEntry
               game="memory-scan"
-              score={Math.max(bestEasy, bestHard)}
+              score={bonus}
               rank={submitRank}
               onRank={setSubmitRank}
             />
