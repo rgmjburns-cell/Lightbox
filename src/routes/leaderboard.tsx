@@ -126,7 +126,7 @@ function Leaderboard() {
       {/* Rex intro */}
       <div className="mb-6 mt-2">
         <RexSpeechBubble
-          message="The board is live! Beat the top score and the first coffee of the month is on us."
+          message="The board is live! Beat the top score and take the crown this month."
           mood="excited"
         />
       </div>
