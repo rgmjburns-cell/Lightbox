@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, type PointerEvent as ReactPointerEvent } from "react";
 import RexSpeechBubble from "~/components/RexSpeechBubble";
 import Rex from "~/components/Rex";
 import AchievementToast from "~/components/AchievementToast";
@@ -250,6 +250,53 @@ export default function ScanSearch() {
     [placements, foundWords]
   );
 
+  // Shared word-found flow: scoring, rex messages, completion (used by both
+  // tap and drag selection so there is exactly one copy of this logic).
+  const handleWordFound = useCallback(
+    (placement: WordPlacement) => {
+      const newFound = new Set(foundWords);
+      newFound.add(placement.word);
+      setFoundWords(newFound);
+
+      // Score: 100 base + speed bonus
+      const speedBonus = Math.max(0, 200 - timer);
+      const earned = 100 + speedBonus;
+      setScore((s) => s + earned);
+
+      setFlashWord(placement.word);
+      setTimeout(() => setFlashWord(null), 800);
+
+      setRexMood("excited");
+      setRexMessage(`Found "${placement.word}"! +${earned} pts`);
+
+      // Check if all words found
+      if (newFound.size === placements.length) {
+        setTimerRunning(false);
+        setShowComplete(true);
+        setRexMood("excited");
+        setRexMessage(`Amazing, ${playerName}! All words found! 🎉`);
+
+        const finalScore = score + earned;
+        if (finalScore > highScore) {
+          setHighScore(finalScore);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("scanSearchHighScore", finalScore.toString());
+          }
+        }
+      }
+
+      setTimeout(() => {
+        if (newFound.size !== placements.length) {
+          setRexMood("happy");
+          setRexMessage(
+            `${placements.length - newFound.size} word${placements.length - newFound.size > 1 ? "s" : ""} left to find!`
+          );
+        }
+      }, 2000);
+    },
+    [foundWords, placements, timer, score, highScore, playerName]
+  );
+
   // Handle tapping a cell
   const handleCellTap = useCallback(
     (row: number, col: number) => {
@@ -297,91 +344,128 @@ export default function ScanSearch() {
       // Check if chain matches a word
       const match = checkChainForWord(newChain);
       if (match) {
-        // Inline the word-found logic to avoid circular dependency
-        const newFound = new Set(foundWords);
-        newFound.add(match.word);
-        setFoundWords(newFound);
-
-        const speedBonus = Math.max(0, 200 - timer);
-        const earned = 100 + speedBonus;
-        setScore((s) => s + earned);
-
-        setFlashWord(match.word);
-        setTimeout(() => setFlashWord(null), 800);
-
-        setRexMood("excited");
-        setRexMessage(`Found "${match.word}"! +${earned} pts`);
-
-        if (newFound.size === placements.length) {
-          setTimerRunning(false);
-          setShowComplete(true);
-          setRexMood("excited");
-          setRexMessage(`Amazing, ${playerName}! All words found! 🎉`);
-          const finalScore = score + earned;
-          if (finalScore > highScore) {
-            setHighScore(finalScore);
-            if (typeof window !== "undefined") {
-              localStorage.setItem("scanSearchHighScore", finalScore.toString());
-            }
-          }
-        } else {
-          setTimeout(() => {
-            setRexMood("happy");
-            setRexMessage(`${placements.length - newFound.size} word${placements.length - newFound.size > 1 ? "s" : ""} left to find!`);
-          }, 2000);
-        }
-
+        // Single shared word-found flow (scoring, rex messages, completion)
+        handleWordFound(match);
         setSelectedChain([]);
         setSelectedCells(new Set());
       }
     },
-    [showComplete, timerRunning, selectedChain, checkChainForWord, foundWords, placements, timer, score, highScore, playerName]
+    [showComplete, timerRunning, selectedChain, checkChainForWord, handleWordFound]
   );
 
-  const handleWordFound = useCallback(
-    (placement: WordPlacement) => {
-      const newFound = new Set(foundWords);
-      newFound.add(placement.word);
-      setFoundWords(newFound);
+  // ── Drag-to-highlight word selection (Pointer Events) ──
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const isPointerDownRef = useRef(false);
+  const dragActiveRef = useRef(false);
+  const downCellRef = useRef<{ row: number; col: number } | null>(null);
+  const dragChainRef = useRef<{ row: number; col: number }[]>([]);
 
-      // Score: 100 base + speed bonus
-      const speedBonus = Math.max(0, 200 - timer);
-      const earned = 100 + speedBonus;
-      setScore((s) => s + earned);
+  const getCellFromPoint = (clientX: number, clientY: number): { row: number; col: number } | null => {
+    const el = gridRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
+    const cw = rect.width / GRID_SIZE;
+    const ch = rect.height / GRID_SIZE;
+    const row = Math.floor((clientY - rect.top) / ch);
+    const col = Math.floor((clientX - rect.left) / cw);
+    if (row < 0 || row >= GRID_SIZE || col < 0 || col >= GRID_SIZE) return null;
+    return { row, col };
+  };
 
-      setFlashWord(placement.word);
-      setTimeout(() => setFlashWord(null), 800);
+  // Build a connected chain of cells between two cells (incl. intermediates)
+  const pathBetween = (
+    from: { row: number; col: number },
+    to: { row: number; col: number }
+  ): { row: number; col: number }[] => {
+    const steps = Math.max(Math.abs(to.row - from.row), Math.abs(to.col - from.col));
+    const cells: { row: number; col: number }[] = [];
+    for (let i = 1; i <= steps; i++) {
+      cells.push({
+        row: from.row + Math.round(((to.row - from.row) * i) / steps),
+        col: from.col + Math.round(((to.col - from.col) * i) / steps),
+      });
+    }
+    return cells;
+  };
 
-      setRexMood("excited");
-      setRexMessage(`Found "${placement.word}"! +${earned} pts`);
+  const syncChain = (chain: { row: number; col: number }[]) => {
+    setSelectedChain(chain);
+    setSelectedCells(new Set(chain.map((c) => `${c.row},${c.col}`)));
+  };
 
-      // Check if all words found
-      if (newFound.size === placements.length) {
-        setTimerRunning(false);
-        setShowComplete(true);
-        setRexMood("excited");
-        setRexMessage(`Amazing, ${playerName}! All words found! 🎉`);
+  const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (showComplete) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const cell = getCellFromPoint(e.clientX, e.clientY);
+    if (!cell) return;
+    isPointerDownRef.current = true;
+    dragActiveRef.current = false;
+    downCellRef.current = cell;
+    dragChainRef.current = [];
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
 
-        const finalScore = score + earned;
-        if (finalScore > highScore) {
-          setHighScore(finalScore);
-          if (typeof window !== "undefined") {
-            localStorage.setItem("scanSearchHighScore", finalScore.toString());
-          }
-        }
-      }
+  const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!isPointerDownRef.current) return;
+    const cell = getCellFromPoint(e.clientX, e.clientY);
+    if (!cell) return;
+    if (!dragActiveRef.current) {
+      const down = downCellRef.current;
+      if (!down || (down.row === cell.row && down.col === cell.col)) return;
+      // First move off the starting cell: activate a fresh drag chain
+      dragActiveRef.current = true;
+      dragChainRef.current = [{ row: down.row, col: down.col }];
+      if (!timerRunning) setTimerRunning(true);
+    }
+    const cur = dragChainRef.current;
+    const last = cur[cur.length - 1];
+    let next: { row: number; col: number }[];
+    if (!last) {
+      next = [{ row: cell.row, col: cell.col }];
+    } else if (cur.some((c) => c.row === cell.row && c.col === cell.col)) {
+      // Pointer back over a cell already in the chain — nothing to add
+      return;
+    } else {
+      const path = pathBetween(last, cell).filter(
+        (nc) => !cur.some((c) => c.row === nc.row && c.col === nc.col)
+      );
+      next = [...cur, ...path];
+    }
+    dragChainRef.current = next;
+    if (next.length > 0) syncChain(next);
+  };
 
-      setTimeout(() => {
-        if (newFound.size !== placements.length) {
-          setRexMood("happy");
-          setRexMessage(
-            `${placements.length - newFound.size} word${placements.length - newFound.size > 1 ? "s" : ""} left to find!`
-          );
-        }
-      }, 2000);
-    },
-    [foundWords, placements, timer, score, highScore, playerName]
-  );
+  const finishDrag = () => {
+    const wasDrag = dragActiveRef.current;
+    const chain = dragChainRef.current;
+    isPointerDownRef.current = false;
+    dragActiveRef.current = false;
+    downCellRef.current = null;
+    dragChainRef.current = [];
+    if (!wasDrag || chain.length === 0) return;
+    // Run the same word-match check the tap flow uses
+    const match = checkChainForWord(chain);
+    if (match) handleWordFound(match);
+    setSelectedChain([]);
+    setSelectedCells(new Set());
+  };
+
+  const handlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!isPointerDownRef.current) return;
+    const wasDrag = dragActiveRef.current;
+    const down = downCellRef.current;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    finishDrag();
+    // A plain tap (pointer down + up, no movement) keeps the existing tap semantics
+    if (!wasDrag && down) {
+      handleCellTap(down.row, down.col);
+    }
+  };
 
   // Compute which cells are "found" (part of found words)
   const foundCellSet = useMemo(() => {
@@ -483,11 +567,17 @@ export default function ScanSearch() {
       {/* ── Grid ── */}
       <div className="relative select-none mb-4">
         <div
+          ref={gridRef}
           className="grid gap-[2px] p-2 bg-white rounded-2xl shadow-lg border border-lightTeal/50"
           style={{
             gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
-            touchAction: "manipulation",
+            touchAction: "none",
           }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={finishDrag}
+          onPointerCancel={finishDrag}
         >
           {Array.from({ length: GRID_SIZE }, (_, r) =>
             Array.from({ length: GRID_SIZE }, (_, c) => {
@@ -511,7 +601,6 @@ export default function ScanSearch() {
                           : "bg-lightTeal/20 text-primary hover:bg-lightTeal/40"
                     }
                   `}
-                  onClick={() => handleCellTap(r, c)}
                   aria-label={`Cell ${r},${c}: ${grid[r][c]}`}
                 >
                   <span
