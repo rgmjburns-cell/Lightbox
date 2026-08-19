@@ -15,6 +15,10 @@ const PLAYER_NAME_KEY = "lightboxPlayerName";
 // this helper existed are still recognised; setPlayerName keeps both keys
 // in sync.
 const LEGACY_PLAYER_NAME_KEY = "playerName";
+// When a guest identity is upgraded to a real name, the guest name is parked
+// here so the next submitScore can tell the server to merge the guest's rows
+// into the real name's row. Cleared once the merge is acknowledged.
+const PENDING_PREV_GUEST_KEY = "lightboxPendingPrevGuest";
 
 export type LeaderboardGame =
   | "scan-rush"
@@ -61,22 +65,65 @@ export function setPlayerName(name: string): void {
   localStorage.setItem(LEGACY_PLAYER_NAME_KEY, name);
 }
 
+/** True when the name is an auto-generated guest identity ("Guest NNNN"). */
+export function isGuestName(name: string): boolean {
+  return /^Guest \d{4}$/.test(name);
+}
+
 /**
- * Submit a finished game score for the stored player.
- * Returns null when no name is stored (caller shows the prompt) or on any
- * failure. On success returns the player's rank on the month's "all" board.
+ * Guarantee a stored player name, auto-creating a guest identity
+ * ("Guest NNNN", e.g. "Guest 4823") when nobody has entered a real name.
+ * Returns the name. Every completed round therefore has a name to submit
+ * under, even for fully anonymous play.
+ */
+export function ensurePlayerName(): string {
+  const existing = getPlayerName();
+  if (existing) return existing;
+  const digits = String(Math.floor(1000 + Math.random() * 9000));
+  const guest = `Guest ${digits}`;
+  setPlayerName(guest);
+  return guest;
+}
+
+/**
+ * Replace the stored name with a real one. When the current name is a guest
+ * identity, it is parked as the pending-previous name so the next
+ * submitScore can POST prevName and have the server merge the guest's rows
+ * into the real name's row. When the current name is already real, this is
+ * just a plain rename.
+ */
+export function upgradePlayerName(realName: string): void {
+  const current = getPlayerName();
+  if (current && isGuestName(current)) {
+    localStorage.setItem(PENDING_PREV_GUEST_KEY, current);
+  }
+  setPlayerName(realName);
+}
+
+/**
+ * Submit a finished game score. A stored name is guaranteed: when nobody has
+ * entered one, a guest identity ("Guest NNNN") is auto-created and used, so
+ * every completed round lands on the board. When a guest identity was
+ * upgraded to a real name since the last submit, the guest name is sent as
+ * prevName so the server merges the guest's rows into the real name's.
+ * Returns null on any failure (silent). On success returns the player's rank
+ * on the month's "all" board.
  */
 export async function submitScore(
   game: LeaderboardGame,
   score: number
 ): Promise<{ rank: number } | null> {
-  const name = getPlayerName();
-  if (!name) return null;
+  const name = ensurePlayerName();
   try {
+    const body: Record<string, unknown> = { name, game, score };
+    const prevName = localStorage.getItem(PENDING_PREV_GUEST_KEY);
+    if (prevName && prevName !== name) {
+      body.prevName = prevName;
+    }
     const res = await fetch("/api/leaderboard", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, game, score }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       console.warn("Leaderboard submit failed:", res.status, res.statusText);
@@ -87,6 +134,8 @@ export async function submitScore(
       console.warn("Leaderboard submit failed:", data);
       return null;
     }
+    // Merge acknowledged — the guest rows now live under the real name.
+    localStorage.removeItem(PENDING_PREV_GUEST_KEY);
     return { rank: data.rank ?? 1 };
   } catch (err) {
     console.warn("Leaderboard submit error:", err);

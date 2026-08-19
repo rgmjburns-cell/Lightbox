@@ -4,11 +4,10 @@ import RexSpeechBubble from "~/components/RexSpeechBubble";
 import {
   fetchLeaderboard,
   getPlayerName,
+  isGuestName,
   isValidPlayerName,
-  setPlayerName,
-  GAME_META,
+  upgradePlayerName,
   type LeaderboardEntry,
-  type LeaderboardFilter,
 } from "~/lib/leaderboard";
 
 export const Route = createFileRoute("/leaderboard")({
@@ -17,16 +16,6 @@ export const Route = createFileRoute("/leaderboard")({
 
 const POLL_MS = 5000;
 
-const FILTERS: { id: LeaderboardFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  ...GAME_META.map((g) => ({ id: g.id as LeaderboardFilter, label: g.label })),
-];
-
-// id → meta lookup for the per-game pills on entry rows.
-const GAME_META_BY_ID = Object.fromEntries(
-  GAME_META.map((g) => [g.id, g])
-) as Record<string, (typeof GAME_META)[number]>;
-
 const MEDALS = ["🏆", "🥈", "🥉"];
 
 function Leaderboard() {
@@ -34,7 +23,6 @@ function Leaderboard() {
     typeof window === "undefined" ? null : getPlayerName()
   );
   const [nameInput, setNameInput] = useState("");
-  const [filter, setFilter] = useState<LeaderboardFilter>("all");
   const [entries, setEntries] = useState<LeaderboardEntry[] | null>(null);
   const [error, setError] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
@@ -43,12 +31,13 @@ function Leaderboard() {
   const [clearing, setClearing] = useState(false);
   const [clearedMsg, setClearedMsg] = useState<string | null>(null);
 
-  // ── Data: fetch on mount + poll every 5s (client-side only) ──
+  // ── Data: one combined board (each player's best score across games for the
+  // month) — fetch on mount + poll every 5s (client-side only) ──
   useEffect(() => {
     let active = true;
 
     const run = async () => {
-      const data = await fetchLeaderboard(filter);
+      const data = await fetchLeaderboard();
       if (!active) return;
       if (data) {
         setEntries(data.entries);
@@ -64,21 +53,23 @@ function Leaderboard() {
       active = false;
       clearInterval(id);
     };
-  }, [filter]);
+  }, []);
 
   const refresh = useCallback(() => {
-    void fetchLeaderboard(filter).then((data) => {
+    void fetchLeaderboard().then((data) => {
       if (data) {
         setEntries(data.entries);
         setError(false);
       }
     });
-  }, [filter]);
+  }, []);
 
   const handleSaveName = () => {
     const trimmed = nameInput.trim();
     if (!isValidPlayerName(trimmed)) return;
-    setPlayerName(trimmed);
+    // Guest → real name: parks the guest as pending-previous so the player's
+    // next game submission merges their guest rows into this name.
+    upgradePlayerName(trimmed);
     setPlayerNameState(trimmed);
     setNameInput("");
     // Their scores may already exist this month — highlight now.
@@ -124,6 +115,10 @@ function Leaderboard() {
 
   const trimmedPlayer = playerName?.trim().toLowerCase() ?? null;
 
+  // Name gate: show the prompt when no name is stored OR when the stored name
+  // is still a guest identity (guests can upgrade to a real name here).
+  const needsName = !playerName || isGuestName(playerName);
+
   const showLoading = entries === null && !error;
 
   return (
@@ -137,7 +132,7 @@ function Leaderboard() {
       </div>
 
       {/* ── Name gate ── */}
-      {playerName ? (
+      {!needsName ? (
         <div className="card mb-4 flex items-center justify-between py-3">
           <p className="text-sm text-mutedText">
             Playing as{" "}
@@ -158,8 +153,9 @@ function Leaderboard() {
             Enter your first name to play
           </h2>
           <p className="text-xs text-mutedText mb-3">
-            We'll use it to save your score and show your place on the
-            leaderboard.
+            {playerName
+              ? `You're currently playing as ${playerName} — enter your first name to be shown as yourself and carry your scores over.`
+              : "We'll use it to save your score and show your place on the leaderboard."}
           </p>
           <div className="flex gap-2">
             <input
@@ -185,24 +181,6 @@ function Leaderboard() {
           </div>
         </div>
       )}
-
-      {/* ── Game filter chips ── */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            onClick={() => setFilter(f.id)}
-            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors duration-150 active:scale-95 ${
-              filter === f.id
-                ? "bg-secondary text-white"
-                : "bg-white/10 text-white/70 hover:bg-white/20"
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
 
       {/* ── Board ── */}
       <div className="flex items-baseline justify-between mb-4">
@@ -277,10 +255,6 @@ function Leaderboard() {
                       You
                     </span>
                   )}
-                </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-lightTeal text-secondary text-[10px] font-semibold px-2 py-0.5 shrink-0">
-                  <span>{GAME_META_BY_ID[entry.game]?.emoji ?? "🎮"}</span>
-                  {GAME_META_BY_ID[entry.game]?.label ?? entry.game}
                 </span>
                 <span className="text-secondary font-bold tabular-nums shrink-0">
                   {entry.score.toLocaleString()}

@@ -9,7 +9,7 @@ import {
   trackGameCompletion,
   type Achievement,
 } from "~/lib/achievements";
-import { getPlayerName, submitScore } from "~/lib/leaderboard";
+import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -227,13 +227,12 @@ export default function ScanRush() {
     completionHandledRef.current = true;
     addPoints(score);
     trackGameCompletion("scan-rush");
-    // Live leaderboard: fire-and-forget submit when a name is stored (silent
-    // on failure — never breaks the game).
-    if (getPlayerName()) {
-      submitScore("scan-rush", score).then((r) => {
-        if (r) setSubmitRank(r.rank);
-      });
-    }
+    // Live leaderboard: fire-and-forget submit (submitScore self-handles the
+    // player name, auto-creating a guest identity when needed — silent on
+    // failure — never breaks the game).
+    submitScore("scan-rush", score).then((r) => {
+      if (r) setSubmitRank(r.rank);
+    });
     const newAchievements = checkAchievements();
     if (newAchievements.length > 0) {
       setToastAchievement(newAchievements[0]);

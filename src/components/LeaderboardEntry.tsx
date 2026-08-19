@@ -1,9 +1,10 @@
 import { useState } from "react";
 import {
   getPlayerName,
+  isGuestName,
   isValidPlayerName,
-  setPlayerName,
   submitScore,
+  upgradePlayerName,
   type LeaderboardGame,
 } from "~/lib/leaderboard";
 
@@ -13,7 +14,7 @@ interface LeaderboardEntryProps {
   score: number;
   /**
    * Rank returned by the game's own auto-submit (fired in its completion
-   * effect). null = no rank yet (or no name was stored at game end).
+   * effect). null = no rank yet (or the submit failed / hasn't landed yet).
    */
   rank: number | null;
   /** Lift a rank back to the game (from a submit after saving a name here). */
@@ -22,10 +23,13 @@ interface LeaderboardEntryProps {
 
 /**
  * Small inline leaderboard hook for game result modals:
- *  - name already stored + rank known → subtle "🏅 #N this month" line;
- *  - name already stored + rank pending/failed → nothing (silent);
- *  - no name stored → "Enter your first name" input + save; saving stores the
- *    name and submits the just-finished score.
+ *  - real name stored + rank known → subtle "🏅 #N this month" line;
+ *  - real name stored + rank pending/failed → nothing (silent; the game's
+ *    auto-submit already covers it — every round submits under a guaranteed
+ *    name now);
+ *  - no name stored OR a guest identity ("Guest NNNN") → "Enter your first
+ *    name" input; saving upgrades the guest to the real name and submits the
+ *    just-finished score (which tells the server to merge the guest's rows).
  * Never blocks the surrounding modal's primary action (Play Again / Next).
  */
 export default function LeaderboardEntry({
@@ -37,6 +41,9 @@ export default function LeaderboardEntry({
   const [nameInput, setNameInput] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const storedName = getPlayerName();
+  const isGuest = storedName !== null && isGuestName(storedName);
+
   if (rank !== null && rank > 0) {
     return (
       <p className="text-sm font-semibold text-secondary mb-4">
@@ -45,9 +52,9 @@ export default function LeaderboardEntry({
     );
   }
 
-  // Name exists but no rank surfaced yet — the game's auto-submit may still be
-  // in flight or failed; show nothing rather than a second prompt.
-  if (getPlayerName()) return null;
+  // A real (non-guest) name is already stored — the game's auto-submit covers
+  // it; show nothing rather than a second prompt.
+  if (storedName && !isGuest) return null;
 
   const trimmed = nameInput.trim();
   const valid = isValidPlayerName(trimmed);
@@ -55,7 +62,10 @@ export default function LeaderboardEntry({
   const handleSave = async () => {
     if (!valid || saving) return;
     setSaving(true);
-    setPlayerName(trimmed);
+    // Upgrade guest → real name (parks the guest as pending-previous) BEFORE
+    // submitting, so the POST carries prevName and the server merges the
+    // guest's rows into this name's row.
+    upgradePlayerName(trimmed);
     const result = await submitScore(game, score);
     if (result) onRank(result.rank);
     setSaving(false);
@@ -64,7 +74,9 @@ export default function LeaderboardEntry({
   return (
     <div className="mb-4">
       <p className="text-sm text-mutedText mb-2">
-        Enter your first name to join the leaderboard
+        {isGuest
+          ? `Enter your first name to be shown as (you're currently ${storedName})`
+          : "Enter your first name to join the leaderboard"}
       </p>
       <div className="flex gap-2">
         <input

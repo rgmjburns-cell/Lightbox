@@ -3,7 +3,7 @@ import RexSpeechBubble from "~/components/RexSpeechBubble";
 import Rex from "~/components/Rex";
 import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
-import { getPlayerName as getLbPlayerName, submitScore } from "~/lib/leaderboard";
+import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
 import { addPoints } from "~/lib/points";
 import {
@@ -789,13 +789,13 @@ export default function PulsePop() {
           localStorage.setItem("pulsePopHighScore", finalScore.toString());
         }
       }
-      // Live leaderboard: submit the stored best, fire-and-forget when a name
-      // is stored (silent on failure). max() = the value just persisted above.
-      if (getLbPlayerName()) {
-        submitScore("ecg-rhythm", Math.max(highScore, finalScore)).then((r) => {
-          if (r) setSubmitRank(r.rank);
-        });
-      }
+      // Live leaderboard: submit the stored best, fire-and-forget
+      // (submitScore self-handles the player name, auto-creating a guest
+      // identity when needed — silent on failure). max() = the value just
+      // persisted above.
+      submitScore("ecg-rhythm", Math.max(highScore, finalScore)).then((r) => {
+        if (r) setSubmitRank(r.rank);
+      });
     }
     if (phase !== "levelComplete" && phase !== "gameComplete") {
       completedRef.current = false;
