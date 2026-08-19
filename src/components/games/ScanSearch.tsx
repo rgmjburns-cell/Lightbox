@@ -394,22 +394,11 @@ export default function ScanSearch() {
     setSelectedCells(new Set(chain.map((c) => `${c.row},${c.col}`)));
   };
 
-  const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (showComplete) return;
-    if (e.pointerType === "mouse" && e.button !== 0) return;
-    const cell = getCellFromPoint(e.clientX, e.clientY);
-    if (!cell) return;
-    isPointerDownRef.current = true;
-    dragActiveRef.current = false;
-    downCellRef.current = cell;
-    dragChainRef.current = [];
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!isPointerDownRef.current) return;
-    const cell = getCellFromPoint(e.clientX, e.clientY);
-    if (!cell) return;
+  // ── Shared drag-chain logic ──
+  // Used by BOTH the pointer path (mouse/pen) and the native touch path below so
+  // the two never drift apart. Reads only refs + stable setters, so it is safe
+  // to hold a single instance.
+  const extendDragFromCell = (cell: { row: number; col: number }) => {
     if (!dragActiveRef.current) {
       const down = downCellRef.current;
       if (!down || (down.row === cell.row && down.col === cell.col)) return;
@@ -424,7 +413,7 @@ export default function ScanSearch() {
     if (!last) {
       next = [{ row: cell.row, col: cell.col }];
     } else if (cur.some((c) => c.row === cell.row && c.col === cell.col)) {
-      // Pointer back over a cell already in the chain — nothing to add
+      // Back over a cell already in the chain — nothing to add
       return;
     } else {
       const path = pathBetween(last, cell).filter(
@@ -434,6 +423,41 @@ export default function ScanSearch() {
     }
     dragChainRef.current = next;
     if (next.length > 0) syncChain(next);
+  };
+
+  // Touch is handled by native touch events below — on iOS Safari, relying on
+  // pointer events for a sweep over <button> cells is unreliable (the browser
+  // fires pointercancel when the touch moves on a clickable, and competes for
+  // the gesture), so keep pointer events for mouse/pen only. This guard also
+  // prevents double-handling on platforms that fire pointer AND touch.
+  const isTouchPointer = (e: ReactPointerEvent<HTMLDivElement>) =>
+    e.pointerType === "touch";
+
+  const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (isTouchPointer(e)) return;
+    if (showComplete) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const cell = getCellFromPoint(e.clientX, e.clientY);
+    if (!cell) return;
+    isPointerDownRef.current = true;
+    dragActiveRef.current = false;
+    downCellRef.current = cell;
+    dragChainRef.current = [];
+    // Guarded: on some browsers capture can throw mid-gesture; it's an
+    // optimisation, not required for the sweep.
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (isTouchPointer(e)) return;
+    if (!isPointerDownRef.current) return;
+    const cell = getCellFromPoint(e.clientX, e.clientY);
+    if (!cell) return;
+    extendDragFromCell(cell);
   };
 
   const finishDrag = () => {
@@ -452,6 +476,7 @@ export default function ScanSearch() {
   };
 
   const handlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (isTouchPointer(e)) return;
     if (!isPointerDownRef.current) return;
     const wasDrag = dragActiveRef.current;
     const down = downCellRef.current;
@@ -466,6 +491,103 @@ export default function ScanSearch() {
       handleCellTap(down.row, down.col);
     }
   };
+
+  // iOS Safari can fire a spurious pointerleave/pointercancel during a touch
+  // drag; native touch handlers own the touch lifecycle, so ignore pointer
+  // leave/cancel for touch and only finish the (mouse/pen) drag here.
+  const handlePointerLeave = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (isTouchPointer(e)) return;
+    if (!isPointerDownRef.current) return;
+    finishDrag();
+  };
+
+  const handlePointerCancel = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (isTouchPointer(e)) return;
+    if (!isPointerDownRef.current) return;
+    finishDrag();
+  };
+
+  // ── Native touch path (the reliable one on real devices) ──
+  // React attaches touchstart/touchmove listeners PASSIVELY at the root (React
+  // 17+), so e.preventDefault() inside an onTouchMove prop would not stop the
+  // page scrolling. Real touch on iOS Safari needs native, non-passive
+  // listeners with preventDefault — that stops the browser turning the sweep
+  // into a scroll / double-tap-zoom and prevents the gesture-competition that
+  // fires pointercancel. These delegate to the same shared chain logic.
+  //
+  // The effect is attached once; any handler that reads changing React state
+  // (showComplete, finishDrag/checkChainForWord, handleCellTap) is invoked via
+  // a ref that always points at the latest closure.
+  const showCompleteRef = useRef(showComplete);
+  useEffect(() => {
+    showCompleteRef.current = showComplete;
+  }, [showComplete]);
+  const handleCellTapRef = useRef(handleCellTap);
+  useEffect(() => {
+    handleCellTapRef.current = handleCellTap;
+  }, [handleCellTap]);
+  const finishDragRef = useRef(finishDrag);
+  useEffect(() => {
+    finishDragRef.current = finishDrag;
+  }, [finishDrag]);
+
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (showCompleteRef.current) return;
+      const t = e.touches[0];
+      if (!t) return;
+      const cell = getCellFromPoint(t.clientX, t.clientY);
+      if (!cell) return;
+      // Cancel the default touch behaviour (scroll / tap-highlight / callout)
+      // so the grid owns the gesture from the very first contact.
+      if (e.cancelable) e.preventDefault();
+      isPointerDownRef.current = true;
+      dragActiveRef.current = false;
+      downCellRef.current = cell;
+      dragChainRef.current = [];
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isPointerDownRef.current) return;
+      const t = e.touches[0];
+      if (!t) return;
+      if (e.cancelable) e.preventDefault();
+      const cell = getCellFromPoint(t.clientX, t.clientY);
+      if (!cell) return;
+      extendDragFromCell(cell);
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!isPointerDownRef.current) return;
+      if (e.cancelable) e.preventDefault();
+      const wasDrag = dragActiveRef.current;
+      const down = downCellRef.current;
+      finishDragRef.current();
+      // A plain tap (no movement) keeps the touch tap-to-chain semantics.
+      if (!wasDrag && down) handleCellTapRef.current(down.row, down.col);
+    };
+
+    const onTouchCancel = () => {
+      if (!isPointerDownRef.current) return;
+      finishDragRef.current();
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: false });
+    el.addEventListener("touchcancel", onTouchCancel, { passive: false });
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchCancel);
+    };
+    // Attach once on mount; handlers read live state through refs above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Compute which cells are "found" (part of found words)
   const foundCellSet = useMemo(() => {
@@ -572,12 +694,13 @@ export default function ScanSearch() {
           style={{
             gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
             touchAction: "none",
+            WebkitTouchCallout: "none",
           }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          onPointerLeave={finishDrag}
-          onPointerCancel={finishDrag}
+          onPointerLeave={handlePointerLeave}
+          onPointerCancel={handlePointerCancel}
         >
           {Array.from({ length: GRID_SIZE }, (_, r) =>
             Array.from({ length: GRID_SIZE }, (_, c) => {
