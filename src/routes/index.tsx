@@ -12,26 +12,26 @@ export const Route = createFileRoute("/")({
 
 const playExperiences = [
   {
-    id: "bone-buster",
-    title: "Bone Buster",
-    subtitle: "Match-3 puzzle",
-    emoji: "🦴",
-    color: "from-secondary to-secondary/70",
+    id: "scan-rush",
+    title: "Scan Rush",
+    subtitle: "Tap the lit bay — fast!",
+    icon: "/icons/icon-scan-rush.png",
+    color: "from-secondary to-primary/60",
     built: true,
   },
   {
-    id: "scan-search",
-    title: "Scan Search",
-    subtitle: "Find radiology terms",
-    emoji: "🔍",
-    color: "from-primary to-primary/70",
+    id: "bone-buster",
+    title: "Bone Buster",
+    subtitle: "Match-3 puzzle",
+    icon: "/icons/icon-bone-buster.png",
+    color: "from-secondary to-secondary/70",
     built: true,
   },
   {
     id: "memory-scan",
     title: "Memory Scan",
     subtitle: "Match X-ray pairs",
-    emoji: "🧠",
+    icon: "/icons/icon-memory-scan.png",
     color: "from-primary/80 to-secondary/70",
     built: true,
   },
@@ -39,7 +39,7 @@ const playExperiences = [
     id: "mri-mixup",
     title: "MRI Mix-Up",
     subtitle: "Sliding puzzle",
-    emoji: "🧩",
+    icon: "/icons/icon-mri-mixup.png",
     color: "from-primary/70 to-secondary/60",
     built: true,
   },
@@ -47,7 +47,7 @@ const playExperiences = [
     id: "ecg-rhythm",
     title: "Pulse Pop",
     subtitle: "ECG rhythm game",
-    emoji: "❤️",
+    icon: "/icons/icon-pulse-pop.png",
     color: "from-secondary to-primary/50",
     built: true,
   },
@@ -55,7 +55,7 @@ const playExperiences = [
     id: "colour-rex",
     title: "Colour Rex",
     subtitle: "Colour the mascot",
-    emoji: "🎨",
+    icon: "/icons/icon-colour-rex.png",
     color: "from-secondary/80 to-primary/50",
     built: true,
   },
@@ -63,16 +63,16 @@ const playExperiences = [
     id: "film-stack",
     title: "Film Stack",
     subtitle: "Mahjong solitaire",
-    emoji: "🩻",
+    icon: "/icons/icon-film-stack.png",
     color: "from-primary/60 to-secondary/50",
     built: true,
   },
   {
-    id: "scan-rush",
-    title: "Scan Rush",
-    subtitle: "Tap the lit bay — fast!",
-    emoji: "⚡",
-    color: "from-secondary to-primary/60",
+    id: "scan-search",
+    title: "Scan Search",
+    subtitle: "Find radiology terms",
+    icon: "/icons/icon-scan-search.png",
+    color: "from-primary to-primary/70",
     built: true,
   },
 ];
@@ -142,7 +142,12 @@ function Home() {
                           p-4 shadow-md active:scale-95 transition-all duration-150
                           min-h-[120px] flex flex-col justify-between`}
             >
-              <span className="text-2xl">{game.emoji}</span>
+              <img
+                src={game.icon}
+                alt={game.title}
+                draggable={false}
+                className="w-12 h-12 rounded-xl object-contain select-none"
+              />
               <div>
                 <h3 className="text-white font-bold text-sm">{game.title}</h3>
                 <p className="text-white/70 text-xs mt-0.5">{game.subtitle}</p>
@@ -155,7 +160,12 @@ function Home() {
               className="relative overflow-hidden rounded-2xl bg-lightGrey border border-dashed border-mutedText/30
                           p-4 min-h-[120px] flex flex-col justify-between opacity-60"
             >
-              <span className="text-2xl grayscale">{game.emoji}</span>
+              <img
+                src={game.icon}
+                alt={game.title}
+                draggable={false}
+                className="w-12 h-12 rounded-xl object-contain grayscale opacity-60 select-none"
+              />
               <div>
                 <h3 className="text-primary font-bold text-sm">{game.title}</h3>
                 <p className="text-mutedText text-xs mt-0.5">Coming Soon</p>
