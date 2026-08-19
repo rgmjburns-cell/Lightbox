@@ -6,6 +6,7 @@ import { getPlayerName } from "~/components/Onboarding";
 import { addPoints } from "~/lib/points";
 import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
+import { Link } from "@tanstack/react-router";
 import {
   checkAchievements,
   trackGameCompletion,
@@ -1729,6 +1730,9 @@ export default function BoneBuster() {
             >
               Next Level →
             </button>
+            <Link to="/" className="btn-secondary w-full text-lg mt-3">
+              🏠 Back to Games
+            </Link>
           </div>
         </div>
       )}
@@ -1852,6 +1856,9 @@ export default function BoneBuster() {
               >
                 🔄 Play Again From Level 1
               </button>
+              <Link to="/" className="btn-secondary w-full text-lg mt-3">
+                🏠 Back to Games
+              </Link>
             </div>
           </div>
         </>
@@ -1875,6 +1882,9 @@ export default function BoneBuster() {
             <button className="btn-primary w-full text-lg" onClick={retryLevel}>
               Try Again
             </button>
+            <Link to="/" className="btn-secondary w-full text-lg mt-3">
+              🏠 Back to Games
+            </Link>
           </div>
         </div>
       )}
