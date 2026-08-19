@@ -3,7 +3,7 @@ import RexSpeechBubble from "~/components/RexSpeechBubble";
 import Rex from "~/components/Rex";
 import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
-import { getPlayerName as getLbPlayerName, submitScore } from "~/lib/leaderboard";
+import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
 import { addPoints } from "~/lib/points";
 import {
@@ -120,12 +120,11 @@ export default function MemoryScan() {
       trackGameCompletion("memory-scan");
       trackMemoryScanCompletion(moves);
       // Live leaderboard: submit this run's bonus (100 * (cards - moves)),
-      // fire-and-forget when a name is stored (silent on failure).
-      if (getLbPlayerName()) {
-        submitScore("memory-scan", bonus).then((r) => {
-          if (r) setSubmitRank(r.rank);
-        });
-      }
+      // fire-and-forget (submitScore self-handles the player name, auto-
+      // creating a guest identity when needed — silent on failure).
+      submitScore("memory-scan", bonus).then((r) => {
+        if (r) setSubmitRank(r.rank);
+      });
       const newAchievements = checkAchievements();
       if (newAchievements.length > 0) {
         setToastAchievement(newAchievements[0]);

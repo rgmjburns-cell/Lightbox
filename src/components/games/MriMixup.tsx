@@ -3,7 +3,7 @@ import RexSpeechBubble from "~/components/RexSpeechBubble";
 import Rex from "~/components/Rex";
 import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
-import { getPlayerName as getLbPlayerName, submitScore } from "~/lib/leaderboard";
+import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
 import { addPoints } from "~/lib/points";
 import {
@@ -229,14 +229,17 @@ export default function MriMixup() {
       trackGameCompletion("mri-mixup");
       // Live leaderboard: submit the stored best across both board sizes.
       // Read localStorage directly here (the memo is computed pre-save).
-      // Fire-and-forget when a name is stored (silent on failure).
-      if (getLbPlayerName()) {
-        const best3 = parseInt(localStorage.getItem("mriMixupBest_3x3") || "0", 10);
-        const best4 = parseInt(localStorage.getItem("mriMixupBest_4x4") || "0", 10);
-        submitScore("mri-mixup", Math.max(best3, best4)).then((r) => {
-          if (r) setSubmitRank(r.rank);
-        });
-      }
+      // Fire-and-forget (submitScore self-handles the player name, auto-
+      // creating a guest identity when needed — silent on failure).
+      submitScore(
+        "mri-mixup",
+        Math.max(
+          parseInt(localStorage.getItem("mriMixupBest_3x3") || "0", 10),
+          parseInt(localStorage.getItem("mriMixupBest_4x4") || "0", 10),
+        ),
+      ).then((r) => {
+        if (r) setSubmitRank(r.rank);
+      });
       const newAch = checkAchievements();
       if (newAch.length > 0) setAchievements(newAch);
 

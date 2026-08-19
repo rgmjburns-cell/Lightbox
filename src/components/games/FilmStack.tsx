@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Rex from "~/components/Rex";
 import RexSpeechBubble from "~/components/RexSpeechBubble";
 import { getPlayerName } from "~/components/Onboarding";
-import { getPlayerName as getLbPlayerName, submitScore } from "~/lib/leaderboard";
+import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
 
 type TileType = "bone" | "xray-hand" | "xray-chest" | "mri" | "xray-skull";
@@ -36,7 +36,7 @@ export default function FilmStack(){
  const [tiles,setTiles]=useState(()=>generate(level)),[hand,setHand]=useState<number[]>([]),[flying,setFlying]=useState<number|null>(null),[match,setMatch]=useState<number[]>([]),[fragments,setFragments]=useState(false),[scorePop,setScorePop]=useState(false),[shake,setShake]=useState(false),[gameOver,setGameOver]=useState(false),[win,setWin]=useState(false),[locked,setLocked]=useState(false),[completions,setCompletions]=useState(0),[message,setMessage]=useState("Tap an uncovered tile to add it to your hand!"),[mood,setMood]=useState<"happy"|"excited"|"encouraging">("happy");
  const initialCompletionsRef=useRef(0),submitFiredRef=useRef(false),[submitRank,setSubmitRank]=useState<number|null>(null);
  useEffect(()=>{const n=Number(localStorage.getItem(COMPLETIONS)||0);const v=Number.isFinite(n)?n:0;setCompletions(v);initialCompletionsRef.current=v},[]);
- useEffect(()=>{if(!gameOver&&!win)return;if(submitFiredRef.current)return;submitFiredRef.current=true;const run=completions-initialCompletionsRef.current;if(run<=0)return;if(getLbPlayerName()){submitScore("film-stack",run).then(r=>{if(r)setSubmitRank(r.rank)})}},[gameOver,win,completions]);
+ useEffect(()=>{if(!gameOver&&!win)return;if(submitFiredRef.current)return;submitFiredRef.current=true;const run=completions-initialCompletionsRef.current;if(run<=0)return;submitScore("film-stack",run).then(r=>{if(r)setSubmitRank(r.rank)})},[gameOver,win,completions]);
  const selectableIds=useMemo(()=>new Set(tiles.filter(t=>selectable(t,tiles)).map(t=>t.id)),[tiles]);
  const remaining=tiles.filter(t=>!t.cleared).length;
  const runCompletions=Math.max(0,completions-initialCompletionsRef.current);

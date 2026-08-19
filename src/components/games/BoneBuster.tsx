@@ -4,7 +4,7 @@ import RexSpeechBubble from "~/components/RexSpeechBubble";
 import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
 import { addPoints } from "~/lib/points";
-import { getPlayerName as getLbPlayerName, submitScore } from "~/lib/leaderboard";
+import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
 import {
   checkAchievements,
@@ -1365,13 +1365,12 @@ export default function BoneBuster() {
 
       // Daily challenge bonus
       trackGameCompletion("bone-buster");
-      // Live leaderboard: fire-and-forget submit when a name is stored (silent
-      // on failure — never breaks the game). Backend keeps the month's best.
-      if (getLbPlayerName()) {
-        submitScore("bone-buster", score).then((r) => {
-          if (r) setSubmitRank(r.rank);
-        });
-      }
+      // Live leaderboard: fire-and-forget submit (submitScore self-handles the
+      // player name, auto-creating a guest identity when needed — silent on
+      // failure, never breaks the game). Backend keeps the month's best.
+      submitScore("bone-buster", score).then((r) => {
+        if (r) setSubmitRank(r.rank);
+      });
       const newAchievements = checkAchievements();
       if (newAchievements.length > 0) {
         setToastAchievement(newAchievements[0]);

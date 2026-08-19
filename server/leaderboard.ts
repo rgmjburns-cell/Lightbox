@@ -180,7 +180,53 @@ async function handlePost(req: Request): Promise<Response> {
     return json({ ok: false, error: "Score must be an integer between 0 and 1000000" }, 400);
   }
 
+  // Optional previous name: when a guest identity was upgraded to a real name,
+  // the client sends the guest name here so we can merge its rows into the real
+  // name's row before this POST's own upsert. Must be a valid name, present,
+  // and different from the submitted name.
+  const prevNameRaw = (body as Record<string, unknown>).prevName;
+  let trimmedPrevName: string | null = null;
+  if (prevNameRaw !== undefined) {
+    if (typeof prevNameRaw !== "string") {
+      return json({ ok: false, error: "prevName must be a string" }, 400);
+    }
+    trimmedPrevName = prevNameRaw.trim();
+    if (
+      trimmedPrevName.length < 1 ||
+      trimmedPrevName.length > NAME_MAX_LENGTH ||
+      !NAME_CHARSET.test(trimmedPrevName) ||
+      trimmedPrevName === trimmedName
+    ) {
+      return json(
+        { ok: false, error: "prevName must be a valid name different from name" },
+        400,
+      );
+    }
+  }
+
   const month = currentMonthUtc();
+
+  // Merge prevName rows into `name` FIRST (in a transaction with the delete),
+  // keeping the higher score per (game, month) on conflict. Then the normal
+  // upsert below handles this POST's own score.
+  if (trimmedPrevName) {
+    const mergeRows = getDb().transaction(
+      (prev: string) => {
+        getDb()
+          .query(
+            `INSERT INTO scores (name, game, score, month, created_at)
+             SELECT ?, game, score, month, created_at FROM scores WHERE name = ?
+             ON CONFLICT(name, game, month) DO UPDATE SET
+               score = CASE WHEN excluded.score > scores.score THEN excluded.score ELSE scores.score END,
+               created_at = CASE WHEN excluded.score > scores.score THEN excluded.created_at ELSE scores.created_at END`,
+          )
+          .run(trimmedName, prev);
+        getDb().query("DELETE FROM scores WHERE name = ?").run(prev);
+      },
+    );
+    mergeRows(trimmedPrevName);
+  }
+
   getDb()
     .query(
       `INSERT INTO scores (name, game, score, month) VALUES (?, ?, ?, ?)
