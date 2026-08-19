@@ -3,6 +3,8 @@ import RexSpeechBubble from "~/components/RexSpeechBubble";
 import Rex from "~/components/Rex";
 import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
+import { getPlayerName as getLbPlayerName, submitScore } from "~/lib/leaderboard";
+import LeaderboardEntry from "~/components/LeaderboardEntry";
 import { addPoints } from "~/lib/points";
 import {
   checkAchievements,
@@ -149,6 +151,7 @@ export default function MriMixup() {
   const [slidingTile, setSlidingTile] = useState<number | null>(null);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [score, setScore] = useState(0);
+  const [submitRank, setSubmitRank] = useState<number | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const highScoreKey = `mriMixupBest_${size}x${size}`;
@@ -224,6 +227,16 @@ export default function MriMixup() {
       }
 
       trackGameCompletion("mri-mixup");
+      // Live leaderboard: submit the stored best across both board sizes.
+      // Read localStorage directly here (the memo is computed pre-save).
+      // Fire-and-forget when a name is stored (silent on failure).
+      if (getLbPlayerName()) {
+        const best3 = parseInt(localStorage.getItem("mriMixupBest_3x3") || "0", 10);
+        const best4 = parseInt(localStorage.getItem("mriMixupBest_4x4") || "0", 10);
+        submitScore("mri-mixup", Math.max(best3, best4)).then((r) => {
+          if (r) setSubmitRank(r.rank);
+        });
+      }
       const newAch = checkAchievements();
       if (newAch.length > 0) setAchievements(newAch);
 
@@ -255,13 +268,24 @@ export default function MriMixup() {
     [size]
   );
 
-  // ── Leaderboard score key ──
+  // ── Leaderboard score keys ──
 
   const bestScore = useMemo(() => {
     if (typeof window === "undefined") return 0;
     return parseInt(localStorage.getItem(highScoreKey) || "0", 10);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highScoreKey, phase]);
+
+  // Best across both board sizes (3×3 and 4×4) — what gets submitted to the
+  // shared monthly leaderboard.
+  const bestScoreAll = useMemo(() => {
+    if (typeof window === "undefined") return 0;
+    return Math.max(
+      parseInt(localStorage.getItem("mriMixupBest_3x3") || "0", 10),
+      parseInt(localStorage.getItem("mriMixupBest_4x4") || "0", 10),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   // ── Empty tile position for animation ──
 
@@ -439,6 +463,12 @@ export default function MriMixup() {
           <p className="text-sm text-mutedText mb-3">
             {moves} moves • {formatTime(seconds)} • +{score} pts
           </p>
+          <LeaderboardEntry
+            game="mri-mixup"
+            score={bestScoreAll}
+            rank={submitRank}
+            onRank={setSubmitRank}
+          />
           <div className="flex gap-2 justify-center">
             <button
               onClick={() => newGame()}

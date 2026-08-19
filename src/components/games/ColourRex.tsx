@@ -3,6 +3,8 @@ import RexSpeechBubble from "~/components/RexSpeechBubble";
 import Rex from "~/components/Rex";
 import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
+import { getPlayerName as getLbPlayerName, submitScore } from "~/lib/leaderboard";
+import LeaderboardEntry from "~/components/LeaderboardEntry";
 import { addPoints } from "~/lib/points";
 import {
   checkAchievements,
@@ -217,6 +219,7 @@ export default function ColourRex() {
     if (typeof window === "undefined") return 0;
     return parseInt(localStorage.getItem("colourRexBest") || "0", 10);
   });
+  const [submitRank, setSubmitRank] = useState<number | null>(null);
 
   // ── Progress ──
   const filledCount = filledPixelsCountRef.current;
@@ -588,6 +591,13 @@ export default function ColourRex() {
           localStorage.setItem("colourRexBest", points.toString());
         }
       }
+      // Live leaderboard: submit the stored best, fire-and-forget when a name
+      // is stored (silent on failure). max() = the value just persisted above.
+      if (getLbPlayerName()) {
+        submitScore("colour-rex", Math.max(bestScore, points)).then((r) => {
+          if (r) setSubmitRank(r.rank);
+        });
+      }
     }
     if (!showComplete) {
       completedRef.current = false;
@@ -751,6 +761,12 @@ export default function ColourRex() {
             </p>
             <p className="text-2xl font-bold text-secondary mb-4">+500 pts</p>
             {500 >= bestScore && <p className="text-sm text-secondary font-bold mb-4">🏆 New Best!</p>}
+            <LeaderboardEntry
+              game="colour-rex"
+              score={Math.max(bestScore, 500)}
+              rank={submitRank}
+              onRank={setSubmitRank}
+            />
             <button
               className="btn-primary w-full text-lg"
               onClick={() => {

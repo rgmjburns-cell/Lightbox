@@ -3,6 +3,8 @@ import RexSpeechBubble from "~/components/RexSpeechBubble";
 import Rex from "~/components/Rex";
 import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
+import { getPlayerName as getLbPlayerName, submitScore } from "~/lib/leaderboard";
+import LeaderboardEntry from "~/components/LeaderboardEntry";
 import { addPoints } from "~/lib/points";
 import {
   checkAchievements,
@@ -92,6 +94,7 @@ export default function MemoryScan() {
     if (typeof window === "undefined") return 0;
     return parseInt(localStorage.getItem("memoryScanBestHard") || "0", 10);
   });
+  const [submitRank, setSubmitRank] = useState<number | null>(null);
 
   // Timer
   useEffect(() => {
@@ -115,6 +118,13 @@ export default function MemoryScan() {
 
       trackGameCompletion("memory-scan");
       trackMemoryScanCompletion(moves);
+      // Live leaderboard: submit the stored best (max across difficulties),
+      // fire-and-forget when a name is stored (silent on failure).
+      if (getLbPlayerName()) {
+        submitScore("memory-scan", Math.max(bestEasy, bestHard)).then((r) => {
+          if (r) setSubmitRank(r.rank);
+        });
+      }
       const newAchievements = checkAchievements();
       if (newAchievements.length > 0) {
         setToastAchievement(newAchievements[0]);
@@ -442,6 +452,12 @@ export default function MemoryScan() {
             {currentBest === 0 && (
               <p className="text-secondary font-bold mb-4">First {difficulty} completion!</p>
             )}
+            <LeaderboardEntry
+              game="memory-scan"
+              score={Math.max(bestEasy, bestHard)}
+              rank={submitRank}
+              onRank={setSubmitRank}
+            />
             <div className="flex gap-3">
               <button
                 className="btn-secondary flex-1"
