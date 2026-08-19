@@ -11,6 +11,7 @@ import {
 } from "~/lib/achievements";
 import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
+import { Link } from "@tanstack/react-router";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -796,6 +797,9 @@ export default function ScanRush() {
             <button className="btn-primary w-full text-lg" onClick={startGame}>
               🔄 Play Again
             </button>
+            <Link to="/" className="btn-secondary w-full text-lg mt-3">
+              🏠 Back to Games
+            </Link>
           </div>
         </div>
       )}
