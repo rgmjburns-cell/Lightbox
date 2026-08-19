@@ -5,6 +5,7 @@ import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
 import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
+import { Link } from "@tanstack/react-router";
 import { addPoints } from "~/lib/points";
 import {
   checkAchievements,
@@ -576,6 +577,9 @@ export default function ScanSearch() {
             >
               Play Again
             </button>
+            <Link to="/" className="btn-secondary w-full text-lg mt-3">
+              🏠 Back to Games
+            </Link>
           </div>
         </div>
       )}
