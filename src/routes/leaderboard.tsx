@@ -6,6 +6,7 @@ import {
   getPlayerName,
   isValidPlayerName,
   setPlayerName,
+  GAME_META,
   type LeaderboardEntry,
   type LeaderboardFilter,
 } from "~/lib/leaderboard";
@@ -18,19 +19,13 @@ const POLL_MS = 5000;
 
 const FILTERS: { id: LeaderboardFilter; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "scan-rush", label: "Scan Rush" },
-  { id: "bone-buster", label: "Bone Buster" },
+  ...GAME_META.map((g) => ({ id: g.id as LeaderboardFilter, label: g.label })),
 ];
 
-// Home-grid emojis for the game pills (mirrors src/routes/index.tsx).
-const GAME_EMOJI: Record<string, string> = {
-  "scan-rush": "⚡",
-  "bone-buster": "🦴",
-};
-const GAME_LABEL: Record<string, string> = {
-  "scan-rush": "Scan Rush",
-  "bone-buster": "Bone Buster",
-};
+// id → meta lookup for the per-game pills on entry rows.
+const GAME_META_BY_ID = Object.fromEntries(
+  GAME_META.map((g) => [g.id, g])
+) as Record<string, (typeof GAME_META)[number]>;
 
 const MEDALS = ["🏆", "🥈", "🥉"];
 
@@ -192,7 +187,7 @@ function Leaderboard() {
       )}
 
       {/* ── Game filter chips ── */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         {FILTERS.map((f) => (
           <button
             key={f.id}
@@ -284,8 +279,8 @@ function Leaderboard() {
                   )}
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-lightTeal text-secondary text-[10px] font-semibold px-2 py-0.5 shrink-0">
-                  <span>{GAME_EMOJI[entry.game] ?? "🎮"}</span>
-                  {GAME_LABEL[entry.game] ?? entry.game}
+                  <span>{GAME_META_BY_ID[entry.game]?.emoji ?? "🎮"}</span>
+                  {GAME_META_BY_ID[entry.game]?.label ?? entry.game}
                 </span>
                 <span className="text-secondary font-bold tabular-nums shrink-0">
                   {entry.score.toLocaleString()}

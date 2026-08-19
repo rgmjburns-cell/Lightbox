@@ -16,8 +16,28 @@ const PLAYER_NAME_KEY = "lightboxPlayerName";
 // in sync.
 const LEGACY_PLAYER_NAME_KEY = "playerName";
 
-export type LeaderboardGame = "scan-rush" | "bone-buster";
+export type LeaderboardGame =
+  | "scan-rush"
+  | "bone-buster"
+  | "scan-search"
+  | "memory-scan"
+  | "mri-mixup"
+  | "ecg-rhythm"
+  | "colour-rex"
+  | "film-stack";
 export type LeaderboardFilter = "all" | LeaderboardGame;
+
+/** All games on the shared board: id (as submitted), display label, emoji. */
+export const GAME_META: { id: LeaderboardGame; label: string; emoji: string }[] = [
+  { id: "scan-rush", label: "Scan Rush", emoji: "⚡" },
+  { id: "bone-buster", label: "Bone Buster", emoji: "🦴" },
+  { id: "scan-search", label: "Scan Search", emoji: "🔍" },
+  { id: "memory-scan", label: "Memory Scan", emoji: "🧠" },
+  { id: "mri-mixup", label: "MRI Mix-Up", emoji: "🧩" },
+  { id: "ecg-rhythm", label: "Pulse Pop", emoji: "❤️" },
+  { id: "colour-rex", label: "Colour Rex", emoji: "🎨" },
+  { id: "film-stack", label: "Film Stack", emoji: "🩻" },
+];
 
 export interface LeaderboardEntry {
   rank: number;

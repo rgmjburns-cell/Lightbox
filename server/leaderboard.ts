@@ -15,7 +15,16 @@ import { join } from "node:path";
 const DB_PATH = join(import.meta.dir, "..", "data", "leaderboard.db");
 const DATA_DIR = join(import.meta.dir, "..", "data");
 
-const GAMES = ["scan-rush", "bone-buster"] as const;
+const GAMES = [
+  "scan-rush",
+  "bone-buster",
+  "scan-search",
+  "memory-scan",
+  "mri-mixup",
+  "ecg-rhythm",
+  "colour-rex",
+  "film-stack",
+] as const;
 const GAME_ALLOWLIST = ["all", ...GAMES] as const;
 type Game = (typeof GAMES)[number];
 

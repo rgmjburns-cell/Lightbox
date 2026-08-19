@@ -3,6 +3,8 @@ import RexSpeechBubble from "~/components/RexSpeechBubble";
 import Rex from "~/components/Rex";
 import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
+import { getPlayerName as getLbPlayerName, submitScore } from "~/lib/leaderboard";
+import LeaderboardEntry from "~/components/LeaderboardEntry";
 import { addPoints } from "~/lib/points";
 import {
   checkAchievements,
@@ -124,6 +126,7 @@ export default function PulsePop() {
     if (typeof window === "undefined") return 0;
     return parseInt(localStorage.getItem("pulsePopHighScore") || "0", 10);
   });
+  const [submitRank, setSubmitRank] = useState<number | null>(null);
 
   // ── Sync snapshots of key values for UI ──
   const uiRef = useRef({ score: 0, combo: 0, cleared: 0, perfects: 0, misses: 0 });
@@ -786,6 +789,13 @@ export default function PulsePop() {
           localStorage.setItem("pulsePopHighScore", finalScore.toString());
         }
       }
+      // Live leaderboard: submit the stored best, fire-and-forget when a name
+      // is stored (silent on failure). max() = the value just persisted above.
+      if (getLbPlayerName()) {
+        submitScore("ecg-rhythm", Math.max(highScore, finalScore)).then((r) => {
+          if (r) setSubmitRank(r.rank);
+        });
+      }
     }
     if (phase !== "levelComplete" && phase !== "gameComplete") {
       completedRef.current = false;
@@ -1021,6 +1031,12 @@ export default function PulsePop() {
                 🏆 New High Score! 🏆
               </p>
             )}
+            <LeaderboardEntry
+              game="ecg-rhythm"
+              score={Math.max(highScore, finalScore)}
+              rank={submitRank}
+              onRank={setSubmitRank}
+            />
             <div className="flex gap-3">
               {!canAdvance && !isLastLevel ? (
                 <>

@@ -3,6 +3,8 @@ import RexSpeechBubble from "~/components/RexSpeechBubble";
 import Rex from "~/components/Rex";
 import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
+import { getPlayerName as getLbPlayerName, submitScore } from "~/lib/leaderboard";
+import LeaderboardEntry from "~/components/LeaderboardEntry";
 import { addPoints } from "~/lib/points";
 import {
   checkAchievements,
@@ -158,6 +160,7 @@ export default function ScanSearch() {
     if (typeof window === "undefined") return 0;
     return parseInt(localStorage.getItem("scanSearchHighScore") || "0", 10);
   });
+  const [submitRank, setSubmitRank] = useState<number | null>(null);
 
   // ── Chain selection: tap letters one by one, they accumulate ──
   const [selectedChain, setSelectedChain] = useState<{ row: number; col: number }[]>([]);
@@ -201,6 +204,13 @@ export default function ScanSearch() {
 
       trackGameCompletion("scan-search");
       trackScanSearchCompletion(timer);
+      // Live leaderboard: submit the stored best, fire-and-forget when a name
+      // is stored (silent on failure — never breaks the game).
+      if (getLbPlayerName()) {
+        submitScore("scan-search", highScore).then((r) => {
+          if (r) setSubmitRank(r.rank);
+        });
+      }
       const newAchievements = checkAchievements();
       if (newAchievements.length > 0) {
         setToastAchievement(newAchievements[0]);
@@ -555,6 +565,12 @@ export default function ScanSearch() {
             {score >= highScore && (
               <p className="text-secondary font-bold mb-4">🏆 New High Score! 🏆</p>
             )}
+            <LeaderboardEntry
+              game="scan-search"
+              score={highScore}
+              rank={submitRank}
+              onRank={setSubmitRank}
+            />
             <button
               className="btn-primary w-full text-lg"
               onClick={regenerate}
