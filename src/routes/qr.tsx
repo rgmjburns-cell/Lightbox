@@ -8,7 +8,7 @@ export const Route = createFileRoute("/qr")({
   component: QrPage,
 });
 
-const SITE_URL = "https://fc0fde2e702be4fba7557dc896972dfc.ctonew.app";
+const SITE_URL = "https://play-production-3271.up.railway.app";
 
 function QrPage() {
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
