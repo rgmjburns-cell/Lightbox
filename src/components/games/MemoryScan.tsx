@@ -370,14 +370,19 @@ export default function MemoryScan() {
               >
                 {/* Card Back */}
                 <div
-                  className="absolute inset-0 rounded-xl flex items-center justify-center"
+                  className="absolute inset-0 rounded-xl overflow-hidden"
                   style={{
                     backfaceVisibility: "hidden",
-                    background: "linear-gradient(135deg, #008C95 0%, #008C95 40%, #00B4C4 100%)",
                     boxShadow: "0 2px 8px rgba(0,140,149,0.3)",
                   }}
                 >
-                  <span className="text-2xl opacity-80">⚕️</span>
+                  <img
+                    src="/rex-memory-tile.png"
+                    alt="Rex tile"
+                    draggable={false}
+                    className="w-full h-full object-cover"
+                    style={{ pointerEvents: "none" }}
+                  />
                 </div>
 
                 {/* Card Front */}
