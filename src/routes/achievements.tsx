@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import BadgeImage from "~/components/BadgeImage";
 import RexSpeechBubble from "~/components/RexSpeechBubble";
 import {
   getAchievements,
@@ -63,7 +64,7 @@ function Achievements() {
           <div className="flex flex-col gap-2 mb-6">
             {earned.map((a) => (
               <div key={a.id} className="card flex items-center gap-4 py-3">
-                <span className="text-2xl">{a.icon}</span>
+                <BadgeImage src={a.icon} name={a.name} />
                 <div className="flex-1">
                   <p className="font-semibold text-darkText text-sm">
                     {a.name}
@@ -98,7 +99,7 @@ function Achievements() {
                 key={a.id}
                 className="card flex items-center gap-4 py-3 opacity-60"
               >
-                <span className="text-2xl grayscale">{a.icon}</span>
+                <BadgeImage src={a.icon} name={a.name} locked />
                 <div className="flex-1">
                   <p className="font-semibold text-darkText text-sm">
                     {a.name}
