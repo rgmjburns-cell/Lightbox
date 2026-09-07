@@ -19,27 +19,29 @@ import {
 interface Card {
   id: number;
   pairId: number;
-  emoji: string;
-  label: string;
+  name: string;
+  image: string;
 }
 
 type Difficulty = "easy" | "hard";
 
 // ── Card Data ──
 
-const CARD_PAIRS: { emoji: string; label: string }[] = [
-  { emoji: "🦴", label: "BONE" },
-  { emoji: "❤️", label: "HEART" },
-  { emoji: "🦷", label: "TOOTH" },
-  { emoji: "💀", label: "SKULL" },
-  { emoji: "🩻", label: "MRI" },
-  { emoji: "⚡", label: "X-RAY" },
-  { emoji: "🧠", label: "BRAIN" },
-  { emoji: "🩻", label: "CHEST" },
-  { emoji: "🫁", label: "LUNGS" },
-  { emoji: "👁️", label: "EYE" },
-  { emoji: "🦵", label: "FEMUR" },
-  { emoji: "🤲", label: "HANDS" },
+const CARD_PAIRS: { name: string; image: string }[] = [
+  { name: "Brain", image: "/memory-tile-brain.png" },
+  { name: "MRI", image: "/memory-tile-mri.png" },
+  { name: "Chest", image: "/memory-tile-chest.png" },
+  { name: "Heart", image: "/memory-tile-heart.png" },
+  { name: "X-ray", image: "/memory-tile-xray.png" },
+  { name: "Lungs", image: "/memory-tile-lungs.png" },
+  { name: "Skull", image: "/memory-tile-skull.png" },
+  { name: "Spine", image: "/memory-tile-spine.png" },
+  { name: "Pelvis", image: "/memory-tile-pelvis.png" },
+  { name: "Knee", image: "/memory-tile-knee.png" },
+  { name: "Shoulder", image: "/memory-tile-shoulder.png" },
+  { name: "Ankle", image: "/memory-tile-ankle.png" },
+  { name: "CT", image: "/memory-tile-ct.png" },
+  { name: "Ultrasound", image: "/memory-tile-ultrasound.png" },
 ];
 
 function shuffleArray<T>(arr: T[]): T[] {
@@ -57,8 +59,8 @@ function generateCards(difficulty: Difficulty): Card[] {
 
   const cards: Card[] = [];
   selected.forEach((pair, idx) => {
-    cards.push({ id: idx * 2, pairId: idx, emoji: pair.emoji, label: pair.label });
-    cards.push({ id: idx * 2 + 1, pairId: idx, emoji: pair.emoji, label: pair.label });
+    cards.push({ id: idx * 2, pairId: idx, name: pair.name, image: pair.image });
+    cards.push({ id: idx * 2 + 1, pairId: idx, name: pair.name, image: pair.image });
   });
 
   return shuffleArray(cards);
@@ -385,28 +387,25 @@ export default function MemoryScan() {
                   />
                 </div>
 
-                {/* Card Front */}
+                {/* Card Front — tile art is the complete face */}
                 <div
-                  className={`absolute inset-0 rounded-xl flex flex-col items-center justify-center gap-1 p-1
-                    ${matched ? "bg-teal-100" : isPerfect ? "bg-yellow-100" : "bg-white"}
-                  `}
+                  className="absolute inset-0 rounded-xl overflow-hidden"
                   style={{
                     backfaceVisibility: "hidden",
                     transform: "rotateY(180deg)",
                     boxShadow: matched
                       ? "0 2px 8px rgba(0,140,149,0.2)"
                       : "0 2px 8px rgba(0,0,0,0.08)",
-                    border: matched ? "2px solid #008C95" : "1px solid #E0F5F7",
+                    border: matched ? "2px solid #008C95" : "none",
                   }}
                 >
-                  <span className="text-2xl sm:text-3xl">{card.emoji}</span>
-                  <span
-                    className={`text-[10px] sm:text-xs font-bold text-center leading-tight ${
-                      matched ? "text-secondary" : "text-primary"
-                    }`}
-                  >
-                    {card.label}
-                  </span>
+                  <img
+                    src={card.image}
+                    alt={card.name}
+                    draggable={false}
+                    className="w-full h-full object-contain p-1"
+                    style={{ pointerEvents: "none" }}
+                  />
                   {isPerfect && (
                     <span className="absolute -top-1 -right-1 text-sm animate-bounce">
                       ⚡
