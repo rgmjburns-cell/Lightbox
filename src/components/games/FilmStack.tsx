@@ -102,7 +102,9 @@ export default function FilmStack() {
   // Overall-fit scale only; per-tile clamping (displayRect) is the real fix.
   const { w: boardW, h: boardH } = useMemo(() => boardSize(tiles), [tiles]);
   const scale = fitScale(boardW, effW);
-  const dims: BoardDims = { boardW, containerW: effW, scale };
+  // realW = the ACTUAL measured box width, so even the pre-measurement frame
+  // (effW falls back to FALLBACK_W) clamps tiles inside the real container.
+  const dims: BoardDims = { boardW, containerW: effW, scale, realW: widthRef.current };
   // Compact centred hand row; slots shrink only to fit narrow panels.
   const layout = useMemo(() => handLayout(Math.max(0, effW - 16)), [effW]);
 

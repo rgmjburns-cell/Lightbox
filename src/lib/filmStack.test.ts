@@ -131,6 +131,32 @@ for (const vw of [393, 320]) {
     }
   });
 }
+// Regression: the real 320px shell is only ~305px wide and the game's board
+// wrap is narrower still; the first paint lays out against FALLBACK_W until
+// the ResizeObserver reports. Tiles must never exceed containerW - 8 even
+// when the layout width overestimates the real box (pre-measurement frame).
+test("worst-case tile right edge <= containerW - SIDE_MARGIN (320px container, pre-measurement likened)", () => {
+  for (let level = 1; level <= 10; level++) {
+    for (let seed = 1; seed <= 3; seed++) {
+      const tiles = dealBoard(level, 320, makeRng(level * 1000 + seed));
+      const { w: boardW } = boardSize(tiles);
+      const scale = fitScale(boardW, 320);
+      // LIKEN the pre-measure: layout width 320 with only +32 viewport
+      // padding -> real box 288, but component passed containerW=320.
+      const dims = { boardW, containerW: 320, scale, realW: 320 - 32 };
+      let maxRight = -Infinity;
+      tiles.forEach((t) => {
+        if (t.cleared || t.inHand) return;
+        const r = displayRect(t, dims);
+        maxRight = Math.max(maxRight, r.x + r.w);
+        expect(r.x).toBeGreaterThanOrEqual(SIDE_MARGIN - 0.5);
+        expect(r.x + r.w).toBeLessThanOrEqual(320 - 32 - SIDE_MARGIN + 0.5);
+      });
+      // The real acceptance: every tile within the VIEWPORT too (box + 2*16 pad).
+      expect(maxRight).toBeLessThanOrEqual(320 - SIDE_MARGIN + 0.5);
+    }
+  }
+});
 
 test("shuffle keeps every tile inside the game area", () => {
   for (let seed = 1; seed <= 5; seed++) {

@@ -209,16 +209,28 @@ export function boardSize(tiles: FilmTile[]): { w: number; h: number } {
   return { w, h };
 }
 
-/** Overall-fit scale only — never the clipping fix (clamping is). */
+/**
+ * Overall-fit scale with a hard per-tile floor: the result must also keep a
+ * single tile (plus SIDE_MARGIN on each side) inside the container. The cap
+ * is meaningful at container widths below TILE_W + 2*SIDE_MARGIN (e.g. the
+ * 320px acceptance case) where board-fit alone can leave tiles overflowing
+ * a container the component measured narrower than the one it lays out for.
+ */
 export function fitScale(boardW: number, containerW: number): number {
   if (boardW <= 0 || containerW <= 0) return 1;
-  return Math.min(1, containerW / boardW);
+  const maxTileScale = (containerW - 2 * SIDE_MARGIN) / TILE_W;
+  return Math.min(1, containerW / boardW, Math.max(0, maxTileScale));
 }
 
 export interface BoardDims {
   boardW: number;
   containerW: number;
   scale: number;
+  /** Real measured width of the element the tiles are rendered into. When it
+   *  differs from containerW (e.g. the first-paint FALLBACK frame before the
+   *  ResizeObserver reports), the clamp is applied to THIS box so tiles can
+   *  never be positioned by a layout the real container cannot show. */
+  realW?: number;
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -235,19 +247,23 @@ export interface DisplayRect {
 /**
  * Final on-screen rect for a board tile. The tile is scaled by the overall
  * fit factor, centred via padX, then its x is CLAMPED so the complete tile
- * (full TILE_W width) stays within [SIDE_MARGIN, containerW - SIDE_MARGIN].
+ * (full scaled TILE_W width) stays within
+ * [SIDE_MARGIN, boxW - SIDE_MARGIN], where boxW is the width of the REAL
+ * rendered container (defaults to dims.containerW; pass `realW` when the
+ * layout width is only an estimate, i.e. pre-measurement).
  */
 export function displayRect(
   t: { col: number; row: number; layer: number; dense?: boolean },
   dims: BoardDims,
 ): DisplayRect {
-  const { boardW, containerW, scale } = dims;
+  const { boardW, containerW, scale, realW } = dims;
   const raw = basePos(t);
   const w = TILE_W * scale;
   const h = TILE_H * scale;
-  const padX = Math.max(0, (containerW - boardW * scale) / 2);
+  const boxW = realW && realW > 0 ? Math.min(realW, containerW) : containerW;
+  const padX = Math.max(0, (boxW - boardW * scale) / 2);
   const lo = SIDE_MARGIN;
-  const hi = Math.max(lo, containerW - w - SIDE_MARGIN);
+  const hi = Math.max(lo, boxW - w - SIDE_MARGIN);
   return { x: clamp(raw.x * scale + padX, lo, hi), y: raw.y * scale, w, h };
 }
 
