@@ -4,6 +4,7 @@ import {
   HAND_GAP,
   HAND_SLOT_MAX,
   HAND_SIZE,
+  LEVELS,
   MATCH_COUNT,
   SIDE_MARGIN,
   TILE_W,
@@ -15,6 +16,7 @@ import {
   fitScale,
   generateBoard,
   handLayout,
+  handWinnable,
   imageIdOf,
   makeRng,
   matchForPick,
@@ -26,39 +28,44 @@ import {
 
 const TILE_ART = (n: number) => `/film-tiles/tile-${String(n).padStart(2, "0")}.png`;
 
-// ── Correct image matching ──────────────────────────────────────────────
+// ── Pair matching (mahjong solitaire) ────────────────────────────────────
 
-test("4 identical identifiers → valid match", () => {
-  const hand: HandTile[] = [101, 102, 103, 104].map((id) => ({ id, imageId: 7 }));
-  expect(matchForPick(hand, 7)).toEqual([101, 102, 103, 104]);
-  expect(validateMatch(hand, [101, 102, 103, 104])).toBe(true);
+test("2 identical imageIds form a pair (same-image match)", () => {
+  const hand: HandTile[] = [
+    { id: 101, imageId: 7 },
+    { id: 102, imageId: 7 },
+  ];
+  expect(matchForPick(hand, 7)).toEqual([101, 102]);
+  expect(validateMatch(hand, [101, 102])).toBe(true);
 });
 
-test("4 different identifiers → no match", () => {
-  const hand: HandTile[] = [1, 7, 12, 20].map((id, i) => ({ id, imageId: [1, 7, 12, 20][i] }));
-  expect(matchForPick(hand, 20)).toBeNull();
-  expect(validateMatch(hand, [1, 7, 12, 20])).toBe(false);
+test("2 different imageIds do NOT match", () => {
+  const hand: HandTile[] = [
+    { id: 1, imageId: 7 },
+    { id: 2, imageId: 13 },
+  ];
+  expect(matchForPick(hand, 13)).toBeNull();
+  expect(validateMatch(hand, [1, 2])).toBe(false);
 });
 
-test("3 identical + 1 different → no match", () => {
+test("a full hand with the pair buried matches exactly the 2 same-image tiles", () => {
   const hand: HandTile[] = [
     { id: 1, imageId: 3 },
-    { id: 2, imageId: 3 },
+    { id: 2, imageId: 9 },
     { id: 3, imageId: 3 },
-    { id: 4, imageId: 9 },
+    { id: 4, imageId: 12 },
   ];
-  expect(matchForPick(hand, 3)).toBeNull();
-  expect(matchForPick(hand, 9)).toBeNull();
-  expect(validateMatch(hand, [1, 2, 3, 4])).toBe(false);
+  expect(matchForPick(hand, 3)).toEqual([1, 3]);
+  expect(validateMatch(hand, [1, 3])).toBe(true);
 });
 
 test("match validation rejects wrong size / unknown ids / invalid identifier", () => {
-  const hand: HandTile[] = [1, 2, 3, 4].map((id) => ({ id, imageId: 5 }));
+  const hand: HandTile[] = [1, 2].map((id) => ({ id, imageId: 5 }));
+  expect(validateMatch(hand, [1])).toBe(false);
   expect(validateMatch(hand, [1, 2, 3])).toBe(false);
-  expect(validateMatch(hand, [1, 2, 3, 4, 5])).toBe(false);
-  expect(validateMatch(hand, [1, 2, 3, 999])).toBe(false);
-  const zero: HandTile[] = [1, 2, 3, 4].map((id) => ({ id, imageId: 0 }));
-  expect(validateMatch(zero, [1, 2, 3, 4])).toBe(false);
+  expect(validateMatch(hand, [1, 999])).toBe(false);
+  const zero: HandTile[] = [1, 2].map((id) => ({ id, imageId: 0 }));
+  expect(validateMatch(zero, [1, 2])).toBe(false);
 });
 
 test("imageId is 1:1 with the displayed asset", () => {
@@ -66,7 +73,9 @@ test("imageId is 1:1 with the displayed asset", () => {
   expect(imageIdOf("/film-tiles/tile-07.png")).not.toBe(imageIdOf("/film-tiles/tile-08.png"));
 });
 
-test("dealt board: identical images come in groups of exactly 4", () => {
+// ── Deal: pairs of exactly 2, counts preserved, compact footprint ───────
+
+test("dealt board: every image appears exactly 2 times (a pair)", () => {
   for (let level = 1; level <= 10; level++) {
     const tiles = generateBoard(level, makeRng(level * 991));
     const counts = new Map<number, number>();
@@ -74,7 +83,46 @@ test("dealt board: identical images come in groups of exactly 4", () => {
       counts.set(t.imageId, (counts.get(t.imageId) ?? 0) + 1);
       expect(t.art).toBe(TILE_ART(t.imageId));
     });
+    // total tile count matches the level design; every face exactly a pair.
+    expect(tiles.length).toBe(LEVELS[level - 1].count);
     counts.forEach((n) => expect(n).toBe(MATCH_COUNT));
+  }
+});
+
+test("fresh deals use the minimum number of repeated faces for the count", () => {
+  // 36 tiles = 18 pairs → 18 distinct faces from the 21 pool (no repeats).
+  const l1 = generateBoard(1, makeRng(5));
+  const faces1 = new Set(l1.map((t) => t.imageId));
+  expect(faces1.size).toBe(18);
+  // max-capacity level: 42 tiles = 21 pairs → all 21 faces exactly once each.
+  const l10 = generateBoard(10, makeRng(5));
+  const counts = new Map<number, number>();
+  l10.forEach((t) => counts.set(t.imageId, (counts.get(t.imageId) ?? 0) + 1));
+  expect(counts.size).toBe(21);
+  counts.forEach((n) => expect(n).toBe(2));
+});
+
+test("dealt board is compact: footprint stays inside its per-level grid", () => {
+  for (let level = 1; level <= 10; level++) {
+    const cfg = LEVELS[level - 1];
+    const tiles = generateBoard(level, makeRng(level * 31));
+    const maxCol = Math.max(...tiles.map((t) => t.col)) + 1;
+    const maxRow = Math.max(...tiles.map((t) => t.row)) + 1;
+    // footprint matches the level's compact grid, never the old 8×7 spread
+    // (the old layout felt too spread out at 524px+ wide).
+    expect(maxCol).toBeLessThanOrEqual(cfg.cols ?? COLS);
+    expect(maxRow).toBeLessThanOrEqual(cfg.rows ?? 7);
+    expect(maxCol * maxRow).toBeLessThan(COLS * 7);
+  }
+});
+
+test("dealBoard on a few levels returns layout-clean winnable boards", () => {
+  for (const level of [1, 5, 7, 10]) {
+    for (let seed = 1; seed <= 2; seed++) {
+      const tiles = dealBoard(level, 393 - 32, makeRng(level * 1000 + seed));
+      expect(handWinnable(tiles)).toBe(true);
+      expect(allTilesInside(tiles, 393 - 32).bad).toBe(0);
+    }
   }
 });
 
@@ -122,7 +170,7 @@ for (const vw of [393, 320]) {
   test(`all gameplay tiles stay inside a ${vw}px-wide viewport (all levels)`, () => {
     for (let level = 1; level <= 10; level++) {
       for (let seed = 1; seed <= 3; seed++) {
-        const tiles = dealBoard(level, vw - 32, makeRng(level * 1000 + seed));
+        const tiles = generateBoard(level, makeRng(level * 1000 + seed));
         const { bad, lo, hi } = allTilesInside(tiles, vw - 32);
         expect(bad).toBe(0);
         expect(lo).toBeGreaterThanOrEqual(SIDE_MARGIN - 0.5);
@@ -131,6 +179,7 @@ for (const vw of [393, 320]) {
     }
   });
 }
+
 // Regression: the real 320px shell is only ~305px wide and the game's board
 // wrap is narrower still; the first paint lays out against FALLBACK_W until
 // the ResizeObserver reports. Tiles must never exceed containerW - 8 even
@@ -138,7 +187,7 @@ for (const vw of [393, 320]) {
 test("worst-case tile right edge <= containerW - SIDE_MARGIN (320px container, pre-measurement likened)", () => {
   for (let level = 1; level <= 10; level++) {
     for (let seed = 1; seed <= 3; seed++) {
-      const tiles = dealBoard(level, 320, makeRng(level * 1000 + seed));
+      const tiles = generateBoard(level, makeRng(level * 1000 + seed));
       const { w: boardW } = boardSize(tiles);
       const scale = fitScale(boardW, 320);
       // LIKEN the pre-measure: layout width 320 with only +32 viewport
@@ -171,7 +220,8 @@ test("tile full width is accounted for (max-x includes TILE_W)", () => {
   const scale = fitScale(boardW, 393 - 32);
   const dims = { boardW, containerW: 393 - 32, scale };
   // Rightmost column tiles must still end inside the area.
-  const rightmost = tiles.filter((t) => t.col === COLS - 1 && t.layer === 0);
+  const maxCol = Math.max(...tiles.map((t) => t.col));
+  const rightmost = tiles.filter((t) => t.col === maxCol && t.layer === 0);
   expect(rightmost.length).toBeGreaterThan(0);
   rightmost.forEach((t) => {
     const r = displayRect(t, dims);

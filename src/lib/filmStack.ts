@@ -5,8 +5,10 @@
  * mobile-layout math are unit-testable with `bun test`. This module has no
  * DOM/React imports; the component stays thin and rendering-focused.
  *
- * Match rule (owner spec): a match = exactly FOUR hand tiles sharing the
- * SAME imageId (1:1 with the displayed /film-tiles/tile-NN.png asset).
+ * Match rule (owner spec — mahjong solitaire): a match = TWO hand tiles
+ * sharing the SAME imageId (1:1 with the displayed /film-tiles/tile-NN.png
+ * asset). The deal places EXACTLY two copies of every face on the board, so
+ * every pair is clearable and the board is winnable.
  * imageId survives dealing, moving to hand, selecting and shuffling —
  * shuffle reassigns positions only, never identifiers.
  */
@@ -81,20 +83,30 @@ export interface LevelCfg {
   count: number;
   layers: number;
   dense?: boolean;
+  /** Compact footprint: playable columns (first N cols of the 8×7 grid). */
+  cols?: number;
+  /** Compact footprint: playable rows (first N rows of the 8×7 grid). */
+  rows?: number;
 }
 
-/** Level table — values match the original game design; do not retune. */
+/** Level table — tile counts stay close to the original design, achieved
+ *  with PAIRS of 2 (every face appears exactly TWICE on the board, so a
+ *  pair always matches). With 21 unique faces the max pair capacity is
+ *  42 tiles — levels designed above 42 are capped at 42 and ramp difficulty
+ *  through layers/density/footprint instead. The board is dealt from a
+ *  compact per-level footprint so the layout reads as one tight mahjong
+ *  block rather than a sparse 8×7 scatter (the old 524px-wide spread). */
 export const LEVELS: LevelCfg[] = [
-  { types: 4, count: 36, layers: 2 },
-  { types: 4, count: 40, layers: 2 },
-  { types: 4, count: 44, layers: 3 },
-  { types: 5, count: 44, layers: 3 },
-  { types: 5, count: 48, layers: 3 },
-  { types: 5, count: 50, layers: 3, dense: true },
-  { types: 5, count: 52, layers: 3, dense: true },
-  { types: 5, count: 54, layers: 3, dense: true },
-  { types: 5, count: 56, layers: 3, dense: true },
-  { types: 5, count: 60, layers: 3, dense: true },
+  { types: 4, count: 36, layers: 2, cols: 6, rows: 6 },
+  { types: 4, count: 40, layers: 2, cols: 6, rows: 6 },
+  { types: 4, count: 42, layers: 3, cols: 6, rows: 6 },
+  { types: 5, count: 42, layers: 3, cols: 7, rows: 6 },
+  { types: 5, count: 42, layers: 3, cols: 7, rows: 6 },
+  { types: 5, count: 42, layers: 3, dense: true, cols: 8, rows: 6 },
+  { types: 5, count: 42, layers: 3, dense: true, cols: 8, rows: 6 },
+  { types: 5, count: 42, layers: 3, dense: true, cols: 8, rows: 6 },
+  { types: 5, count: 42, layers: 3, dense: true, cols: 8, rows: 6 },
+  { types: 5, count: 42, layers: 3, dense: true, cols: 8, rows: 6 },
 ];
 
 export const COLS = 8;
@@ -104,8 +116,8 @@ export const CELL_H = 74;
 export const TILE_W = 76;
 export const TILE_H = 84;
 export const HAND_SIZE = 4;
-/** A match = exactly this many hand tiles with the same imageId. */
-export const MATCH_COUNT = 4;
+/** A match = exactly this many hand tiles with the same imageId (a pair). */
+export const MATCH_COUNT = 2;
 /** Minimum side margin (px) every tile must respect inside the game area. */
 export const SIDE_MARGIN = 8;
 /** Compact hand: gap between the 4 slots. */
@@ -149,33 +161,45 @@ export interface GridPos {
   layer: number;
 }
 
-export function allPositions(layers: number): GridPos[] {
+/** All positions of the compact per-level footprint (defaults to full grid). */
+export function allPositions(layers: number, cols = COLS, rows = ROWS): GridPos[] {
   const out: GridPos[] = [];
   for (let l = 0; l < layers; l++)
-    for (let c = 0; c < COLS - l; c++) for (let r = 0; r < ROWS - l; r++) out.push({ col: c, row: r, layer: l });
+    for (let c = 0; c < cols - l; c++) for (let r = 0; r < rows - l; r++) out.push({ col: c, row: r, layer: l });
   return out;
 }
 
+/** Ordered list of the 21 unique faces (type + art), cycled for min repeats. */
+export const FACE_POOL: { type: TileType; imageId: number; art: string }[] = (() => {
+  const pool: { type: TileType; imageId: number; art: string }[] = [];
+  for (let g = 0; g < 21; g++) {
+    const type = TYPES[g % TYPES.length];
+    const arts = KIND_ART[type];
+    const use = Math.floor(g / TYPES.length);
+    const art = arts[use % arts.length];
+    pool.push({ type, imageId: imageIdOf(art), art });
+  }
+  return pool;
+})();
+
 /**
- * Deal a board: every unique image appears in exactly one group of
- * MATCH_COUNT identical copies, so the whole board is clearable in theory.
- * Counts not divisible by 4 (levels 6 and 8) are trimmed down to the nearest
- * multiple of 4 — the LEVELS table itself is untouched.
+ * Deal a board: every face appears in exactly one PAIR (2 identical copies),
+ * so the whole board is clearable in theory. Faces cycle the 21 unique ones —
+ * a level with 18 faces uses 18 distinct arts, 22 faces some arts twice (each
+ * still exactly 2 copies on the board), 30 faces three arts repeated — always
+ * the MINIMUM number of repeated faces for any count. The footprint is the
+ * compact per-level grid (defaults to full 8×7 when cols/rows unset).
  */
 export function generateBoard(level: number, rand: Rand = Math.random): FilmTile[] {
   const cfg = LEVELS[level - 1] ?? LEVELS[0];
   const dense = cfg.dense === true;
-  const total = cfg.count - (cfg.count % MATCH_COUNT);
-  const ps = shuffleArr(allPositions(cfg.layers), rand).slice(0, total);
-  const groups = total / MATCH_COUNT;
+  const total = cfg.count;
+  const ps = shuffleArr(allPositions(cfg.layers, cfg.cols ?? COLS, cfg.rows ?? ROWS), rand).slice(0, total);
+  const pairs = total / 2;
   const pool: { type: TileType; imageId: number; art: string }[] = [];
-  for (let g = 0; g < groups; g++) {
-    const type = TYPES[g % cfg.types];
-    const arts = KIND_ART[type];
-    const use = Math.floor(g / cfg.types);
-    const art = arts[use % arts.length];
-    const imageId = imageIdOf(art);
-    for (let k = 0; k < MATCH_COUNT; k++) pool.push({ type, imageId, art });
+  for (let i = 0; i < pairs; i++) {
+    const face = FACE_POOL[i % FACE_POOL.length];
+    pool.push(face, face);
   }
   const dealt = shuffleArr(pool, rand);
   return ps.map((p, id) => ({
@@ -310,63 +334,6 @@ export function layoutViolations(tiles: FilmTile[], containerW: number): LayoutR
   return { outside, maxCover, scale };
 }
 
-/**
- * Deal a validated board: retry random deals until no tile leaves the game
- * area and no tile is excessively covered (bounded tries, keep the best).
- */
-export function dealBoard(
-  level: number,
-  containerW: number,
-  rand: Rand = Math.random,
-  tries = 25,
-): FilmTile[] {
-  let best = generateBoard(level, rand);
-  let bestScore = scoreLayout(best, containerW);
-  if (bestScore.ok) return best;
-  for (let i = 1; i < tries; i++) {
-    const cand = generateBoard(level, rand);
-    const s = scoreLayout(cand, containerW);
-    if (s.bad < bestScore.bad || (s.bad === bestScore.bad && s.cover < bestScore.cover)) {
-      best = cand;
-      bestScore = s;
-      if (s.ok) break;
-    }
-  }
-  return best;
-}
-
-function scoreLayout(tiles: FilmTile[], containerW: number): { ok: boolean; bad: number; cover: number } {
-  const v = layoutViolations(tiles, containerW);
-  return { ok: v.outside.length === 0 && v.maxCover <= MAX_COVER, bad: v.outside.length, cover: v.maxCover };
-}
-
-/**
- * Shuffle reassigns POSITIONS ONLY among active board tiles — identifiers
- * (imageId/art/type) never move. Retries keep the most readable arrangement.
- */
-export function shufflePositions(tiles: FilmTile[], rand: Rand = Math.random, containerW = 0): FilmTile[] {
-  const apply = (ts: FilmTile[], order: GridPos[]): FilmTile[] => {
-    let i = 0;
-    return ts.map((t) => (!t.cleared && !t.inHand ? { ...t, ...order[i++] } : t));
-  };
-  const activeCount = tiles.filter((t) => !t.cleared && !t.inHand).length;
-  if (activeCount === 0) return tiles;
-  let best = apply(tiles, shuffleArr(tiles.filter((t) => !t.cleared && !t.inHand).map((t) => ({ col: t.col, row: t.row, layer: t.layer })), rand));
-  if (containerW <= 0) return best;
-  let bestCover = layoutViolations(best, containerW).maxCover;
-  if (bestCover <= MAX_COVER) return best;
-  for (let i = 1; i < 10; i++) {
-    const cand = apply(tiles, shuffleArr(tiles.filter((t) => !t.cleared && !t.inHand).map((t) => ({ col: t.col, row: t.row, layer: t.layer })), rand));
-    const cover = layoutViolations(cand, containerW).maxCover;
-    if (cover < bestCover) {
-      best = cand;
-      bestCover = cover;
-      if (cover <= MAX_COVER) break;
-    }
-  }
-  return best;
-}
-
 /** Mahjong-style coverage: does higher-layer tile a cover tile b? */
 export function covers(
   a: { col: number; row: number; layer: number; dense?: boolean },
@@ -381,10 +348,7 @@ export function covers(
   );
 }
 
-export function selectable(
-  t: FilmTile,
-  all: FilmTile[],
-): boolean {
+export function selectable(t: FilmTile, all: FilmTile[]): boolean {
   if (t.cleared || t.inHand) return false;
   if (all.some((x) => x.id !== t.id && !x.cleared && !x.inHand && covers(x, t))) return false;
   const l = all.some(
@@ -397,7 +361,7 @@ export function selectable(
 }
 
 /**
- * After a pick, if the hand now holds exactly MATCH_COUNT tiles with the
+ * After a pick, if the hand now holds exactly MATCH_COUNT (2) tiles with the
  * picked identifier, those tile ids form the match. Otherwise null.
  */
 export function matchForPick(hand: HandTile[], pickedImageId: number): number[] | null {
@@ -407,7 +371,7 @@ export function matchForPick(hand: HandTile[], pickedImageId: number): number[] 
 }
 
 /**
- * Re-validate immediately before animating/removing: exactly MATCH_COUNT
+ * Re-validate immediately before animating/removing: exactly MATCH_COUNT (2)
  * tiles, all present, all sharing one valid identifier. On failure the
  * caller must remove nothing and safely clear the invalid state.
  */
@@ -417,6 +381,160 @@ export function validateMatch(tiles: HandTile[], ids: number[]): boolean {
   if (found.some((t) => !t)) return false;
   const first = (found[0] as HandTile).imageId;
   return first > 0 && found.every((t) => (t as HandTile).imageId === first);
+}
+
+/**
+ * Hand-aware winnability oracle: can a player clear a fresh board using the
+ * real rules — pick an exposed tile into the 4-slot hand, bash when a pair
+ * (same image) meets, return a tile when the hand is full? The sim mimics a
+ * competent player: always bash when possible, hold distinct faces, and only
+ * return a held tile when the hand is full and no bash is available.
+ * Used by dealBoard to guarantee every deal presented to the player is
+ * clearable (retries reject unwinnable random deals).
+ */
+export function handWinnable(tiles: FilmTile[]): boolean {
+  const cur = tiles.map((t) => ({ ...t }));
+  const hand: { id: number; imageId: number }[] = [];
+  let removed = 0;
+  let guard = 0;
+  while (guard++ < tiles.length * 8 + 64) {
+    const exposed = cur.filter((t) => !t.cleared && !t.inHand && selectable(t, cur));
+    if (exposed.length === 0) return removed === tiles.length;
+    let acted = false;
+    // Bash with a mate already in hand.
+    for (const t of exposed) {
+      const mi = hand.findIndex((h) => h.imageId === t.imageId);
+      if (mi >= 0) {
+        cur.forEach((x) => {
+          if (x.id === t.id) x.cleared = true;
+          if (x.id === hand[mi].id) {
+            x.cleared = true;
+            x.inHand = false;
+          }
+        });
+        hand.splice(mi, 1);
+        removed += 2;
+        acted = true;
+        break;
+      }
+    }
+    if (acted) continue;
+    // Bash an exposed pair.
+    out: for (let i = 0; i < exposed.length; i++) {
+      for (let j = i + 1; j < exposed.length; j++) {
+        if (exposed[i].imageId === exposed[j].imageId) {
+          cur.forEach((x) => {
+            if (x.id === exposed[i].id || x.id === exposed[j].id) x.cleared = true;
+          });
+          removed += 2;
+          acted = true;
+          break out;
+        }
+      }
+    }
+    if (acted) continue;
+    // Hold an exposed tile of a face NOT already held (room permitting).
+    for (const t of exposed) {
+      if (hand.length < HAND_SIZE && !hand.some((h) => h.imageId === t.imageId)) {
+        cur.forEach((x) => {
+          if (x.id === t.id) x.inHand = true;
+        });
+        hand.push({ id: t.id, imageId: t.imageId });
+        acted = true;
+        break;
+      }
+    }
+    if (acted) continue;
+    // Hand is full and no bash is possible: return a held tile whose face is
+    // NOT currently exposed (most "dead" choice) to free a slot.
+    const exposedFaces = new Set(exposed.map((t) => t.imageId));
+    if (hand.length === HAND_SIZE && exposedFaces.size > 0) {
+      let toReturn = -1;
+      for (let h = 0; h < hand.length; h++) if (!exposedFaces.has(hand[h].imageId)) {
+        toReturn = h;
+        break;
+      }
+      if (toReturn === -1) toReturn = 0;
+      cur.forEach((x) => {
+        if (x.id === hand[toReturn].id) x.inHand = false;
+      });
+      hand.splice(toReturn, 1);
+      acted = true;
+      continue;
+    }
+    return false;
+  }
+  return removed === tiles.length;
+}
+
+function scoreLayout(tiles: FilmTile[], containerW: number): { ok: boolean; bad: number; cover: number } {
+  const v = layoutViolations(tiles, containerW);
+  return { ok: v.outside.length === 0 && v.maxCover <= MAX_COVER, bad: v.outside.length, cover: v.maxCover };
+}
+
+/**
+ * Deal a validated, WINNABLE board: retry random pair-deals until no tile
+ * leaves the game area (0 off-screen at the measured width), no tile is
+ * excessively covered AND the hand-aware clear sim passes (bounded tries).
+ * Every board the player actually sees is clearable; a fallback of last
+ * resort keeps a layout-clean board even if the sim never passes.
+ */
+export function dealBoard(
+  level: number,
+  containerW: number,
+  rand: Rand = Math.random,
+  tries = 30,
+): FilmTile[] {
+  let bestWin: FilmTile | null = null; // best WINNABLE candidate seen
+  let bestWinScore: { bad: number; cover: number } | null = null;
+  let bestLayout: FilmTile | null = null; // best layout candidate (fallback)
+  let bestLayoutScore: { bad: number; cover: number } | null = null;
+  for (let i = 0; i < tries; i++) {
+    const cand = generateBoard(level, rand);
+    const s = scoreLayout(cand, containerW);
+    const win = handWinnable(cand);
+    if (win && s.ok) return cand;
+    if (win) {
+      if (!bestWinScore || s.bad < bestWinScore.bad || (s.bad === bestWinScore.bad && s.cover < bestWinScore.cover)) {
+        bestWin = cand;
+        bestWinScore = s;
+      }
+    } else if (!bestLayoutScore || s.bad < bestLayoutScore.bad || (s.bad === bestLayoutScore.bad && s.cover < bestLayoutScore.cover)) {
+      bestLayout = cand;
+      bestLayoutScore = s;
+    }
+  }
+  if (bestWin) return bestWin;
+  if (bestLayout) return bestLayout;
+  return generateBoard(level, rand); // practically unreachable
+}
+
+/**
+ * Shuffle reassigns POSITIONS ONLY among active board tiles — identifiers
+ * (imageId/art/type) never move. Retries keep the most readable arrangement.
+ */
+export function shufflePositions(tiles: FilmTile[], rand: Rand = Math.random, containerW = 0): FilmTile[] {
+  const apply = (ts: FilmTile[], order: GridPos[]): FilmTile[] => {
+    let i = 0;
+    return ts.map((t) => (!t.cleared && !t.inHand ? { ...t, ...order[i++] } : t));
+  };
+  const activeCount = tiles.filter((t) => !t.cleared && !t.inHand).length;
+  if (activeCount === 0) return tiles;
+  const orderSource = tiles.filter((t) => !t.cleared && !t.inHand).map((t) => ({ col: t.col, row: t.row, layer: t.layer }));
+  let best = apply(tiles, shuffleArr(orderSource, rand));
+  if (containerW <= 0) return best;
+  let bestCover = layoutViolations(best, containerW).maxCover;
+  if (bestCover <= MAX_COVER) return best;
+  for (let i = 1; i < 10; i++) {
+    const cand = apply(tiles, shuffleArr(orderSource, rand));
+    const cover = layoutViolations(cand, containerW).maxCover;
+    if (cover < bestCover) {
+      best = cand;
+      bestCover = cover;
+      if (cover <= MAX_COVER) break;
+    }
+  }
+  return best;
 }
 
 /** Fresh selection/match state — applied on new game, reset and shuffle. */

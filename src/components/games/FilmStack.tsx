@@ -27,14 +27,23 @@ import {
 const COMPLETIONS = "filmStackCompletions", LEVEL_KEY = "filmStackLevel";
 /** Pre-measure fallback: 393px viewport minus page padding. */
 const FALLBACK_W = 361;
+/** Same with every reload: a fresh deal, regardless of previous session. */
+const SSR_SEEDED_RAND = () => 0.42;
 
 export default function FilmStack() {
   const playerName = typeof window !== "undefined" ? getPlayerName() : "Player";
   void playerName;
+  // Level persists; the BOARD never does. A reload always deals a fresh,
+  // winnable board for the saved level — mid-game tiles/hand are never
+  // rehydrated from a previous session (fixes stale-tile state bug).
   const [level, setLevel] = useState(() =>
     typeof window === "undefined" ? 1 : Math.min(10, Math.max(1, Number(localStorage.getItem(LEVEL_KEY) || 1))),
   );
-  const [tiles, setTiles] = useState<FilmTile[]>(() => dealBoard(level, FALLBACK_W));
+  const [tiles, setTiles] = useState<FilmTile[]>(() =>
+    typeof window === "undefined"
+      ? dealBoard(level, FALLBACK_W, SSR_SEEDED_RAND)
+      : dealBoard(level, FALLBACK_W),
+  );
   const [hand, setHand] = useState<number[]>([]);
   const [flying, setFlying] = useState<number | null>(null);
   const [match, setMatch] = useState<number[]>([]);
@@ -181,8 +190,8 @@ export default function FilmStack() {
           setMessage("SMASH! Perfect match! +100");
           setMood("excited");
           setTimeout(() => {
-            // Re-validate immediately before animating/removing: exactly 4
-            // tiles, all in hand, all sharing one identifier.
+            // Re-validate immediately before animating/removing: exactly 2
+            // tiles, both in hand, both sharing one identifier.
             const cur = tilesRef.current;
             const inHandNow: HandTile[] = next.map((x) => {
               const t = cur.find((p) => p.id === x);
@@ -222,7 +231,7 @@ export default function FilmStack() {
               setGameOver(true);
               setMessage("Game over — hand is full of different tiles!");
               setMood("encouraging");
-            } else setMessage("A matching set is building — return a tile to make room!");
+            } else setMessage("A pair is ready in your hand — tap it to return a tile and keep playing!");
           } else setMessage(`${HAND_SIZE - next.length} hand slot${HAND_SIZE - next.length === 1 ? "" : "s"} left`);
           setLocked(false);
         }
