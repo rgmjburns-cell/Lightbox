@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import BadgeImage from "~/components/BadgeImage";
 import type { Achievement } from "~/lib/achievements";
 
 interface AchievementToastProps {
@@ -47,8 +48,12 @@ export default function AchievementToast({
           min-w-[280px] max-w-[90vw]
         "
       >
-        {/* Badge icon */}
-        <span className="text-3xl">{achievement.icon}</span>
+        {/* Badge image */}
+        <BadgeImage
+          src={achievement.icon}
+          name={achievement.name}
+          className="w-12 h-12"
+        />
 
         <div className="flex-1 min-w-0">
           <p className="text-sm font-extrabold leading-tight truncate">

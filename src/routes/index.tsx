@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import BadgeImage from "~/components/BadgeImage";
 import Rex from "~/components/Rex";
 import InstallBanner from "~/components/InstallBanner";
 import { getPlayerName } from "~/components/Onboarding";
+import { getLastEarnedAchievement } from "~/lib/achievements";
 import { getTotalPoints } from "~/lib/points";
 import brand from "~/branding";
 
@@ -80,10 +82,18 @@ const playExperiences = [
 function Home() {
   const playerName = typeof window !== "undefined" ? getPlayerName() : null;
   const [totalScore, setTotalScore] = useState(0);
+  const [lastEarned, setLastEarned] = useState(() =>
+    typeof window === "undefined"
+      ? null
+      : (getLastEarnedAchievement() ?? null)
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     setTotalScore(getTotalPoints());
+    // Re-read so it updates immediately after earning a badge and
+    // stays correct across navigation/reopen.
+    setLastEarned(getLastEarnedAchievement() ?? null);
   }, []);
 
   return (
@@ -108,9 +118,27 @@ function Home() {
             <p className="text-xs text-mutedText uppercase tracking-wide">Total Score</p>
             <p className="text-2xl font-bold text-primary">{totalScore.toLocaleString()}</p>
           </div>
-          <div className="text-right">
-            <p className="text-xs text-mutedText uppercase tracking-wide">Next Badge</p>
-            <p className="text-sm font-medium text-secondary">🩻 First Scan</p>
+          <div className="text-right min-w-0">
+            <p className="text-xs text-mutedText uppercase tracking-wide">
+              Last Earned Badge
+            </p>
+            {lastEarned ? (
+              <div className="flex items-center justify-end gap-2">
+                <BadgeImage src={lastEarned.icon} name={lastEarned.name} />
+                <div className="text-right min-w-0">
+                  <p className="text-sm font-medium text-secondary truncate">
+                    {lastEarned.name}
+                  </p>
+                  <p className="text-[10px] text-mutedText truncate">
+                    {lastEarned.description}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm font-medium text-mutedText">
+                Play a game to earn your first badge.
+              </p>
+            )}
           </div>
         </div>
       )}

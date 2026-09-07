@@ -30,70 +30,70 @@ export const ACHIEVEMENTS: Achievement[] = [
     id: "first-scan",
     name: "First Scan",
     description: "Play any game for the first time",
-    icon: "🎮",
+    icon: "/badges/first-scan.png",
     hint: "Play any game to get started!",
   },
   {
     id: "bone-buster-champion",
     name: "Bone Buster Champion",
     description: "Reach level 3 in Bone Buster",
-    icon: "🦴",
+    icon: "/badges/bone-buster-champion.png",
     hint: "Reach level 3 in Bone Buster",
   },
   {
     id: "word-wizard",
     name: "Word Wizard",
     description: "Complete 3 word search puzzles",
-    icon: "📚",
+    icon: "/badges/word-wizard.png",
     hint: "Complete 3 Scan Search puzzles",
   },
   {
     id: "puzzle-master",
     name: "Puzzle Master",
     description: "Complete Memory Scan on hard mode",
-    icon: "🧩",
+    icon: "/badges/puzzle-master.png",
     hint: "Complete Memory Scan on hard difficulty",
   },
   {
     id: "scan-explorer",
     name: "Scan Explorer",
     description: "Play all 3 game types",
-    icon: "🗺️",
+    icon: "/badges/scan-explorer.png",
     hint: "Play Bone Buster, Scan Search, and Memory Scan",
   },
   {
     id: "waiting-time-hero",
     name: "Waiting Time Hero",
     description: "Accumulate 10,000 total points",
-    icon: "⏰",
+    icon: "/badges/waiting-time-hero.png",
     hint: "Earn 10,000 points across all games",
   },
   {
     id: "perfect-match",
     name: "Perfect Match",
     description: "Complete a Memory Scan game in under 20 moves",
-    icon: "✨",
+    icon: "/badges/perfect-match.png",
     hint: "Finish Memory Scan in under 20 moves",
   },
   {
     id: "speed-reader",
     name: "Speed Reader",
     description: "Find all words in Scan Search in under 60 seconds",
-    icon: "⚡",
+    icon: "/badges/speed-reader.png",
     hint: "Complete Scan Search in under 60 seconds",
   },
   {
     id: "level-up",
     name: "Level Up",
     description: "Reach level 5 in Bone Buster",
-    icon: "⬆️",
+    icon: "/badges/level-up.png",
     hint: "Reach level 5 in Bone Buster",
   },
   {
     id: "rexs-best-friend",
     name: "Rex's Best Friend",
     description: "Play on 5 different days",
-    icon: "🦖",
+    icon: "/badges/rexs-best-friend.png",
     hint: "Come back and play on 5 different days",
   },
 ];
@@ -342,4 +342,30 @@ export function getAchievements(): (Achievement & AchievementState)[] {
     ...a,
     ...(states[a.id] || { unlocked: false }),
   }));
+}
+
+/**
+ * Returns the most recently unlocked badge, or null if none are unlocked.
+ *
+ * The badge with the LATEST unlockedAt wins. If timestamps tie (e.g. several
+ * badges unlocked in the same session), the badge appearing LATER in the
+ * ACHIEVEMENTS array wins, so the result is deterministic.
+ */
+export function getLastEarnedAchievement():
+  | (Achievement & AchievementState)
+  | null {
+  const earned = getAchievements().filter((a) => a.unlocked && a.unlockedAt);
+  if (earned.length === 0) return null;
+
+  earned.sort((a, b) => {
+    const ta = new Date(a.unlockedAt!).getTime();
+    const tb = new Date(b.unlockedAt!).getTime();
+    if (ta !== tb) return tb - ta; // newest first
+    // Tie: later entry in ACHIEVEMENTS first
+    const ia = ACHIEVEMENTS.findIndex((x) => x.id === a.id);
+    const ib = ACHIEVEMENTS.findIndex((x) => x.id === b.id);
+    return ib - ia;
+  });
+
+  return earned[0];
 }
