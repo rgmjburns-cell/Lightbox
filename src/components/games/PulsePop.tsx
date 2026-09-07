@@ -5,6 +5,7 @@ import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
 import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
+import { TrophyIcon } from "~/components/RankBadge";
 import { Link } from "@tanstack/react-router";
 import { addPoints } from "~/lib/points";
 import {
@@ -1029,7 +1030,7 @@ export default function PulsePop() {
             </p>
             {finalScore >= highScore && finalScore > 0 && (
               <p className="text-secondary font-bold mb-4">
-                🏆 New High Score! 🏆
+                <TrophyIcon className="inline-block w-5 h-5 -mt-0.5" label="" /> New High Score! <TrophyIcon className="inline-block w-5 h-5 -mt-0.5" label="" />
               </p>
             )}
             <LeaderboardEntry
@@ -1097,7 +1098,7 @@ export default function PulsePop() {
       {/* High Score */}
       {highScore > 0 && (
         <p className="text-center text-xs text-mutedText mb-4">
-          🏆 Best Score: {highScore.toLocaleString()}
+          <TrophyIcon className="inline-block w-3.5 h-3.5 -mt-0.5" label="" /> Best Score: {highScore.toLocaleString()}
         </p>
       )}
     </div>

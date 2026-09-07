@@ -5,6 +5,7 @@ import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
 import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
+import { TrophyIcon } from "~/components/RankBadge";
 import { Link } from "@tanstack/react-router";
 import { addPoints } from "~/lib/points";
 import {
@@ -761,7 +762,7 @@ export default function ColourRex() {
               You coloured {progressPct}% of Rex!
             </p>
             <p className="text-2xl font-bold text-secondary mb-4">+500 pts</p>
-            {500 >= bestScore && <p className="text-sm text-secondary font-bold mb-4">🏆 New Best!</p>}
+            {500 >= bestScore && <p className="text-sm text-secondary font-bold mb-4 flex items-center justify-center gap-1.5"><TrophyIcon /> New Best!</p>}
             <LeaderboardEntry
               game="colour-rex"
               score={Math.max(bestScore, 500)}

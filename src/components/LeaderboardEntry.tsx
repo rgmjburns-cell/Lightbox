@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { RankIcon } from "~/components/RankBadge";
 import {
   getPlayerName,
   isGuestName,
@@ -23,7 +24,8 @@ interface LeaderboardEntryProps {
 
 /**
  * Small inline leaderboard hook for game result modals:
- *  - real name stored + rank known → subtle "🏅 #N this month" line;
+ *  - real name stored + rank known → medal art for ranks 1-3 (via RankIcon),
+ *    plain numeric "#N this month" for rank 4+;
  *  - real name stored + rank pending/failed → nothing (silent; the game's
  *    auto-submit already covers it — every round submits under a guaranteed
  *    name now);
@@ -45,9 +47,19 @@ export default function LeaderboardEntry({
   const isGuest = storedName !== null && isGuestName(storedName);
 
   if (rank !== null && rank > 0) {
+    if (rank <= 3) {
+      return (
+        <p className="text-sm font-semibold text-secondary mb-4 flex items-center justify-center gap-1.5">
+          <RankIcon rank={rank} className="w-6 h-6" />
+          <span>
+            #{rank.toLocaleString()} this month
+          </span>
+        </p>
+      );
+    }
     return (
       <p className="text-sm font-semibold text-secondary mb-4">
-        🏅 #{rank.toLocaleString()} this month
+        #{rank.toLocaleString()} this month
       </p>
     );
   }

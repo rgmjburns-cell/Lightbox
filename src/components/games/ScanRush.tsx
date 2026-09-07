@@ -11,6 +11,7 @@ import {
 } from "~/lib/achievements";
 import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
+import { TrophyIcon } from "~/components/RankBadge";
 import { Link } from "@tanstack/react-router";
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -785,7 +786,7 @@ export default function ScanRush() {
             </p>
             {isNewBest && (
               <p className="text-sm font-bold text-secondary mb-4 animate-pulse">
-                🏆 New Best Score!
+                <TrophyIcon /> New Best Score!
               </p>
             )}
             <LeaderboardEntry
