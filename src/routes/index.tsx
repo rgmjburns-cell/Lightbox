@@ -146,10 +146,15 @@ function Home() {
       {/* ── Leaderboard Teaser ── */}
       {playerName && (
         <Link to="/leaderboard" className="card mb-4 flex items-center gap-3 hover:shadow-md transition-shadow">
-          <span className="text-2xl">🏆</span>
+          <img
+            src="/leaderboard/trophy.png"
+            alt="Monthly Leaderboard trophy"
+            className="w-9 h-9 object-contain shrink-0"
+            draggable={false}
+          />
           <div className="flex-1">
             <p className="text-sm font-semibold text-primary">Monthly Leaderboard</p>
-            <p className="text-xs text-mutedText">See who's on top this month!</p>
+            <p className="text-xs text-mutedText">Ranked by your best game score this month.</p>
           </div>
           <span className="text-secondary text-sm font-medium">View →</span>
         </Link>
