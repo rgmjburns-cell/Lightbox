@@ -16,7 +16,14 @@ export const Route = createFileRoute("/leaderboard")({
 
 const POLL_MS = 5000;
 
-const MEDALS = ["🏆", "🥈", "🥉"];
+// Podium artwork for the monthly leaderboard (shared with the home teaser):
+// rank 1 gets the trophy, ranks 2-3 get medals. Ranks 4+ stay purely numeric.
+function rankIcon(rank: number): string | null {
+  if (rank === 1) return "/leaderboard/trophy.png";
+  if (rank === 2) return "/leaderboard/silver.png";
+  if (rank === 3) return "/leaderboard/bronze.png";
+  return null;
+}
 
 function Leaderboard() {
   const [playerName, setPlayerNameState] = useState<string | null>(() =>
@@ -243,11 +250,20 @@ function Leaderboard() {
                   isYou ? "border-2 border-secondary" : ""
                 }`}
               >
-                <span className="text-xl w-8 text-center font-bold text-mutedText shrink-0">
-                  {entry.rank <= 3
-                    ? MEDALS[entry.rank - 1]
-                    : entry.rank.toLocaleString()}
-                </span>
+                {entry.rank <= 3 ? (
+                  <span className="w-8 text-center shrink-0">
+                    <img
+                      src={rankIcon(entry.rank) as string}
+                      alt={`Rank ${entry.rank}`}
+                      className="w-8 h-8 object-contain"
+                      draggable={false}
+                    />
+                  </span>
+                ) : (
+                  <span className="text-xl w-8 text-center font-bold text-mutedText shrink-0">
+                    {entry.rank.toLocaleString()}
+                  </span>
+                )}
                 <span className="font-semibold text-darkText flex-1 truncate">
                   {entry.name}
                   {isYou && (
@@ -272,7 +288,8 @@ function Leaderboard() {
       )}
 
       <p className="text-xs text-mutedText text-center mt-6">
-        Scores reset on the 1st of each month. Play more to climb the ranks!
+        Your best game score sets your rank. Beat it to climb the board. Scores
+        reset on the 1st of each month.
       </p>
 
       {/* ── Admin clear (discreet — presentation prep only) ── */}
