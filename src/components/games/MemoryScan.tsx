@@ -5,6 +5,7 @@ import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
 import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
+import { TrophyIcon } from "~/components/RankBadge";
 import { Link } from "@tanstack/react-router";
 import { addPoints } from "~/lib/points";
 import {
@@ -339,7 +340,7 @@ export default function MemoryScan() {
       {/* ── Best Score ── */}
       {currentBest > 0 && (
         <p className="text-center text-xs text-mutedText mb-3">
-          🏆 Best ({difficulty}): {currentBest} moves
+          <TrophyIcon className="inline-block w-3.5 h-3.5 -mt-0.5" label="" /> Best ({difficulty}): {currentBest} moves
         </p>
       )}
 
@@ -452,7 +453,7 @@ export default function MemoryScan() {
               </div>
             </div>
             {moves <= currentBest && currentBest > 0 && (
-              <p className="text-secondary font-bold mb-4">🏆 New Best! 🏆</p>
+              <p className="text-secondary font-bold mb-4"><TrophyIcon className="inline-block w-5 h-5 -mt-0.5" label="" /> New Best! <TrophyIcon className="inline-block w-5 h-5 -mt-0.5" label="" /></p>
             )}
             {currentBest === 0 && (
               <p className="text-secondary font-bold mb-4">First {difficulty} completion!</p>

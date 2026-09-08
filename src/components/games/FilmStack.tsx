@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import Rex from "~/components/Rex";
 import RexSpeechBubble from "~/components/RexSpeechBubble";
 import { getPlayerName } from "~/components/Onboarding";
@@ -30,6 +31,24 @@ const FALLBACK_W = 361;
 /** Same with every reload: a fresh deal, regardless of previous session. */
 const SSR_SEEDED_RAND = () => 0.42;
 
+/**
+ * Top-level result overlay: portalled into document.body (z-[80]) so no game
+ * element — board tiles, tile hand, Rex, animations, floating/explosion FX —
+ * can ever paint above it. The full game stays behind, dimmed + blurred.
+ * Scroll-safe on small screens so text/buttons are never cut off.
+ */
+function FilmStackModal({ children }: { children: React.ReactNode }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center my-auto max-h-[90vh] overflow-y-auto">
+        {children}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export default function FilmStack() {
   const playerName = typeof window !== "undefined" ? getPlayerName() : "Player";
   void playerName;
@@ -52,6 +71,9 @@ export default function FilmStack() {
   const [shake, setShake] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [win, setWin] = useState(false);
+  // Board just cleared (level < 10): success modal blocks progression until
+  // the player presses NEXT LEVEL. Holds the completed level number.
+  const [levelClear, setLevelClear] = useState<number | null>(null);
   const [locked, setLocked] = useState(false);
   const [completions, setCompletions] = useState(0);
   const [message, setMessage] = useState("Tap an uncovered tile to add it to your hand!");
@@ -127,6 +149,7 @@ export default function FilmStack() {
       setFlying(null);
       setGameOver(false);
       setWin(false);
+      setLevelClear(null);
       setLocked(false);
       setFragments(false);
       setScorePop(false);
@@ -145,7 +168,9 @@ export default function FilmStack() {
         if (level < 10) {
           setMessage(`Level ${level} complete! Next level unlocked.`);
           setMood("excited");
-          setTimeout(() => reset(level + 1), 900);
+          // No auto-advance: the BOARD CLEARED modal owns progression —
+          // NEXT LEVEL is the only path to reset(level + 1).
+          setLevelClear(level);
         } else {
           setWin(true);
           setMessage("All ten levels complete! 🎉");
@@ -157,7 +182,7 @@ export default function FilmStack() {
   );
   const click = useCallback(
     (id: number) => {
-      if (locked || gameOver || win || flying !== null) return;
+      if (locked || gameOver || win || levelClear !== null || flying !== null) return;
       const tile = tiles.find((t) => t.id === id);
       if (!tile || tile.cleared || tile.inHand) return;
       if (!selectableIds.has(id)) {
@@ -237,7 +262,7 @@ export default function FilmStack() {
         }
       }, 380);
     },
-    [locked, gameOver, win, flying, tiles, selectableIds, hand, complete],
+    [locked, gameOver, win, levelClear, flying, tiles, selectableIds, hand, complete],
   );
   const returnTile = (id: number) => {
     if (locked || hand.length < HAND_SIZE || gameOver) return;
@@ -246,7 +271,7 @@ export default function FilmStack() {
     setMessage("Tile returned — choose wisely!");
   };
   const shuffleBoard = () => {
-    if (gameOver || win || locked || flying !== null) return;
+    if (gameOver || win || levelClear !== null || locked || flying !== null) return;
     // Positions only — identifiers never move; stale match state cleared.
     setTiles((ts) => shufflePositions(ts, Math.random, widthRef.current || FALLBACK_W));
     setMatch([]);
@@ -356,54 +381,72 @@ export default function FilmStack() {
         <Rex className="w-10 h-10" mood={mood} />
       </div>
       {(gameOver || win) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl p-8 mx-4 max-w-sm w-full text-center">
-            {gameOver ? (
-              <>
-                <h2 className="text-2xl font-extrabold text-primary mb-2">Game Over</h2>
-                <p className="text-mutedText mb-5">Your hand is full of different tiles!</p>
-                {runCompletions > 0 && (
-                  <LeaderboardEntry game="film-stack" score={runCompletions} rank={submitRank} onRank={setSubmitRank} />
-                )}
-                <button
-                  className="btn-primary w-full"
-                  onClick={() => {
-                    initialCompletionsRef.current = completions;
-                    submitFiredRef.current = false;
-                    reset();
-                  }}
-                >
-                  Try Again
-                </button>
-                <Link to="/" className="btn-secondary w-full text-lg mt-4 block">
-                  Back to Games
-                </Link>
-              </>
-            ) : (
-              <>
-                <h2 className="text-2xl font-extrabold text-primary mb-2">All Levels Complete!</h2>
-                <p className="text-mutedText mb-5">Boards completed: {completions}</p>
-                {runCompletions > 0 && (
-                  <LeaderboardEntry game="film-stack" score={runCompletions} rank={submitRank} onRank={setSubmitRank} />
-                )}
-                <button
-                  className="btn-primary w-full"
-                  onClick={() => {
-                    initialCompletionsRef.current = completions;
-                    submitFiredRef.current = false;
-                    reset(1);
-                  }}
-                >
-                  Play Again
-                </button>
-                <Link to="/" className="btn-secondary w-full text-lg mt-4 block">
-                  Back to Games
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      )}{" "}
+        <FilmStackModal>
+          {gameOver ? (
+            <>
+              <h2 className="text-2xl font-extrabold text-primary mb-2">Bad luck!</h2>
+              <p className="text-mutedText mb-5">Your hand is full of different tiles — nice try!</p>
+              {runCompletions > 0 && (
+                <LeaderboardEntry game="film-stack" score={runCompletions} rank={submitRank} onRank={setSubmitRank} />
+              )}
+              <button
+                className="btn-primary w-full"
+                onClick={() => {
+                  initialCompletionsRef.current = completions;
+                  submitFiredRef.current = false;
+                  reset();
+                }}
+              >
+                Try Again
+              </button>
+              <Link to="/" className="btn-secondary w-full text-lg mt-4 block">
+                Back to Games
+              </Link>
+            </>
+          ) : (
+            <>
+              <Rex className="w-16 h-16 mx-auto mb-3" mood="excited" />
+              <h2 className="text-2xl font-extrabold text-primary mb-1">FILM STACK COMPLETE!</h2>
+              <p className="text-mutedText mb-1">All ten levels cleared</p>
+              <p className="text-lg font-bold text-secondary mb-5">
+                Boards completed this sitting: {runCompletions}
+              </p>
+              {runCompletions > 0 && (
+                <LeaderboardEntry game="film-stack" score={runCompletions} rank={submitRank} onRank={setSubmitRank} />
+              )}
+              <button
+                className="btn-primary w-full"
+                onClick={() => {
+                  initialCompletionsRef.current = completions;
+                  submitFiredRef.current = false;
+                  reset(1);
+                }}
+              >
+                Play Again
+              </button>
+              <Link to="/" className="btn-secondary w-full text-lg mt-4 block">
+                Back to Games
+              </Link>
+            </>
+          )}
+        </FilmStackModal>
+      )}
+      {levelClear !== null && (
+        <FilmStackModal>
+          <Rex className="w-16 h-16 mx-auto mb-3" mood="excited" />
+          <p className="text-sm text-secondary font-bold mb-1" aria-hidden="true">
+            <span className="inline-block">✧</span> <span className="inline-block">✦</span>
+          </p>
+          <h2 className="text-2xl font-extrabold text-primary mb-1">BOARD CLEARED!</h2>
+          <p className="text-mutedText mb-5">Level {levelClear} Complete</p>
+          <button className="btn-primary w-full text-lg" onClick={() => reset(levelClear + 1)}>
+            Next Level
+          </button>
+          <Link to="/" className="btn-secondary w-full text-lg mt-4 block">
+            Back to Games
+          </Link>
+        </FilmStackModal>
+      )}
       {scorePop && <div className="film-score-popup">+100</div>}
       {fragments && (
         <div className="film-explosion" aria-hidden="true">

@@ -6,6 +6,7 @@ import { getPlayerName } from "~/components/Onboarding";
 import { addPoints } from "~/lib/points";
 import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
+import { TrophyIcon } from "~/components/RankBadge";
 import { Link } from "@tanstack/react-router";
 import {
   checkAchievements,
@@ -1802,7 +1803,7 @@ export default function BoneBuster() {
 
               <Rex className="w-24 h-24 mx-auto mb-4" mood="excited" />
               <h2 className="text-3xl font-extrabold text-secondary mb-2">
-                🏆 You Beat Bone Buster! 🏆
+                <TrophyIcon className="inline-block w-7 h-7 -mt-1" label="" /> You Beat Bone Buster! <TrophyIcon className="inline-block w-7 h-7 -mt-1" label="" />
               </h2>
               <p className="text-lg text-mutedText mb-4">
                 All 15 levels conquered!

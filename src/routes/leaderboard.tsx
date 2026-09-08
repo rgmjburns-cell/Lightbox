@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import RexSpeechBubble from "~/components/RexSpeechBubble";
+import { RankIcon } from "~/components/RankBadge";
 import {
   fetchLeaderboard,
   getPlayerName,
@@ -15,15 +16,6 @@ export const Route = createFileRoute("/leaderboard")({
 });
 
 const POLL_MS = 5000;
-
-// Podium artwork for the monthly leaderboard (shared with the home teaser):
-// rank 1 gets the trophy, ranks 2-3 get medals. Ranks 4+ stay purely numeric.
-function rankIcon(rank: number): string | null {
-  if (rank === 1) return "/leaderboard/trophy.png";
-  if (rank === 2) return "/leaderboard/silver.png";
-  if (rank === 3) return "/leaderboard/bronze.png";
-  return null;
-}
 
 function Leaderboard() {
   const [playerName, setPlayerNameState] = useState<string | null>(() =>
@@ -252,12 +244,7 @@ function Leaderboard() {
               >
                 {entry.rank <= 3 ? (
                   <span className="w-8 text-center shrink-0">
-                    <img
-                      src={rankIcon(entry.rank) as string}
-                      alt={`Rank ${entry.rank}`}
-                      className="w-8 h-8 object-contain"
-                      draggable={false}
-                    />
+                    <RankIcon rank={entry.rank} className="w-8 h-8" />
                   </span>
                 ) : (
                   <span className="text-xl w-8 text-center font-bold text-mutedText shrink-0">
