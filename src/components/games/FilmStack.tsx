@@ -34,13 +34,14 @@ const SSR_SEEDED_RAND = () => 0.42;
 /**
  * Top-level result overlay: portalled into document.body (z-[80]) so no game
  * element — board tiles, tile hand, Rex, animations, floating/explosion FX —
- * can ever paint above it. The full game stays behind, dimmed + blurred.
+ * can ever paint above it. The backdrop is (near-)opaque so the board can
+ * never be seen behind or around the result popup either.
  * Scroll-safe on small screens so text/buttons are never cut off.
  */
 function FilmStackModal({ children }: { children: React.ReactNode }) {
   if (typeof document === "undefined") return null;
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/95 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center my-auto max-h-[90vh] overflow-y-auto">
         {children}
       </div>
