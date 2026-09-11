@@ -212,7 +212,6 @@ export default function FilmStack() {
           setMatch(ids);
           setFragments(false);
           setScorePop(true);
-          setShake(true);
           setMessage("SMASH! Perfect match! +100");
           setMood("excited");
           setTimeout(() => {
