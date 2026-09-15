@@ -36,9 +36,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     id: "bone-buster-champion",
     name: "Bone Buster Champion",
-    description: "Reach level 3 in Bone Buster",
+    description: "Reach Level 8 in Bone Buster",
     icon: "/badges/bone-buster-champion.png",
-    hint: "Reach level 3 in Bone Buster",
+    hint: "Reach Level 8 in Bone Buster",
   },
   {
     id: "word-wizard",
@@ -256,9 +256,9 @@ export function checkAchievements(): Achievement[] {
     }
   }
 
-  // Bone Buster Champion — Reach level 3 in Bone Buster
-  // Level 0 = level 1 in UI, so level 2 means reached level 3
-  if (boneBusterLevel >= 2) {
+  // Bone Buster Champion — Reach Level 8 in Bone Buster
+  // Level 0 = level 1 in UI, so level 7 means reached level 8
+  if (boneBusterLevel >= 7) {
     if (unlock("bone-buster-champion")) {
       newlyUnlocked.push(
         ACHIEVEMENTS.find((a) => a.id === "bone-buster-champion")!

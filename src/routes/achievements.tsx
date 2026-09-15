@@ -58,7 +58,7 @@ function Achievements() {
       {/* Earned */}
       {earned.length > 0 && (
         <>
-          <h2 className="text-lg font-bold text-primary mb-3">
+          <h2 className="text-lg font-bold text-brand-white mb-3">
             Earned ({earned.length})
           </h2>
           <div className="flex flex-col gap-2 mb-6">
@@ -90,7 +90,7 @@ function Achievements() {
       {/* Locked */}
       {locked.length > 0 && (
         <>
-          <h2 className="text-lg font-bold text-mutedText mb-3">
+          <h2 className="text-lg font-bold text-brand-white mb-3">
             Locked ({locked.length})
           </h2>
           <div className="flex flex-col gap-2">
