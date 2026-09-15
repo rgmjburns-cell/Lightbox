@@ -8,6 +8,7 @@ import LeaderboardEntry from "~/components/LeaderboardEntry";
 import { TrophyIcon } from "~/components/RankBadge";
 import { Link } from "@tanstack/react-router";
 import { addPoints } from "~/lib/points";
+import { prefersReducedMotion } from "~/lib/reducedMotion";
 import {
   checkAchievements,
   trackGameCompletion,
@@ -159,6 +160,9 @@ export default function PulsePop() {
   // ── Spawn particles ──
   const spawnParticles = useCallback(
     (x: number, y: number, colorHue: number, count: number) => {
+      // Particle bursts are pure decoration (no effect on beat timing, hits,
+      // misses or score) — skip them entirely under reduced motion.
+      if (prefersReducedMotion()) return;
       const gv = g.current;
       for (let i = 0; i < count; i++) {
         const angle = Math.random() * Math.PI * 2;

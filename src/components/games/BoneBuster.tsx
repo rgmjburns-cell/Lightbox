@@ -3,6 +3,7 @@ import Rex from "~/components/Rex";
 import RexSpeechBubble from "~/components/RexSpeechBubble";
 import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
+import { decorativeDuration, prefersReducedMotion } from "~/lib/reducedMotion";
 import { addPoints } from "~/lib/points";
 import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
@@ -947,12 +948,15 @@ export default function BoneBuster() {
       setRexBurst({ active: true, phase: "flying", targetType, progress: 0 });
 
       let startTime: number | null = null;
-      const duration = 1200; // ms for flight
+      // Decorative flight only: under reduced motion the duration collapses to
+      // 0 so the burst resolves on the first frame — the scoring/cascade logic
+      // that runs at progress === 1 is unchanged.
+      const duration = decorativeDuration(1200); // ms for flight
 
       const animate = (timestamp: number) => {
         if (!startTime) startTime = timestamp;
         const elapsed = timestamp - startTime;
-        const progress = Math.min(elapsed / duration, 1);
+        const progress = duration > 0 ? Math.min(elapsed / duration, 1) : 1;
 
         setRexBurst((prev) => ({
           ...prev,
@@ -964,8 +968,11 @@ export default function BoneBuster() {
           rexBurstAnimRef.current = requestAnimationFrame(animate);
         } else {
           // Burst phase — clear 3x3 area centered on the match position
-          setBoardShake(true);
-          setTimeout(() => setBoardShake(false), 400);
+          // Board shake is purely decorative — skip it under reduced motion.
+          if (!prefersReducedMotion()) {
+            setBoardShake(true);
+            setTimeout(() => setBoardShake(false), 400);
+          }
 
           const newGrid = currentGrid.map((r) => r.map((t) => (t ? { ...t } : null)));
           const clearedPositions: Position[] = [];

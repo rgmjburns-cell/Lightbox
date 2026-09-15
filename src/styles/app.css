@@ -471,8 +471,36 @@ body::after {
 }
 .route-enter { animation: routeFadeIn 0.3s ease-out; }
 
-/* Respect prefers-reduced-motion */
+/* ──────────────────────────────────────────────────────────────
+   Respect prefers-reduced-motion (accessibility)
+   When the OS/browser "Reduce Motion" setting is on, every non-essential
+   CSS animation and transition is collapsed to ~0ms so it lands on its
+   final state instantly, and iterative animations run once instead of
+   looping forever.
+
+   Why this is safe for gameplay: no component in this app listens for
+   `animationend`/`transitionend` — game state (timers, scoring, matching,
+   cascades, round countdowns) is driven by React state + setInterval /
+   requestAnimationFrame, never by CSS animation events. Collapsing a
+   duration therefore only removes the motion, not the outcome. Visual
+   cues whose *resting* state carries the information are unaffected:
+   e.g. Scan Rush's lit bay still shows its tile image (srPopIn ends
+   visible) and its hazard bay still shows its red gradient + ⚠️ — only
+   the extra glow pulse is calmed.
+   ────────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Forever-looping decorative keyframes: switch them off outright. */
   .welcome-rex-float,
   .welcome-rex-cape,
   .welcome-swirl-1,
@@ -482,11 +510,21 @@ body::after {
   .welcome-btn-glow {
     animation: none !important;
   }
+
   .route-enter {
     animation: none !important;
   }
+
   .onboarding-exit {
     animation: none !important;
     opacity: 0;
+  }
+
+  /* Client-side navigation cross-fade (@view-transition above). */
+  ::view-transition-group(*),
+  ::view-transition-image-pair(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }
