@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import BadgeImage from "~/components/BadgeImage";
 import RexSpeechBubble from "~/components/RexSpeechBubble";
 import {
+  checkAchievements,
   getAchievements,
   type Achievement,
   type AchievementState,
@@ -21,6 +22,10 @@ function Achievements() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Re-evaluate eligibility on page load so badges earned outside of a
+    // game-completion flow (e.g. reaching a level without completing since)
+    // still unlock. Idempotent: unlock() skips already-earned badges.
+    checkAchievements();
     setAllAchievements(getAchievements());
   }, []);
 
