@@ -4,7 +4,7 @@ const navItems = [
   { to: "/", label: "Home", icon: HomeIcon },
   { to: "/leaderboard", label: "Scores", icon: TrophyIcon },
   { to: "/achievements", label: "Badges", icon: StarIcon },
-  { to: "/qr", label: "QR Code", icon: QrIcon },
+  { to: "/qr", label: "Add to Phone", icon: PhoneAddIcon },
   { to: "/settings", label: "Settings", icon: GearIcon },
 ] as const;
 
@@ -80,16 +80,13 @@ function GearIcon({ active }: { active: boolean }) {
   );
 }
 
-function QrIcon({ active }: { active: boolean }) {
+function PhoneAddIcon({ active }: { active: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#008C95" : "#6B7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" />
-      <rect x="14" y="3" width="7" height="7" />
-      <rect x="3" y="14" width="7" height="7" />
-      <line x1="14" y1="14" x2="14" y2="14.01" />
-      <line x1="18" y1="14" x2="18" y2="14.01" />
-      <line x1="14" y1="18" x2="14" y2="18.01" />
-      <line x1="18" y1="18" x2="18" y2="18.01" />
+      <rect x="7" y="2.5" width="10" height="19" rx="2.5" />
+      <path d="M12 18h.01" />
+      <path d="M17.5 2.5v5" />
+      <path d="M15 5h5" />
     </svg>
   );
 }
