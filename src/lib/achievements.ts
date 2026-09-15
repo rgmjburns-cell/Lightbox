@@ -64,9 +64,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     id: "waiting-time-hero",
     name: "Waiting Time Hero",
-    description: "Accumulate 10,000 total points",
+    description: "Accumulate 25,000 total points",
     icon: "/badges/waiting-time-hero.png",
-    hint: "Earn 10,000 points across all games",
+    hint: "Accumulate 25,000 total points",
   },
   {
     id: "perfect-match",
@@ -85,9 +85,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     id: "level-up",
     name: "Level Up",
-    description: "Reach level 5 in Bone Buster",
+    description: "Earn 7 different badges",
     icon: "/badges/level-up.png",
-    hint: "Reach level 5 in Bone Buster",
+    hint: "Earn 7 different badges",
   },
   {
     id: "rexs-best-friend",
@@ -288,8 +288,8 @@ export function checkAchievements(): Achievement[] {
     }
   }
 
-  // Waiting Time Hero — Accumulate 10,000 total points
-  if (accumulatedPoints >= 10000) {
+  // Waiting Time Hero — Accumulate 25,000 total points
+  if (accumulatedPoints >= 25000) {
     if (unlock("waiting-time-hero")) {
       newlyUnlocked.push(
         ACHIEVEMENTS.find((a) => a.id === "waiting-time-hero")!
@@ -311,20 +311,24 @@ export function checkAchievements(): Achievement[] {
     }
   }
 
-  // Level Up — Reach level 5 in Bone Buster
-  // Level 0 = level 1, so level 4 = level 5
-  if (boneBusterLevel >= 4) {
-    if (unlock("level-up")) {
-      newlyUnlocked.push(ACHIEVEMENTS.find((a) => a.id === "level-up")!);
-    }
-  }
-
   // Rex's Best Friend — Play on 5 different days
   if (playDays.size >= 5) {
     if (unlock("rexs-best-friend")) {
       newlyUnlocked.push(
         ACHIEVEMENTS.find((a) => a.id === "rexs-best-friend")!
       );
+    }
+  }
+
+  // Level Up — Earn 7 different badges
+  // Runs LAST so it counts badges unlocked earlier in this same pass.
+  // Counts badges OTHER than Level Up itself (10 total, so 7 of the other 9).
+  const otherUnlockedCount = ACHIEVEMENTS.filter(
+    (a) => a.id !== "level-up" && states[a.id]?.unlocked
+  ).length;
+  if (otherUnlockedCount >= 7) {
+    if (unlock("level-up")) {
+      newlyUnlocked.push(ACHIEVEMENTS.find((a) => a.id === "level-up")!);
     }
   }
 
