@@ -8,12 +8,24 @@
 // Database lives at `<repo>/data/leaderboard.db`. The DB is opened lazily on the
 // first request and the `data/` directory is created on demand (gitignored — the
 // DB is runtime state, never committed).
+//
+// Backups: `startLeaderboardBackups()` (called from serve.ts at startup) takes a
+// snapshot into `<repo>/data/backups/leaderboard-<YYYYMMDD-HHMMSS>.db` on boot
+// and every 24h, keeping the ~10 most recent. Copies are made with SQLite's
+// `VACUUM INTO`, which produces a consistent single-file snapshot even in WAL
+// mode (it includes uncheckpointed frames) without blocking normal reads or
+// writes. `GET /api/leaderboard/export` (passcode-protected) streams the same
+// kind of copy to the caller as a downloadable .db file.
 import { Database } from "bun:sqlite";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 const DB_PATH = join(import.meta.dir, "..", "data", "leaderboard.db");
 const DATA_DIR = join(import.meta.dir, "..", "data");
+const BACKUPS_DIR = join(DATA_DIR, "backups");
+const SNAPSHOT_KEEP = 10;
+const SNAPSHOT_RE = /^leaderboard-\d{8}-\d{6}\.db$/;
+const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // daily
 
 const GAMES = [
   "scan-rush",
@@ -294,6 +306,121 @@ async function handleClear(req: Request): Promise<Response> {
   return json({ ok: true, cleared: Number(result.changes) });
 }
 
+// --- Backups / export ------------------------------------------------------
+
+// UTC "YYYYMMDD-HHMMSS" stamp for snapshot filenames (matches the DB's
+// UTC month convention).
+function snapshotStamp(): string {
+  const now = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${now.getUTCFullYear()}${p(now.getUTCMonth() + 1)}${p(now.getUTCDate())}` +
+    `-${p(now.getUTCHours())}${p(now.getUTCMinutes())}${p(now.getUTCSeconds())}`
+  );
+}
+
+// Quote a filesystem path as a SQLite string literal (VACUUM INTO takes a
+// path expression, not a bound parameter).
+function sqlitePathLiteral(path: string): string {
+  return `"${path.replace(/"/g, '""')}"`;
+}
+
+// Keep only the newest SNAPSHOT_KEEP leaderboard-*.db files. Filenames are
+// fixed-width UTC stamps, so plain lexical sort == chronological order.
+function pruneSnapshots(): void {
+  let files: string[];
+  try {
+    files = readdirSync(BACKUPS_DIR).filter((f) => SNAPSHOT_RE.test(f));
+  } catch {
+    return; // dir missing/unreadable — nothing to prune
+  }
+  files.sort().reverse(); // newest first
+  for (const file of files.slice(SNAPSHOT_KEEP)) {
+    try {
+      rmSync(join(BACKUPS_DIR, file));
+    } catch {
+      // best-effort pruning; ignore failures
+    }
+  }
+}
+
+/**
+ * Copy the live DB to `data/backups/leaderboard-<YYYYMMDD-HHMMSS>.db` and
+ * prune to the newest ~10 snapshots. `VACUUM INTO` builds a consistent
+ * single-file snapshot that includes uncheckpointed WAL frames, so it is safe
+ * to run while the server is serving reads/writes. Returns the snapshot path,
+ * or null on failure (errors are logged, never thrown).
+ */
+export function takeSnapshot(): string | null {
+  try {
+    mkdirSync(BACKUPS_DIR, { recursive: true });
+    const target = join(BACKUPS_DIR, `leaderboard-${snapshotStamp()}.db`);
+    if (existsSync(target)) rmSync(target); // same-second retry
+    getDb().exec(`VACUUM INTO ${sqlitePathLiteral(target)}`);
+    pruneSnapshots();
+    console.log(`[leaderboard] snapshot saved: ${target}`);
+    return target;
+  } catch (err) {
+    console.error("[leaderboard] snapshot failed:", err);
+    return null;
+  }
+}
+
+/**
+ * Take a snapshot immediately, then every 24h. Called once from serve.ts at
+ * server startup. The interval is unref'd so it never keeps the process alive
+ * on its own (the HTTP server already does).
+ */
+export function startLeaderboardBackups(): void {
+  takeSnapshot(); // boot snapshot (VACUUM INTO is fast for a small board)
+  const timer = setInterval(takeSnapshot, BACKUP_INTERVAL_MS);
+  if (typeof (timer as { unref?: () => void }).unref === "function") {
+    (timer as { unref: () => void }).unref();
+  }
+  console.log(`[leaderboard] backups: daily snapshots into ${BACKUPS_DIR} (keeping ${SNAPSHOT_KEEP})`);
+}
+
+/**
+ * GET /api/leaderboard/export — admin-only download of the full board as a
+ * restorable SQLite file. Auth matches the clear endpoint: the same passcode
+ * (env LEADERBOARD_ADMIN_PASSCODE, default clear2026), sent as a `passcode`
+ * query parameter or an `x-admin-passcode` header. 401 when missing, 403 when
+ * wrong. No frontend uses this — it is owner/admin tooling:
+ *
+ *   curl -o leaderboard-backup.db \
+ *     "https://<host>/api/leaderboard/export?passcode=clear2026"
+ */
+async function handleExport(req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  const passcode = url.searchParams.get("passcode") ?? req.headers.get("x-admin-passcode");
+  if (!passcode) {
+    return json({ ok: false, error: "Passcode required" }, 401);
+  }
+  if (passcode !== PASSCODE) {
+    return json({ ok: false, error: "Wrong passcode" }, 403);
+  }
+  const tmp = join(BACKUPS_DIR, `export-${snapshotStamp()}-${Date.now()}.db`);
+  try {
+    mkdirSync(BACKUPS_DIR, { recursive: true });
+    if (existsSync(tmp)) rmSync(tmp); // VACUUM INTO fails if target exists
+    getDb().exec(`VACUUM INTO ${sqlitePathLiteral(tmp)}`);
+    const bytes = await Bun.file(tmp).arrayBuffer();
+    const stamp = snapshotStamp();
+    return new Response(bytes, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/vnd.sqlite3",
+        "Content-Disposition": `attachment; filename="leaderboard-${stamp}.db"`,
+      },
+    });
+  } catch (err) {
+    console.error("[leaderboard] export failed:", err);
+    return json({ ok: false, error: "Export failed" }, 500);
+  } finally {
+    rmSync(tmp, { force: true }); // never leave temp copies around
+  }
+}
+
 export async function handleLeaderboardApi(req: Request, pathname: string): Promise<Response> {
   if (pathname === "/api/leaderboard") {
     if (req.method === "GET") return handleGet(new URL(req.url));
@@ -302,6 +429,10 @@ export async function handleLeaderboardApi(req: Request, pathname: string): Prom
   }
   if (pathname === "/api/leaderboard/clear") {
     if (req.method === "POST") return handleClear(req);
+    return json({ ok: false, error: "Method not allowed" }, 405);
+  }
+  if (pathname === "/api/leaderboard/export") {
+    if (req.method === "GET") return handleExport(req);
     return json({ ok: false, error: "Method not allowed" }, 405);
   }
   return json({ ok: false, error: "Not found" }, 404);
