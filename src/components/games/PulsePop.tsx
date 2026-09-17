@@ -795,11 +795,12 @@ export default function PulsePop() {
           localStorage.setItem("pulsePopHighScore", finalScore.toString());
         }
       }
-      // Live leaderboard: submit the stored best, fire-and-forget
-      // (submitScore self-handles the player name, auto-creating a guest
-      // identity when needed — silent on failure). max() = the value just
-      // persisted above.
-      submitScore("ecg-rhythm", Math.max(highScore, finalScore)).then((r) => {
+      // Live leaderboard: submit THIS round's score (the same value passed to
+      // addPoints above), fire-and-forget (submitScore self-handles the player
+      // name, auto-creating a guest identity when needed — silent on failure).
+      // The server ADDS it to this month's total, so it must be the round's
+      // score, never the stored personal best.
+      submitScore("ecg-rhythm", finalScore).then((r) => {
         if (r) setSubmitRank(r.rank);
       });
     }
@@ -1039,7 +1040,7 @@ export default function PulsePop() {
             )}
             <LeaderboardEntry
               game="ecg-rhythm"
-              score={Math.max(highScore, finalScore)}
+              score={finalScore}
               rank={submitRank}
               onRank={setSubmitRank}
             />

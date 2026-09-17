@@ -9,6 +9,7 @@ import {
   isValidPlayerName,
   upgradePlayerName,
   type LeaderboardEntry,
+  type LeaderboardPosition,
 } from "~/lib/leaderboard";
 
 export const Route = createFileRoute("/leaderboard")({
@@ -17,12 +18,58 @@ export const Route = createFileRoute("/leaderboard")({
 
 const POLL_MS = 5000;
 
+/** One board row — identical styling for the Top 5 and the player's own row. */
+function BoardRow({
+  rank,
+  name,
+  score,
+  isYou,
+}: {
+  rank: number;
+  name: string;
+  score: number;
+  isYou: boolean;
+}) {
+  return (
+    <div
+      className={`card flex items-center gap-3 py-3 ${
+        isYou ? "border-2 border-secondary" : ""
+      }`}
+    >
+      {rank <= 3 ? (
+        <span className="w-8 text-center shrink-0">
+          <RankIcon rank={rank} className="w-8 h-8" />
+        </span>
+      ) : (
+        <span className="text-xl w-8 text-center font-bold text-mutedText shrink-0">
+          {rank.toLocaleString()}
+        </span>
+      )}
+      <span className="font-semibold text-darkText flex-1 truncate">
+        {name}
+        {isYou && (
+          <span className="ml-2 inline-block align-middle bg-secondary text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+            You
+          </span>
+        )}
+      </span>
+      <span className="text-secondary font-bold tabular-nums shrink-0">
+        {score.toLocaleString()}
+      </span>
+    </div>
+  );
+}
+
 function Leaderboard() {
   const [playerName, setPlayerNameState] = useState<string | null>(() =>
     typeof window === "undefined" ? null : getPlayerName()
   );
   const [nameInput, setNameInput] = useState("");
   const [entries, setEntries] = useState<LeaderboardEntry[] | null>(null);
+  // The stored player's own row, returned by the API when they have any score
+  // this month — used to show their place under the Top 5 when they are not on
+  // it (never to render positions 6+).
+  const [you, setYou] = useState<LeaderboardPosition | null>(null);
   const [error, setError] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [passcode, setPasscode] = useState("");
@@ -30,8 +77,9 @@ function Leaderboard() {
   const [clearing, setClearing] = useState(false);
   const [clearedMsg, setClearedMsg] = useState<string | null>(null);
 
-  // ── Data: one combined board (each player's best score across games for the
-  // month) — fetch on mount + poll every 5s (client-side only) ──
+  // ── Data: one combined board — the Top 5 players by total points earned this
+  // month, plus the player's own position. Fetch on mount + poll every 5s
+  // (client-side only) ──
   useEffect(() => {
     let active = true;
 
@@ -40,6 +88,7 @@ function Leaderboard() {
       if (!active) return;
       if (data) {
         setEntries(data.entries);
+        setYou(data.you);
         setError(false);
       } else {
         setError(true);
@@ -58,6 +107,7 @@ function Leaderboard() {
     void fetchLeaderboard().then((data) => {
       if (data) {
         setEntries(data.entries);
+        setYou(data.you);
         setError(false);
       }
     });
@@ -119,6 +169,14 @@ function Leaderboard() {
   const needsName = !playerName || isGuestName(playerName);
 
   const showLoading = entries === null && !error;
+
+  // Is the player already shown on the board? (Case-insensitive, like the row
+  // highlight.) Then their rank line is the existing row — no second one.
+  const playerOnBoard =
+    trimmedPlayer !== null &&
+    (entries ?? []).some((e) => e.name.trim().toLowerCase() === trimmedPlayer);
+  const showYourPosition =
+    !showLoading && !error && you !== null && !playerOnBoard;
 
   return (
     <div className="page-container">
@@ -236,35 +294,37 @@ function Leaderboard() {
               trimmedPlayer !== null &&
               entry.name.trim().toLowerCase() === trimmedPlayer;
             return (
-              <div
+              <BoardRow
                 key={`${entry.rank}-${entry.name}`}
-                className={`card flex items-center gap-3 py-3 ${
-                  isYou ? "border-2 border-secondary" : ""
-                }`}
-              >
-                {entry.rank <= 3 ? (
-                  <span className="w-8 text-center shrink-0">
-                    <RankIcon rank={entry.rank} className="w-8 h-8" />
-                  </span>
-                ) : (
-                  <span className="text-xl w-8 text-center font-bold text-mutedText shrink-0">
-                    {entry.rank.toLocaleString()}
-                  </span>
-                )}
-                <span className="font-semibold text-darkText flex-1 truncate">
-                  {entry.name}
-                  {isYou && (
-                    <span className="ml-2 inline-block align-middle bg-secondary text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      You
-                    </span>
-                  )}
-                </span>
-                <span className="text-secondary font-bold tabular-nums shrink-0">
-                  {entry.score.toLocaleString()}
-                </span>
-              </div>
+                rank={entry.rank}
+                name={entry.name}
+                score={entry.score}
+                isYou={isYou}
+              />
             );
           })}
+
+          {/* Outside the Top 5: their own row, under a divider — never the
+              positions in between (no 6–11 padding to reach 12). */}
+          {showYourPosition && you && (
+            <>
+              <p
+                className="text-center text-mutedText text-lg leading-none select-none"
+                aria-hidden="true"
+              >
+                •••
+              </p>
+              <p className="text-xs text-mutedText tracking-wide mt-1">
+                YOUR POSITION
+              </p>
+              <BoardRow
+                rank={you.rank}
+                name={you.name}
+                score={you.score}
+                isYou
+              />
+            </>
+          )}
         </div>
       )}
 
@@ -275,8 +335,8 @@ function Leaderboard() {
       )}
 
       <p className="text-xs text-mutedText text-center mt-6">
-        Your best game score sets your rank. Beat it to climb the board. Scores
-        reset on the 1st of each month.
+        Every completed game adds to your monthly total. Scores reset on the 1st
+        of each month.
       </p>
 
       {/* ── Admin clear (discreet — presentation prep only) ── */}

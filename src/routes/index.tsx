@@ -154,7 +154,7 @@ function Home() {
           />
           <div className="flex-1">
             <p className="text-sm font-semibold text-primary">Monthly Leaderboard</p>
-            <p className="text-xs text-mutedText">Ranked by your best game score this month.</p>
+            <p className="text-xs text-mutedText">Ranked by total points earned this month.</p>
           </div>
           <span className="text-secondary text-sm font-medium">View →</span>
         </Link>
