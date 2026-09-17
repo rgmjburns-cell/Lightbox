@@ -593,11 +593,12 @@ export default function ColourRex() {
           localStorage.setItem("colourRexBest", points.toString());
         }
       }
-      // Live leaderboard: submit the stored best, fire-and-forget
-      // (submitScore self-handles the player name, auto-creating a guest
-      // identity when needed — silent on failure). max() = the value just
-      // persisted above.
-      submitScore("colour-rex", Math.max(bestScore, points)).then((r) => {
+      // Live leaderboard: submit THIS round's points (the same value passed to
+      // addPoints above), fire-and-forget (submitScore self-handles the player
+      // name, auto-creating a guest identity when needed — silent on failure).
+      // The server ADDS it to this month's total, so it must be the round's
+      // points, never the stored best.
+      submitScore("colour-rex", points).then((r) => {
         if (r) setSubmitRank(r.rank);
       });
     }
@@ -765,7 +766,7 @@ export default function ColourRex() {
             {500 >= bestScore && <p className="text-sm text-secondary font-bold mb-4 flex items-center justify-center gap-1.5"><TrophyIcon /> New Best!</p>}
             <LeaderboardEntry
               game="colour-rex"
-              score={Math.max(bestScore, 500)}
+              score={500}
               rank={submitRank}
               onRank={setSubmitRank}
             />

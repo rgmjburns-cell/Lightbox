@@ -206,10 +206,12 @@ export default function ScanSearch() {
 
       trackGameCompletion("scan-search");
       trackScanSearchCompletion(timer);
-      // Live leaderboard: submit the stored best, fire-and-forget
-      // (submitScore self-handles the player name, auto-creating a guest
-      // identity when needed — silent on failure, never breaks the game).
-      submitScore("scan-search", highScore).then((r) => {
+      // Live leaderboard: submit THIS round's score (the same value passed to
+      // addPoints above), fire-and-forget (submitScore self-handles the player
+      // name, auto-creating a guest identity when needed — silent on failure,
+      // never breaks the game). The server ADDS it to this month's total, so it
+      // must be the round's score, never the stored best.
+      submitScore("scan-search", score).then((r) => {
         if (r) setSubmitRank(r.rank);
       });
       const newAchievements = checkAchievements();
@@ -780,7 +782,7 @@ export default function ScanSearch() {
             )}
             <LeaderboardEntry
               game="scan-search"
-              score={highScore}
+              score={score}
               rank={submitRank}
               onRank={setSubmitRank}
             />

@@ -228,17 +228,12 @@ export default function MriMixup() {
       }
 
       trackGameCompletion("mri-mixup");
-      // Live leaderboard: submit the stored best across both board sizes.
-      // Read localStorage directly here (the memo is computed pre-save).
-      // Fire-and-forget (submitScore self-handles the player name, auto-
-      // creating a guest identity when needed — silent on failure).
-      submitScore(
-        "mri-mixup",
-        Math.max(
-          parseInt(localStorage.getItem("mriMixupBest_3x3") || "0", 10),
-          parseInt(localStorage.getItem("mriMixupBest_4x4") || "0", 10),
-        ),
-      ).then((r) => {
+      // Live leaderboard: submit THIS round's score (the same value passed to
+      // addPoints above), fire-and-forget (submitScore self-handles the player
+      // name, auto-creating a guest identity when needed — silent on failure).
+      // The server ADDS it to this month's total, so it must be the round's
+      // score, never the personal best read from localStorage.
+      submitScore("mri-mixup", finalScore).then((r) => {
         if (r) setSubmitRank(r.rank);
       });
       const newAch = checkAchievements();
@@ -279,17 +274,6 @@ export default function MriMixup() {
     return parseInt(localStorage.getItem(highScoreKey) || "0", 10);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highScoreKey, phase]);
-
-  // Best across both board sizes (3×3 and 4×4) — what gets submitted to the
-  // shared monthly leaderboard.
-  const bestScoreAll = useMemo(() => {
-    if (typeof window === "undefined") return 0;
-    return Math.max(
-      parseInt(localStorage.getItem("mriMixupBest_3x3") || "0", 10),
-      parseInt(localStorage.getItem("mriMixupBest_4x4") || "0", 10),
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
 
   // ── Empty tile position for animation ──
 
@@ -469,7 +453,7 @@ export default function MriMixup() {
           </p>
           <LeaderboardEntry
             game="mri-mixup"
-            score={bestScoreAll}
+            score={score}
             rank={submitRank}
             onRank={setSubmitRank}
           />
