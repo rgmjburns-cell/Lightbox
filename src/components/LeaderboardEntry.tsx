@@ -78,7 +78,14 @@ export default function LeaderboardEntry({
     // submitting, so the POST carries prevName and the server merges the
     // guest's rows into this name's row.
     upgradePlayerName(trimmed);
-    const result = await submitScore(game, score);
+    // The board is ADDITIVE, and the game's own completion effect already banked
+    // this round under the guest name. Re-sending the real score here would
+    // count the SAME round twice: once merged in from the guest's rows, once as
+    // this POST's own score. So a guest upgrade submits 0 — the score is a
+    // no-op for the total, while prevName still triggers the guest→real merge
+    // (which carries this round's points over). Only when there was no stored
+    // name at all does this POST have to bank the round itself.
+    const result = await submitScore(game, isGuest ? 0 : score);
     if (result) onRank(result.rank);
     setSaving(false);
   };
