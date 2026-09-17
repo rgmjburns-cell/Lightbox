@@ -1376,7 +1376,8 @@ export default function BoneBuster() {
       trackGameCompletion("bone-buster");
       // Live leaderboard: fire-and-forget submit (submitScore self-handles the
       // player name, auto-creating a guest identity when needed — silent on
-      // failure, never breaks the game). Backend keeps the month's best.
+      // failure, never breaks the game). The server ADDS it to this month's
+      // total.
       submitScore("bone-buster", score).then((r) => {
         if (r) setSubmitRank(r.rank);
       });

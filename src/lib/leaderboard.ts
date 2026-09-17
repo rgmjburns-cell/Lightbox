@@ -50,6 +50,20 @@ export interface LeaderboardEntry {
   score: number;
 }
 
+/** The caller's own row: rank on the FULL monthly board, even outside the top 5. */
+export interface LeaderboardPosition {
+  rank: number;
+  name: string;
+  score: number;
+}
+
+export interface LeaderboardBoard {
+  /** Top 5 players of the month (the server caps the list). */
+  entries: LeaderboardEntry[];
+  /** The stored player's own row, or null when they have no score this month. */
+  you: LeaderboardPosition | null;
+}
+
 /** Stored player name, or null when nobody has entered one yet. */
 export function getPlayerName(): string | null {
   if (typeof window === "undefined") return null;
@@ -101,13 +115,15 @@ export function upgradePlayerName(realName: string): void {
 }
 
 /**
- * Submit a finished game score. A stored name is guaranteed: when nobody has
+ * Submit a finished round's score. A stored name is guaranteed: when nobody has
  * entered one, a guest identity ("Guest NNNN") is auto-created and used, so
- * every completed round lands on the board. When a guest identity was
- * upgraded to a real name since the last submit, the guest name is sent as
- * prevName so the server merges the guest's rows into the real name's.
- * Returns null on any failure (silent). On success returns the player's rank
- * on the month's "all" board.
+ * every completed round lands on the board. The score ADDS to the player's
+ * monthly total for that game (the board is cumulative — nothing is replaced or
+ * compared), so callers must pass the score the round actually earned, once.
+ * When a guest identity was upgraded to a real name since the last submit, the
+ * guest name is sent as prevName so the server merges (adds) the guest's rows
+ * into the real name's. Returns null on any failure (silent). On success returns
+ * the player's competition rank on the month's cumulative "all" board.
  */
 export async function submitScore(
   game: LeaderboardGame,
@@ -144,16 +160,21 @@ export async function submitScore(
 }
 
 /**
- * Fetch this month's board. `game` filters to a single game; "all" (default)
- * returns each player's best score across games. Returns null on failure.
+ * Fetch this month's board. `game` filters to a single game; "all" (default) is
+ * the combined board where each player's score is the SUM of every point they
+ * earned that month. The server returns the top 5, plus the stored player's own
+ * row as `you` (ranked against the full board) when they have scored this month
+ * — even when they are outside the top 5. Stored names that the API would reject
+ * are simply not sent. Returns null on failure.
  */
 export async function fetchLeaderboard(
   game: LeaderboardFilter = "all"
-): Promise<{ entries: LeaderboardEntry[] } | null> {
+): Promise<LeaderboardBoard | null> {
   try {
-    const res = await fetch(
-      `/api/leaderboard?game=${encodeURIComponent(game)}`
-    );
+    const stored = getPlayerName();
+    const params = new URLSearchParams({ game });
+    if (stored && isValidPlayerName(stored)) params.set("player", stored.trim());
+    const res = await fetch(`/api/leaderboard?${params.toString()}`);
     if (!res.ok) {
       console.warn("Leaderboard fetch failed:", res.status, res.statusText);
       return null;
@@ -161,9 +182,10 @@ export async function fetchLeaderboard(
     const data = (await res.json()) as {
       ok: boolean;
       entries?: LeaderboardEntry[];
+      you?: LeaderboardPosition | null;
     };
     if (!data.ok || !Array.isArray(data.entries)) return null;
-    return { entries: data.entries };
+    return { entries: data.entries, you: data.you ?? null };
   } catch (err) {
     console.warn("Leaderboard fetch error:", err);
     return null;
