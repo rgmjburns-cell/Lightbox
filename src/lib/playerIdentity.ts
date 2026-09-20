@@ -10,7 +10,8 @@
  *   * the hidden PLAYER ID the server issues for a real first name. The id is
  *     what makes the player recognisable after a device's storage is wiped —
  *     an installed PWA ("Add to Home Screen") starts with EMPTY local storage,
- *     so the id is the only thing that can bring the profile back.
+ *     so the id is mirrored into a COOKIE (which survives the install) and is
+ *     the thing that brings the profile back.
  */
 
 export const PLAYER_NAME_KEY = "lightboxPlayerName";
@@ -24,6 +25,56 @@ export const LEGACY_PLAYER_NAME_KEY = "playerName";
 export const PENDING_PREV_GUEST_KEY = "lightboxPendingPrevGuest";
 // Server-issued, opaque, never displayed on the board.
 export const PLAYER_ID_KEY = "lightboxPlayerId";
+// The id is ALSO mirrored into a cookie under the same name. localStorage is
+// EMPTY in an installed PWA ("Add to Home Screen" gets its own web-app container
+// on iOS and a fresh one on Android), but the origin's COOKIES survive that
+// install boundary — so the cookie is what lets boot recognise the player there
+// and rehydrate the profile instead of asking for a name again.
+export const PLAYER_ID_COOKIE = PLAYER_ID_KEY;
+const PLAYER_ID_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+/** True when a real `document.cookie` is available (browser, not SSR/build). */
+function hasCookieStore(): boolean {
+  return typeof document !== "undefined" && typeof document.cookie === "string";
+}
+
+/** The player id mirrored in the cookie, or null. */
+export function getPlayerIdFromCookie(): string | null {
+  if (!hasCookieStore()) return null;
+  const match = document.cookie.match(
+    new RegExp(`(?:^|;\\s*)${PLAYER_ID_COOKIE}=([^;]*)`),
+  );
+  if (!match) return null;
+  const value = decodeURIComponent(match[1] ?? "");
+  return value.length > 0 ? value : null;
+}
+
+/** Mirror the id into the cookie (or expire it, with null). */
+export function setPlayerIdCookie(id: string | null): void {
+  if (!hasCookieStore()) return;
+  const secure =
+    typeof location !== "undefined" && location.protocol === "https:"
+      ? "; Secure"
+      : "";
+  const value = id ? encodeURIComponent(id) : "";
+  const maxAge = id ? PLAYER_ID_COOKIE_MAX_AGE : 0;
+  document.cookie = `${PLAYER_ID_COOKIE}=${value}; path=/; max-age=${maxAge}; SameSite=Lax${secure}`;
+}
+
+/**
+ * Migration for players recognised before the cookie mirror existed: when an id
+ * is already in localStorage, write it into the cookie (a no-op when the cookie
+ * already matches). Called once at boot, so any session that predates this fix
+ * creates the cookie on its next load and a later install restores automatically.
+ * Returns the id it found, if any.
+ */
+export function syncPlayerIdCookie(): string | null {
+  if (typeof window === "undefined") return null;
+  const stored = localStorage.getItem(PLAYER_ID_KEY);
+  if (!stored || stored.length === 0) return null;
+  if (getPlayerIdFromCookie() !== stored) setPlayerIdCookie(stored);
+  return stored;
+}
 
 /** Stored player name, or null when nobody has entered one yet. */
 export function getPlayerName(): string | null {
@@ -40,11 +91,18 @@ export function setPlayerName(name: string): void {
   localStorage.setItem(LEGACY_PLAYER_NAME_KEY, name);
 }
 
-/** The hidden player id, or null when this device has never been recognised. */
+/**
+ * The hidden player id, or null when this device has never been recognised.
+ *
+ * localStorage first, then the COOKIE: an installed PWA boots with empty
+ * localStorage but keeps the origin's cookies, so this is what recognises the
+ * player there and lets boot rehydrate the profile without a name prompt.
+ */
 export function getPlayerId(): string | null {
   if (typeof window === "undefined") return null;
   const id = localStorage.getItem(PLAYER_ID_KEY);
-  return id && id.length > 0 ? id : null;
+  if (id && id.length > 0) return id;
+  return getPlayerIdFromCookie();
 }
 
 /** Remember (or forget, with null) the server-issued player id. */
@@ -52,6 +110,7 @@ export function setPlayerId(id: string | null): void {
   if (typeof window === "undefined") return;
   if (id) localStorage.setItem(PLAYER_ID_KEY, id);
   else localStorage.removeItem(PLAYER_ID_KEY);
+  setPlayerIdCookie(id);
 }
 
 /** True when the name is an auto-generated guest identity ("Guest NNNN"). */

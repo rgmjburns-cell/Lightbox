@@ -9,8 +9,12 @@ import { useState, useEffect, type ReactNode } from "react";
 import appCss from "~/styles/app.css?url";
 import brand from "~/branding";
 import NavBar from "~/components/NavBar";
-import Onboarding, { getPlayerName } from "~/components/Onboarding";
-import { getPlayerId } from "~/lib/playerIdentity";
+import Onboarding from "~/components/Onboarding";
+import {
+  getPlayerId,
+  getPlayerName,
+  syncPlayerIdCookie,
+} from "~/lib/playerIdentity";
 import { rehydratePlayerProfile } from "~/lib/leaderboard";
 
 export const Route = createRootRoute({
@@ -49,6 +53,10 @@ function RootComponent() {
 
   useEffect(() => {
     let active = true;
+    // Migration for players recognised before the cookie mirror existed: their id
+    // lives only in localStorage, so write it into the cookie now. A later install
+    // (empty localStorage, cookies kept) can then rehydrate instead of re-asking.
+    syncPlayerIdCookie();
     const name = getPlayerName();
     if (name) {
       setPlayerNameState(name);
