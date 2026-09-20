@@ -1,102 +1,29 @@
 /**
  * LightBox PLAY — Achievements System
  *
- * Defines 10 achievement badges, persists unlock state to localStorage,
- * and provides check functions that run after each game completion.
+ * Defines the 10 achievement badges, persists unlock state to localStorage, and
+ * provides check functions that run after each game completion.
+ *
+ * The badge DEFINITIONS and every THRESHOLD live in `server/achievement-core.ts`,
+ * which the leaderboard server imports too: the server computes a player's
+ * badges itself (so they can be restored on a new device), and it must agree
+ * with the browser exactly. This file is the browser's half — reading the raw
+ * inputs out of localStorage, applying the shared thresholds, and writing the
+ * unlocks back.
  */
 
-import { getAccumulatedPoints } from "./points";
+import {
+  ACHIEVEMENTS,
+  EMPTY_ACHIEVEMENT_STATS,
+  evaluateUnlockedBadgeIds,
+  type Achievement,
+  type AchievementState,
+  type AchievementStats,
+} from "../../server/achievement-core";
+import { getAccumulatedPoints, setAccumulatedPoints } from "./points";
 
-// ── Types ──
-
-export interface Achievement {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  /** Hint shown when the badge is still locked. */
-  hint: string;
-}
-
-export interface AchievementState {
-  unlocked: boolean;
-  unlockedAt?: string; // ISO date string
-}
-
-// ── Achievement Definitions ──
-
-export const ACHIEVEMENTS: Achievement[] = [
-  {
-    id: "first-scan",
-    name: "First Scan",
-    description: "Play any game for the first time",
-    icon: "/badges/first-scan.png",
-    hint: "Play any game to get started!",
-  },
-  {
-    id: "bone-buster-champion",
-    name: "Bone Buster Champion",
-    description: "Reach Level 8 in Bone Buster",
-    icon: "/badges/bone-buster-champion.png",
-    hint: "Reach Level 8 in Bone Buster",
-  },
-  {
-    id: "word-wizard",
-    name: "Word Wizard",
-    description: "Complete 3 word search puzzles",
-    icon: "/badges/word-wizard.png",
-    hint: "Complete 3 Scan Search puzzles",
-  },
-  {
-    id: "puzzle-master",
-    name: "Puzzle Master",
-    description: "Complete Memory Scan on hard mode",
-    icon: "/badges/puzzle-master.png",
-    hint: "Complete Memory Scan on hard difficulty",
-  },
-  {
-    id: "scan-explorer",
-    name: "Scan Explorer",
-    description: "Play all 3 game types",
-    icon: "/badges/scan-explorer.png",
-    hint: "Play Bone Buster, Scan Search, and Memory Scan",
-  },
-  {
-    id: "waiting-time-hero",
-    name: "Waiting Time Hero",
-    description: "Accumulate 25,000 total points",
-    icon: "/badges/waiting-time-hero.png",
-    hint: "Accumulate 25,000 total points",
-  },
-  {
-    id: "perfect-match",
-    name: "Perfect Match",
-    description: "Complete a Memory Scan game in under 20 moves",
-    icon: "/badges/perfect-match.png",
-    hint: "Finish Memory Scan in under 20 moves",
-  },
-  {
-    id: "speed-reader",
-    name: "Speed Reader",
-    description: "Find all words in Scan Search in under 60 seconds",
-    icon: "/badges/speed-reader.png",
-    hint: "Complete Scan Search in under 60 seconds",
-  },
-  {
-    id: "level-up",
-    name: "Level Up",
-    description: "Earn 7 different badges",
-    icon: "/badges/level-up.png",
-    hint: "Earn 7 different badges",
-  },
-  {
-    id: "rexs-best-friend",
-    name: "Rex's Best Friend",
-    description: "Play on 5 different days",
-    icon: "/badges/rexs-best-friend.png",
-    hint: "Come back and play on 5 different days",
-  },
-];
+export { ACHIEVEMENTS };
+export type { Achievement, AchievementState };
 
 // ── Storage Keys ──
 
@@ -106,6 +33,8 @@ const PLAY_DAYS_KEY = "playDays";
 const SCAN_SEARCH_COMPLETIONS_KEY = "scanSearchCompletions";
 const SCAN_SEARCH_BEST_TIME_KEY = "scanSearchBestTime";
 const MEMORY_SCAN_BEST_MOVES_KEY = "memoryScanBestMoves";
+const BONE_BUSTER_LEVEL_KEY = "boneBusterLevel";
+const MEMORY_SCAN_BEST_HARD_KEY = "memoryScanBestHard";
 
 // ── Helpers ──
 
@@ -159,9 +88,16 @@ function recordPlayDay(): void {
   localStorage.setItem(PLAY_DAYS_KEY, JSON.stringify([...days]));
 }
 
+function getInt(key: string, fallback: number): number {
+  if (typeof window === "undefined") return fallback;
+  const raw = localStorage.getItem(key);
+  if (raw === null) return fallback;
+  const value = parseInt(raw, 10);
+  return isNaN(value) ? fallback : value;
+}
+
 function getScanSearchCompletions(): number {
-  if (typeof window === "undefined") return 0;
-  return parseInt(localStorage.getItem(SCAN_SEARCH_COMPLETIONS_KEY) || "0", 10);
+  return getInt(SCAN_SEARCH_COMPLETIONS_KEY, 0);
 }
 
 // ── Trackers (called by game components) ──
@@ -181,10 +117,7 @@ export function trackScanSearchCompletion(timeSeconds: number): void {
   localStorage.setItem(SCAN_SEARCH_COMPLETIONS_KEY, (count + 1).toString());
 
   // Track best time
-  const best = parseInt(
-    localStorage.getItem(SCAN_SEARCH_BEST_TIME_KEY) || "9999",
-    10
-  );
+  const best = getInt(SCAN_SEARCH_BEST_TIME_KEY, 9999);
   if (timeSeconds < best) {
     localStorage.setItem(SCAN_SEARCH_BEST_TIME_KEY, timeSeconds.toString());
   }
@@ -195,146 +128,128 @@ export function trackMemoryScanCompletion(moves: number): void {
   if (typeof window === "undefined") return;
 
   // Track best moves (lowest is best)
-  const best = parseInt(
-    localStorage.getItem(MEMORY_SCAN_BEST_MOVES_KEY) || "9999",
-    10
-  );
+  const best = getInt(MEMORY_SCAN_BEST_MOVES_KEY, 9999);
   if (moves < best) {
     localStorage.setItem(MEMORY_SCAN_BEST_MOVES_KEY, moves.toString());
   }
 }
 
+// ── The browser's view of the shared stats ──
+
+/** Everything the shared badge thresholds need, read from this device. */
+export function readAchievementStats(): AchievementStats {
+  if (typeof window === "undefined") return { ...EMPTY_ACHIEVEMENT_STATS };
+  return {
+    gamesPlayed: [...getGamesPlayed()],
+    playDays: [...getPlayDays()],
+    scanSearchCompletions: getScanSearchCompletions(),
+    accumulatedPoints: getAccumulatedPoints(),
+    boneBusterLevel: getInt(BONE_BUSTER_LEVEL_KEY, 0),
+    memoryScanHardBest: getInt(MEMORY_SCAN_BEST_HARD_KEY, 0),
+    scanSearchBestTime: getInt(SCAN_SEARCH_BEST_TIME_KEY, 9999),
+    memoryScanBestMoves: getInt(MEMORY_SCAN_BEST_MOVES_KEY, 9999),
+  };
+}
+
+/**
+ * Rehydration: merge stats that came back from the server into this device.
+ *
+ * Every value moves only in the direction that could unlock a badge (counts and
+ * levels up, "best" times/moves down), so restoring can never take a badge away
+ * from the local state — and a device that has been played on since the last
+ * sync keeps its newer numbers.
+ */
+export function applyAchievementStats(stats: AchievementStats): void {
+  if (typeof window === "undefined") return;
+
+  const maxInt = (key: string, value: number) => {
+    const next = Math.floor(value);
+    if (next > getInt(key, 0)) localStorage.setItem(key, String(next));
+  };
+  const minInt = (key: string, value: number) => {
+    const next = Math.floor(value);
+    if (next < getInt(key, 9999)) localStorage.setItem(key, String(next));
+  };
+
+  maxInt(BONE_BUSTER_LEVEL_KEY, stats.boneBusterLevel);
+  maxInt(MEMORY_SCAN_BEST_HARD_KEY, stats.memoryScanHardBest);
+  maxInt(SCAN_SEARCH_COMPLETIONS_KEY, stats.scanSearchCompletions);
+  minInt(SCAN_SEARCH_BEST_TIME_KEY, stats.scanSearchBestTime);
+  minInt(MEMORY_SCAN_BEST_MOVES_KEY, stats.memoryScanBestMoves);
+  setAccumulatedPoints(stats.accumulatedPoints);
+
+  const days = getPlayDays();
+  for (const day of stats.playDays) days.add(day);
+  localStorage.setItem(PLAY_DAYS_KEY, JSON.stringify([...days]));
+
+  const games = getGamesPlayed();
+  for (const game of stats.gamesPlayed) games.add(game);
+  localStorage.setItem(GAMES_PLAYED_KEY, JSON.stringify([...games]));
+}
+
+/** Badge ids this device has unlocked, with the moment each was earned. */
+export function readUnlockedBadges(): Record<string, string> {
+  const states = getAchievementStates();
+  const badges: Record<string, string> = {};
+  for (const [id, state] of Object.entries(states)) {
+    if (state?.unlocked) badges[id] = state.unlockedAt ?? new Date().toISOString();
+  }
+  return badges;
+}
+
+/**
+ * Rehydration: adopt the badges the server says were earned. Unlocks are
+ * permanent, so this only ever ADDS badges the device does not know about yet
+ * (e.g. everything earned in the browser before the app was installed to the
+ * home screen), and keeps the earlier of two unlock moments.
+ */
+export function mergeUnlockedBadges(
+  badges: { id: string; unlockedAt?: string }[],
+): void {
+  if (typeof window === "undefined" || badges.length === 0) return;
+  const states = getAchievementStates();
+  let changed = false;
+  for (const badge of badges) {
+    if (!ACHIEVEMENTS.some((a) => a.id === badge.id)) continue;
+    const existing = states[badge.id];
+    if (existing?.unlocked) {
+      if (badge.unlockedAt && existing.unlockedAt && badge.unlockedAt < existing.unlockedAt) {
+        states[badge.id] = { unlocked: true, unlockedAt: badge.unlockedAt };
+        changed = true;
+      }
+      continue;
+    }
+    states[badge.id] = {
+      unlocked: true,
+      unlockedAt: badge.unlockedAt ?? new Date().toISOString(),
+    };
+    changed = true;
+  }
+  if (changed) saveAchievementStates(states);
+}
+
 // ── Check Functions ──
 
-function getBoneBusterLevel(): number {
-  if (typeof window === "undefined") return 0;
-  return parseInt(localStorage.getItem("boneBusterLevel") || "0", 10);
-}
-
-function getMemoryScanHardBest(): number {
-  if (typeof window === "undefined") return 0;
-  return parseInt(localStorage.getItem("memoryScanBestHard") || "0", 10);
-}
-
-function getScanSearchBestTime(): number {
-  if (typeof window === "undefined") return 9999;
-  return parseInt(localStorage.getItem(SCAN_SEARCH_BEST_TIME_KEY) || "9999", 10);
-}
-
-function getMemoryScanBestMoves(): number {
-  if (typeof window === "undefined") return 9999;
-  return parseInt(localStorage.getItem(MEMORY_SCAN_BEST_MOVES_KEY) || "9999", 10);
-}
-
-/** Run all achievement checks. Returns any newly unlocked achievements. */
+/**
+ * Run all achievement checks against the shared thresholds. Returns any newly
+ * unlocked achievements, in the order they are defined — "Level Up" last, so it
+ * counts the badges unlocked in this same pass.
+ */
 export function checkAchievements(): Achievement[] {
   if (typeof window === "undefined") return [];
 
   const states = getAchievementStates();
-  const newlyUnlocked: Achievement[] = [];
   const now = new Date().toISOString();
+  const newlyUnlocked: Achievement[] = [];
 
-  const unlock = (id: string): boolean => {
-    if (states[id]?.unlocked) return false;
+  for (const id of evaluateUnlockedBadgeIds(readAchievementStats())) {
+    if (states[id]?.unlocked) continue;
     states[id] = { unlocked: true, unlockedAt: now };
-    return true;
-  };
-
-  const gamesPlayed = getGamesPlayed();
-  const playDays = getPlayDays();
-  const scanSearchCount = getScanSearchCompletions();
-  const accumulatedPoints = getAccumulatedPoints();
-  const boneBusterLevel = getBoneBusterLevel();
-  const memoryScanHardBest = getMemoryScanHardBest();
-  const scanSearchBestTime = getScanSearchBestTime();
-  const memoryScanBestMoves = getMemoryScanBestMoves();
-
-  // First Scan — Play any game for the first time
-  if (gamesPlayed.size > 0) {
-    if (unlock("first-scan")) {
-      newlyUnlocked.push(ACHIEVEMENTS.find((a) => a.id === "first-scan")!);
-    }
+    const achievement = ACHIEVEMENTS.find((a) => a.id === id);
+    if (achievement) newlyUnlocked.push(achievement);
   }
 
-  // Bone Buster Champion — Reach Level 8 in Bone Buster
-  // Level 0 = level 1 in UI, so level 7 means reached level 8
-  if (boneBusterLevel >= 7) {
-    if (unlock("bone-buster-champion")) {
-      newlyUnlocked.push(
-        ACHIEVEMENTS.find((a) => a.id === "bone-buster-champion")!
-      );
-    }
-  }
-
-  // Word Wizard — Complete 3 word search puzzles
-  if (scanSearchCount >= 3) {
-    if (unlock("word-wizard")) {
-      newlyUnlocked.push(ACHIEVEMENTS.find((a) => a.id === "word-wizard")!);
-    }
-  }
-
-  // Puzzle Master — Complete Memory Scan on hard mode
-  if (memoryScanHardBest > 0) {
-    if (unlock("puzzle-master")) {
-      newlyUnlocked.push(ACHIEVEMENTS.find((a) => a.id === "puzzle-master")!);
-    }
-  }
-
-  // Scan Explorer — Play all 3 game types
-  const requiredGames = ["bone-buster", "scan-search", "memory-scan"];
-  if (requiredGames.every((g) => gamesPlayed.has(g))) {
-    if (unlock("scan-explorer")) {
-      newlyUnlocked.push(ACHIEVEMENTS.find((a) => a.id === "scan-explorer")!);
-    }
-  }
-
-  // Waiting Time Hero — Accumulate 25,000 total points
-  if (accumulatedPoints >= 25000) {
-    if (unlock("waiting-time-hero")) {
-      newlyUnlocked.push(
-        ACHIEVEMENTS.find((a) => a.id === "waiting-time-hero")!
-      );
-    }
-  }
-
-  // Perfect Match — Complete a Memory Scan game in under 20 moves
-  if (memoryScanBestMoves < 20) {
-    if (unlock("perfect-match")) {
-      newlyUnlocked.push(ACHIEVEMENTS.find((a) => a.id === "perfect-match")!);
-    }
-  }
-
-  // Speed Reader — Find all words in Scan Search in under 60 seconds
-  if (scanSearchBestTime < 60) {
-    if (unlock("speed-reader")) {
-      newlyUnlocked.push(ACHIEVEMENTS.find((a) => a.id === "speed-reader")!);
-    }
-  }
-
-  // Rex's Best Friend — Play on 5 different days
-  if (playDays.size >= 5) {
-    if (unlock("rexs-best-friend")) {
-      newlyUnlocked.push(
-        ACHIEVEMENTS.find((a) => a.id === "rexs-best-friend")!
-      );
-    }
-  }
-
-  // Level Up — Earn 7 different badges
-  // Runs LAST so it counts badges unlocked earlier in this same pass.
-  // Counts badges OTHER than Level Up itself (10 total, so 7 of the other 9).
-  const otherUnlockedCount = ACHIEVEMENTS.filter(
-    (a) => a.id !== "level-up" && states[a.id]?.unlocked
-  ).length;
-  if (otherUnlockedCount >= 7) {
-    if (unlock("level-up")) {
-      newlyUnlocked.push(ACHIEVEMENTS.find((a) => a.id === "level-up")!);
-    }
-  }
-
-  if (newlyUnlocked.length > 0) {
-    saveAchievementStates(states);
-  }
+  if (newlyUnlocked.length > 0) saveAchievementStates(states);
 
   return newlyUnlocked;
 }

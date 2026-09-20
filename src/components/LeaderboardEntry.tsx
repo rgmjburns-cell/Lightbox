@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { RankIcon } from "~/components/RankBadge";
 import {
+  claimPlayerName,
   getPlayerName,
   isGuestName,
   isValidPlayerName,
@@ -78,6 +79,11 @@ export default function LeaderboardEntry({
     // submitting, so the POST carries prevName and the server merges the
     // guest's rows into this name's row.
     upgradePlayerName(trimmed);
+    // Get the identity for this name before banking the round: the server
+    // issues a hidden player id for a first real name (or hands back the one
+    // this player already has, so their profile follows them onto a new
+    // device). Without it the round would land on a name-only row.
+    await claimPlayerName(trimmed);
     // The board is ADDITIVE, and the game's own completion effect already banked
     // this round under the guest name. Re-sending the real score here would
     // count the SAME round twice: once merged in from the guest's rows, once as

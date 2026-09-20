@@ -2,15 +2,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import RexSpeechBubble from "~/components/RexSpeechBubble";
 import { RankIcon } from "~/components/RankBadge";
+import ProfileRestorePrompt from "~/components/ProfileRestorePrompt";
 import {
   fetchLeaderboard,
   getPlayerName,
   isGuestName,
   isValidPlayerName,
+  resolvePlayerName,
+  restorePlayerName,
+  startFreshPlayerName,
   upgradePlayerName,
   type LeaderboardEntry,
   type LeaderboardPosition,
 } from "~/lib/leaderboard";
+import type { ServerPlayerProfile } from "~/lib/profile";
 
 export const Route = createFileRoute("/leaderboard")({
   component: Leaderboard,
@@ -65,6 +70,10 @@ function Leaderboard() {
     typeof window === "undefined" ? null : getPlayerName()
   );
   const [nameInput, setNameInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  // A profile the server matched to the typed first name, waiting for the player
+  // to confirm ("that's me") before anything is adopted.
+  const [confirmProfile, setConfirmProfile] = useState<ServerPlayerProfile | null>(null);
   const [entries, setEntries] = useState<LeaderboardEntry[] | null>(null);
   // The stored player's own row, returned by the API when they have any score
   // this month — used to show their place under the Top 5 when they are not on
@@ -113,15 +122,50 @@ function Leaderboard() {
     });
   }, []);
 
-  const handleSaveName = () => {
+  const handleSaveName = async () => {
     const trimmed = nameInput.trim();
-    if (!isValidPlayerName(trimmed)) return;
+    if (!isValidPlayerName(trimmed) || saving) return;
+    setSaving(true);
     // Guest → real name: parks the guest as pending-previous so the player's
     // next game submission merges their guest rows into this name.
     upgradePlayerName(trimmed);
+    // Ask the server who this first name belongs to. On a device that has no
+    // identity yet and whose typed name matches exactly one existing player (the
+    // installed-PWA case) this comes back as a question, not a decision.
+    const result = await resolvePlayerName(trimmed);
+    if (result.status === "confirm") {
+      setConfirmProfile(result.profile);
+      setSaving(false);
+      return;
+    }
     setPlayerNameState(trimmed);
     setNameInput("");
+    setSaving(false);
     // Their scores may already exist this month — highlight now.
+    refresh();
+  };
+
+  const handleRestore = async () => {
+    if (saving) return;
+    setSaving(true);
+    const name = nameInput.trim();
+    await restorePlayerName(name);
+    setPlayerNameState(name);
+    setConfirmProfile(null);
+    setNameInput("");
+    setSaving(false);
+    refresh();
+  };
+
+  const handleFresh = async () => {
+    if (saving) return;
+    setSaving(true);
+    const name = nameInput.trim();
+    await startFreshPlayerName(name);
+    setPlayerNameState(name);
+    setConfirmProfile(null);
+    setNameInput("");
+    setSaving(false);
     refresh();
   };
 
@@ -170,11 +214,19 @@ function Leaderboard() {
 
   const showLoading = entries === null && !error;
 
-  // Is the player already shown on the board? (Case-insensitive, like the row
-  // highlight.) Then their rank line is the existing row — no second one.
-  const playerOnBoard =
-    trimmedPlayer !== null &&
-    (entries ?? []).some((e) => e.name.trim().toLowerCase() === trimmedPlayer);
+  /**
+   * Is this board row the caller's own? The SERVER decides, from the caller's
+   * player id — not from the displayed name — so two players called "Sarah" each
+   * see their own row highlighted. (The name comparison is only a fallback for
+   * an older server that does not send the flag.)
+   */
+  const isYouRow = (entry: LeaderboardEntry) =>
+    entry.isYou ??
+    (trimmedPlayer !== null && entry.name.trim().toLowerCase() === trimmedPlayer);
+
+  // Is the player already shown on the board? Then their rank line is the
+  // existing row — no second one.
+  const playerOnBoard = (entries ?? []).some(isYouRow);
   const showYourPosition =
     !showLoading && !error && you !== null && !playerOnBoard;
 
@@ -214,28 +266,38 @@ function Leaderboard() {
               ? `You're currently playing as ${playerName} — enter your first name to be shown as yourself and carry your scores over.`
               : "We'll use it to save your score and show your place on the leaderboard."}
           </p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              placeholder="First name"
-              maxLength={20}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSaveName();
-              }}
-              className="flex-1 min-w-0 rounded-lg border border-lightTeal px-3 py-2 text-sm text-darkText
-                         outline-none focus:border-secondary"
+          {confirmProfile ? (
+            <ProfileRestorePrompt
+              profile={confirmProfile}
+              busy={saving}
+              title="Played before?"
+              onRestore={() => void handleRestore()}
+              onFresh={() => void handleFresh()}
             />
-            <button
-              type="button"
-              onClick={handleSaveName}
-              disabled={!isValidPlayerName(nameInput)}
-              className="btn-primary text-sm py-2 px-4 disabled:opacity-50"
-            >
-              Save
-            </button>
-          </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                placeholder="First name"
+                maxLength={20}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void handleSaveName();
+                }}
+                className="flex-1 min-w-0 rounded-lg border border-lightTeal px-3 py-2 text-sm text-darkText
+                           outline-none focus:border-secondary"
+              />
+              <button
+                type="button"
+                onClick={() => void handleSaveName()}
+                disabled={!isValidPlayerName(nameInput) || saving}
+                className="btn-primary text-sm py-2 px-4 disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -290,9 +352,7 @@ function Leaderboard() {
       {!showLoading && entries && entries.length > 0 && (
         <div className="flex flex-col gap-2">
           {entries.map((entry) => {
-            const isYou =
-              trimmedPlayer !== null &&
-              entry.name.trim().toLowerCase() === trimmedPlayer;
+            const isYou = isYouRow(entry);
             return (
               <BoardRow
                 key={`${entry.rank}-${entry.name}`}

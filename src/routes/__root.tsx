@@ -10,6 +10,8 @@ import appCss from "~/styles/app.css?url";
 import brand from "~/branding";
 import NavBar from "~/components/NavBar";
 import Onboarding, { getPlayerName } from "~/components/Onboarding";
+import { getPlayerId } from "~/lib/playerIdentity";
+import { rehydratePlayerProfile } from "~/lib/leaderboard";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -46,11 +48,35 @@ function RootComponent() {
   const [playerName, setPlayerNameState] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
     const name = getPlayerName();
-    setPlayerNameState(name);
-    if (!name) {
-      setOnboarded(false);
+    if (name) {
+      setPlayerNameState(name);
+      // Recognised device: refresh the mirrored profile (name, per-game bests,
+      // stats, badges) in the background. Silent — a failure just keeps what the
+      // device already has.
+      void rehydratePlayerProfile();
+      return;
     }
+    if (!getPlayerId()) {
+      setOnboarded(false);
+      return;
+    }
+    // The player id survived but the rest of local storage did not (an installed
+    // PWA, or a wiped profile): restore the name and everything else from the id
+    // BEFORE asking for a name again.
+    void rehydratePlayerProfile().then((profile) => {
+      if (!active) return;
+      const restored = getPlayerName();
+      if (profile && restored) {
+        setPlayerNameState(restored);
+        return;
+      }
+      setOnboarded(false);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleOnboardingComplete = () => {
