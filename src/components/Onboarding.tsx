@@ -1,15 +1,19 @@
 import { useState, useCallback, useRef } from "react";
-
-const STORAGE_KEY = "playerName";
+import { setPlayerName } from "~/lib/playerIdentity";
+import {
+  resolvePlayerName,
+  restorePlayerName,
+  startFreshPlayerName,
+} from "~/lib/leaderboard";
+import type { ServerPlayerProfile } from "~/lib/profile";
+import ProfileRestorePrompt from "~/components/ProfileRestorePrompt";
 
 export function getPlayerName(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(STORAGE_KEY);
+  return localStorage.getItem("playerName");
 }
 
-export function setPlayerName(name: string): void {
-  localStorage.setItem(STORAGE_KEY, name);
-}
+export { setPlayerName };
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -21,18 +25,51 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [name, setName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+  // Set when the typed first name matches exactly one existing profile on the
+  // server — the installed-PWA case, where this device's storage started empty
+  // but the player has been playing somewhere else. The PLAYER decides; nothing
+  // is adopted until they tap "Yes, that's me".
+  const [found, setFound] = useState<ServerPlayerProfile | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const trimmed = name.trim();
   const isValid = trimmed.length > 0 && trimmed.length <= 20;
 
-  const handleSubmit = useCallback(() => {
+  const finish = useCallback(() => {
+    setIsExiting(true);
+    setTimeout(() => onComplete(), 500);
+  }, [onComplete]);
+
+  const handleSubmit = useCallback(async () => {
     if (!isValid || isSubmitting) return;
     setIsSubmitting(true);
     setPlayerName(trimmed);
-    setIsExiting(true);
-    setTimeout(() => onComplete(), 500);
-  }, [isValid, isSubmitting, trimmed, onComplete]);
+    // Who does this first name belong to? A device with no player id gets the
+    // unique-match profile back to confirm; everything else continues straight on.
+    const result = await resolvePlayerName(trimmed);
+    if (result.status === "confirm") {
+      setFound(result.profile);
+      setIsSubmitting(false);
+      return;
+    }
+    finish();
+  }, [isValid, isSubmitting, trimmed, finish]);
+
+  const handleRestore = useCallback(async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    await restorePlayerName(trimmed);
+    setPlayerName(trimmed);
+    finish();
+  }, [isSubmitting, trimmed, finish]);
+
+  const handleFresh = useCallback(async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    await startFreshPlayerName(trimmed);
+    setPlayerName(trimmed);
+    finish();
+  }, [isSubmitting, trimmed, finish]);
 
   return (
     <div
@@ -195,7 +232,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           <button
             type="button"
             disabled={!isValid || isSubmitting}
-            onClick={handleSubmit}
+            onClick={() => void handleSubmit()}
             className="w-full bg-[#008C95] text-white font-bold rounded-xl border-none shadow-[0_4px_16px_rgba(0,140,149,0.35)] disabled:opacity-50 transition-opacity"
             style={{
               cursor: isValid && !isSubmitting ? "pointer" : "default",
@@ -206,6 +243,16 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           >
             Let&rsquo;s Play
           </button>
+
+          {/* Played before? (fresh storage: the name is all we have left) */}
+          {found && (
+            <ProfileRestorePrompt
+              profile={found}
+              busy={isSubmitting}
+              onRestore={() => void handleRestore()}
+              onFresh={() => void handleFresh()}
+            />
+          )}
         </div>
 
         {/* ══════════════════════════════════════════════

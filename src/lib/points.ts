@@ -36,6 +36,40 @@ export function getTotalPoints(): number {
   return sum;
 }
 
+/**
+ * Every higher-is-better personal best this device holds, keyed by the storage
+ * key it lives under. Used to mirror the profile on the server (so a device with
+ * wiped storage can get its bests back) — the server treats the values as
+ * opaque, so adding a key here is all a future game needs.
+ */
+export function getGameBests(): Record<string, number> {
+  const bests: Record<string, number> = {};
+  if (typeof window === "undefined") return bests;
+  for (const key of GAME_SCORE_KEYS) {
+    const val = parseInt(localStorage.getItem(key) || "0", 10);
+    if (!isNaN(val) && val > 0) bests[key] = val;
+  }
+  return bests;
+}
+
+/** Restore a personal best from the server snapshot. Never lowers a local best. */
+export function setGameBest(key: string, value: number): void {
+  if (typeof window === "undefined" || !(value > 0)) return;
+  const current = parseInt(localStorage.getItem(key) || "0", 10);
+  if (isNaN(current) || value > current) {
+    localStorage.setItem(key, String(Math.floor(value)));
+  }
+}
+
+/** Restore the accumulated total from the server snapshot (never lowers it). */
+export function setAccumulatedPoints(value: number): void {
+  if (typeof window === "undefined" || !(value > 0)) return;
+  const current = parseInt(localStorage.getItem(TOTAL_POINTS_KEY) || "0", 10);
+  if (isNaN(current) || value > current) {
+    localStorage.setItem(TOTAL_POINTS_KEY, String(Math.floor(value)));
+  }
+}
+
 /** Add points to the accumulated total (separate from per-game high scores). */
 export function addPoints(amount: number): void {
   if (typeof window === "undefined" || amount <= 0) return;
