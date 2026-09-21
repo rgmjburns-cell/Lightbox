@@ -44,13 +44,16 @@ import {
   boardByDay,
   bounceRate,
   coerceEvent,
+  DEFAULT_RANGE_DAYS,
   fillDaily,
   lastNDays,
   mergeDaily,
+  resolveDayRange,
   sortAverages,
   summariseBoard,
   utcDayKey,
   type DailyCounts,
+  type DayRange,
 } from "./metrics-core.ts";
 import {
   exportFilename,
@@ -73,7 +76,7 @@ import type {
 const PASSCODE = process.env.LEADERBOARD_ADMIN_PASSCODE ?? "clear2026";
 
 const WINDOW_DAYS = { last7: 7, last30: 30 } as const;
-const DAILY_DAYS = 30;
+const DAILY_DAYS = DEFAULT_RANGE_DAYS;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -88,6 +91,16 @@ const TODAY_WHERE = "date(created_at) = date('now')";
 function windowWhere(days: number): string {
   const span = Math.max(0, Math.floor(days) - 1);
   return `date(created_at) >= date('now', '-${String(span)} days')`;
+}
+
+/**
+ * The same predicate for an explicit, validated window: both bounds are UTC days
+ * that `resolveDayRange` has already checked are real `YYYY-MM-DD` keys, so
+ * nothing user-supplied reaches this SQL unvalidated. Inclusive at both ends, and
+ * an unset end never happens (the resolver always fills `to` in).
+ */
+function rangeWhere(range: DayRange): string {
+  return `date(created_at) >= '${range.from}' AND date(created_at) <= '${range.to}'`;
 }
 
 /**
@@ -233,7 +246,17 @@ function windowStats(days: number): MetricsWindow {
 }
 
 function dailyRows(days: number): MetricsDailyRow[] {
-  const where = windowWhere(days);
+  return dailyRowsIn(lastNDays(days), windowWhere(days));
+}
+
+/**
+ * The per-day table for an explicit window: the event log's page and rounds
+ * numbers plus the board's own players and games, zero-filled to exactly the
+ * resolved days so a date the owner asked for is never missing from the file.
+ * Same folding as the dashboard's own table (`fillDaily`, `mergeDaily`), so a
+ * ranged export and the page agree on any day they both cover.
+ */
+function dailyRowsIn(days: readonly string[], where: string): MetricsDailyRow[] {
   const events = getDb()
     .query<Partial<DailyCounts> & { day: string }, []>(
       `SELECT date(created_at) AS day,
@@ -256,7 +279,7 @@ function dailyRows(days: number): MetricsDailyRow[] {
   // One row per day, carrying the event log's page numbers AND the board's own
   // players and games, so a September day still says who played and what rather
   // than nothing. Rounds played comes from the event log side only.
-  return fillDaily(lastNDays(days), mergeDaily(events, boardByDay(scores)));
+  return fillDaily(days, mergeDaily(events, boardByDay(scores)));
 }
 
 /** Distinct identities on the month's board — the same folding the board uses. */
@@ -329,10 +352,11 @@ export function collectStats(): MetricsStats {
  * The two per-day numbers the dashboard's daily table does not carry: bounce rate
  * and average time played. Same window, same rules as the 7- and 30-day blocks
  * above (see `metrics-export.ts`, which folds them with the very same helpers), so
- * an exported day cannot disagree with the page. Read-only.
+ * an exported day cannot disagree with the page. Read-only. The caller passes the
+ * window predicate, so the last 30 days and a requested date range share this one
+ * implementation.
  */
-function dailyTelemetry(days: number) {
-  const where = windowWhere(days);
+function dailyTelemetryIn(where: string) {
   const sessions = getDb()
     .query<SessionDayRow, []>(
       `SELECT date(created_at) AS day,
@@ -390,32 +414,53 @@ async function handleStats(req: Request): Promise<Response> {
  * behaviour as the dashboard read; `?format=csv` (the default) or `?format=json`,
  * where json is exactly the payload `/api/admin/stats` returns. Strictly
  * read-only: it reads the events log and the board, and writes nothing.
+ *
+ * `?from=` / `?to=` (UTC `YYYY-MM-DD`, owner request 21 Sep) narrow the per-day
+ * table to that window inclusive, so a pilot (21 Sep to 21 Oct) can be pulled as
+ * one file. With neither parameter the file is exactly the last 30 UTC days it
+ * always was; the 7- and 30-day window blocks keep their fixed windows either
+ * way, since the range is about the day-by-day table. A bad range is a 400 with
+ * a plain-words reason, after the passcode check (so the gate is unchanged).
  */
 async function handleExport(req: Request): Promise<Response> {
   const auth = authorise(req);
   if (auth === "missing") return json({ ok: false, error: "Passcode required" }, 401);
   if (auth === "wrong") return json({ ok: false, error: "Wrong passcode" }, 403);
-  const format =
-    new URL(req.url).searchParams.get("format")?.toLowerCase() === "json" ? "json" : "csv";
+  const params = new URL(req.url).searchParams;
+  const format = params.get("format")?.toLowerCase() === "json" ? "json" : "csv";
+  const asked = params.has("from") || params.has("to");
+  const resolved = resolveDayRange(params.get("from"), params.get("to"));
+  if (!resolved.ok) return json({ ok: false, error: resolved.error }, 400);
+  const { range } = resolved;
+  // Only a request that actually asked for a window puts the dates in the name,
+  // so an unparameterised download keeps its familiar `stats-<today>.csv`.
+  const name = (ext: "csv" | "json") => exportFilename(ext, new Date(), asked ? range : null);
   try {
     if (format === "json") {
-      return new Response(JSON.stringify(collectStats()), {
+      // The same payload shape `/api/admin/stats` returns, with the day-by-day
+      // array built for the requested window instead of the last 30 days.
+      const payload = {
+        ...collectStats(),
+        daily: dailyRowsIn(range.days, rangeWhere(range)),
+      };
+      return new Response(JSON.stringify(payload), {
         status: 200,
         headers: {
           "Content-Type": "application/json",
-          "Content-Disposition": `attachment; filename="${exportFilename("json")}"`,
+          "Content-Disposition": `attachment; filename="${name("json")}"`,
           "Cache-Control": "no-store",
         },
       });
     }
-    // The same zero-filled 30-day table the dashboard's per-day section draws,
-    // plus that table's own bounce rate and average time played per day.
-    const csv = statsCsv(dailyRows(DAILY_DAYS), dailyTelemetry(DAILY_DAYS));
+    // The same zero-filled day table the dashboard's per-day section draws
+    // (last 30 days by default, or the requested window), plus that table's own
+    // bounce rate and average time played per day.
+    const csv = statsCsv(dailyRowsIn(range.days, rangeWhere(range)), dailyTelemetryIn(rangeWhere(range)));
     return new Response(csv, {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${exportFilename("csv")}"`,
+        "Content-Disposition": `attachment; filename="${name("csv")}"`,
         "Cache-Control": "no-store",
       },
     });

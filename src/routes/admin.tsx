@@ -43,6 +43,37 @@ function pct(value: number): string {
   return `${value.toLocaleString()}%`;
 }
 
+/**
+ * The export's date range. It starts at the very window the export has always
+ * built (the last 30 UTC days including today), so a plain click on Export CSV
+ * still downloads the same file as before, and the dates are there to change for
+ * a pilot window (21 Sep to 21 Oct). UTC days, the same bucketing as everything
+ * else on this page; both ends are inclusive.
+ */
+const DAY_MS = 86_400_000;
+const RANGE_DEFAULT_DAYS = 30;
+
+function utcDateInput(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function defaultExportRange(): { from: string; to: string } {
+  const now = Date.now();
+  return {
+    from: utcDateInput(new Date(now - (RANGE_DEFAULT_DAYS - 1) * DAY_MS)),
+    to: utcDateInput(new Date(now)),
+  };
+}
+
+/**
+ * Tomorrow, UTC: the latest To date the export accepts (the server refuses an end
+ * beyond it rather than hand back a run of zero rows for days that have not
+ * happened). The date picker says so up front instead of failing on the click.
+ */
+function exportRangeMax(): string {
+  return utcDateInput(new Date(Date.now() + DAY_MS));
+}
+
 function seconds(value: number): string {
   const total = Math.round(value);
   if (total < 60) return `${String(total)}s`;
@@ -238,6 +269,18 @@ function Admin() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState<"csv" | "json" | null>(null);
+  const [range, setRange] = useState(defaultExportRange);
+
+  /**
+   * A plain client-side guard, so an obvious slip is caught before a request is
+   * made: `YYYY-MM-DD` sorts chronologically as text, so a string compare is the
+   * whole check. The server validates properly as well (real calendar day, width
+   * and end date) and its message is shown if it disagrees.
+   */
+  const rangeError: string | null =
+    range.from !== "" && range.to !== "" && range.from > range.to
+      ? "The From date must be on or before the To date."
+      : null;
 
   const load = useCallback(async () => {
     if (loading) return;
@@ -270,35 +313,54 @@ function Admin() {
    * Download the same numbers as a CSV (default) or JSON file, with the passcode
    * in the `x-admin-passcode` header exactly as `load` sends it, so the secret
    * never lands in a URL. The file is fetched as a blob and handed to the
-   * browser's downloader, so an installed PWA downloads it too.
+   * browser's downloader, so an installed PWA downloads it too. The day table
+   * covers the From/To dates (UTC, inclusive); an emptied input is simply left
+   * out of the request, and the server falls back to its own default (today, or
+   * the 30 days ending on the To date).
    */
   const exportStats = useCallback(
     async (format: "csv" | "json") => {
       if (exporting) return;
+      if (rangeError) {
+        setError(rangeError);
+        return;
+      }
       setExporting(format);
       setError(null);
       try {
-        const res = await fetch(`/api/admin/stats/export?format=${format}`, {
+        const query = new URLSearchParams({ format });
+        if (range.from) query.set("from", range.from);
+        if (range.to) query.set("to", range.to);
+        const res = await fetch(`/api/admin/stats/export?${query.toString()}`, {
           headers: { "x-admin-passcode": passcode },
         });
         if (!res.ok) {
+          // The server also rejects a range it cannot build (400) and says why.
+          const reason = await res
+            .clone()
+            .json()
+            .then((body: { error?: string }) => body?.error)
+            .catch(() => undefined);
           setError(
             res.status === 403
               ? "Wrong passcode"
               : res.status === 401
                 ? "Enter a passcode"
-                : "Couldn't export the stats. Try again.",
+                : (reason ?? "Couldn't export the stats. Try again."),
           );
           setExporting(null);
           return;
         }
         const blob = await res.blob();
-        // The server names the file (stats-<UTC day>.<ext>); fall back to the same
-        // shape if a browser hides the header.
+        // The server names the file (stats-<range|day>.<ext>); fall back to the
+        // same shape if a browser hides the header.
         const named = /filename="?([^";]+)"?/i.exec(
           res.headers.get("content-disposition") ?? "",
         );
-        const fallback = `stats-${new Date().toISOString().slice(0, 10)}.${format}`;
+        const fallback =
+          range.from && range.to
+            ? `stats-${range.from}_${range.to}.${format}`
+            : `stats-${new Date().toISOString().slice(0, 10)}.${format}`;
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
@@ -313,7 +375,7 @@ function Admin() {
       }
       setExporting(null);
     },
-    [exporting, passcode],
+    [exporting, passcode, range, rangeError],
   );
 
   const countingSince = stats?.countingSince
@@ -387,31 +449,68 @@ function Admin() {
             </button>
           </div>
 
-          <div className="card mb-4 py-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-darkText">Export these numbers</p>
-              <p className="text-xs text-mutedText mt-0.5">
-                The per-day table, last 30 days in UTC, one row per day: opens in
-                Excel or Sheets as-is. Same passcode, read-only.
-              </p>
+          <div className="card mb-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-darkText">Export these numbers</p>
+                <p className="text-xs text-mutedText mt-0.5">
+                  The per-day table, one row per day, UTC. Set a From and To date
+                  for a pilot window, or leave the 30-day default: opens in Excel
+                  or Sheets as-is. Same passcode, read-only.
+                </p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => void exportStats("csv")}
+                  disabled={exporting !== null || rangeError !== null}
+                  className="btn-primary text-sm py-2 px-3 disabled:opacity-50"
+                >
+                  {exporting === "csv" ? "Exporting..." : "Export CSV"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void exportStats("json")}
+                  disabled={exporting !== null || rangeError !== null}
+                  className="btn-secondary text-sm py-2 px-3 disabled:opacity-50"
+                >
+                  {exporting === "json" ? "Exporting..." : "Export JSON"}
+                </button>
+              </div>
             </div>
-            <div className="flex gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => void exportStats("csv")}
-                disabled={exporting !== null}
-                className="btn-primary text-sm py-2 px-3 disabled:opacity-50"
-              >
-                {exporting === "csv" ? "Exporting..." : "Export CSV"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void exportStats("json")}
-                disabled={exporting !== null}
-                className="btn-secondary text-sm py-2 px-3 disabled:opacity-50"
-              >
-                {exporting === "json" ? "Exporting..." : "Export JSON"}
-              </button>
+            <div className="flex flex-wrap items-end gap-x-3 gap-y-2 mt-3">
+              <label className="text-xs text-mutedText">
+                <span className="block mb-1 font-medium">From (UTC)</span>
+                <input
+                  type="date"
+                  value={range.from}
+                  max={range.to !== "" ? range.to : undefined}
+                  onChange={(e) => {
+                    setRange((prev) => ({ ...prev, from: e.target.value }));
+                    setError(null);
+                  }}
+                  className="rounded-lg border border-lightTeal px-3 py-1.5 text-sm text-darkText
+                             outline-none focus:border-secondary"
+                />
+              </label>
+              <label className="text-xs text-mutedText">
+                <span className="block mb-1 font-medium">To (UTC)</span>
+                <input
+                  type="date"
+                  value={range.to}
+                  min={range.from !== "" ? range.from : undefined}
+                  max={exportRangeMax()}
+                  onChange={(e) => {
+                    setRange((prev) => ({ ...prev, to: e.target.value }));
+                    setError(null);
+                  }}
+                  className="rounded-lg border border-lightTeal px-3 py-1.5 text-sm text-darkText
+                             outline-none focus:border-secondary"
+                />
+              </label>
+              {rangeError && (
+                <p className="text-xs text-red-500 font-medium pb-1.5">{rangeError}</p>
+              )}
             </div>
           </div>
           {error && <p className="text-sm text-red-500 font-medium mb-4">{error}</p>}
