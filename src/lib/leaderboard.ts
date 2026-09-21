@@ -33,6 +33,7 @@ import {
   readProfileSnapshot,
   type ServerPlayerProfile,
 } from "./profile";
+import { endGameRound } from "./metrics";
 
 // Re-exported so existing imports (`from "~/lib/leaderboard"`) keep working.
 export {
@@ -278,11 +279,21 @@ export async function startFreshPlayerName(
  * server-issued id is stored if this device did not have one yet. Returns null on
  * any failure (silent). On success returns the player's competition rank on the
  * month's cumulative "all" board.
+ *
+ * This is also where a finished round is reported to the first-party usage log
+ * (see `~/lib/metrics`): `endGameRound` needs no answer, cannot fail the submit
+ * and is called for every completion, so it lives here rather than in each of the
+ * eight games. Pass `{ roundEnd: false }` for a submit that does NOT finish a
+ * round — the guest-name upgrade re-sends a round the game already reported, and
+ * counting it twice would inflate the dashboard.
  */
 export async function submitScore(
   game: LeaderboardGame,
-  score: number
+  score: number,
+  options: { roundEnd?: boolean } = {}
 ): Promise<{ rank: number } | null> {
+  // Called before the network work: the round is over now, whatever the API says.
+  if (options.roundEnd !== false) endGameRound(game);
   const name = ensurePlayerName();
   try {
     const body: Record<string, unknown> = {

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import brand from "~/branding";
+import { useGameRound } from "~/lib/metrics";
 const BoneBuster = lazy(() => import("~/components/games/BoneBuster"));
 const ScanSearch = lazy(() => import("~/components/games/ScanSearch"));
 const MemoryScan = lazy(() => import("~/components/games/MemoryScan"));
@@ -24,6 +25,7 @@ const gameMeta: Record<string, { title: string; icon: string }> = {
 };
 function PlayGame() {
   const { gameId } = Route.useParams();
+  useGameRound(gameMeta[gameId] ? gameId : null);
   const game = gameMeta[gameId] ?? { title: gameId, icon: "" };
   return (
     <div className="page-container">

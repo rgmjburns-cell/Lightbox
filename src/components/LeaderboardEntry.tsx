@@ -91,7 +91,11 @@ export default function LeaderboardEntry({
     // no-op for the total, while prevName still triggers the guest→real merge
     // (which carries this round's points over). Only when there was no stored
     // name at all does this POST have to bank the round itself.
-    const result = await submitScore(game, isGuest ? 0 : score);
+    const result = await submitScore(game, isGuest ? 0 : score, {
+      // A guest upgrade re-sends a round the game already reported, so it must not
+      // log a second "round finished" for the same round (usage analytics).
+      roundEnd: !isGuest,
+    });
     if (result) onRank(result.rank);
     setSaving(false);
   };

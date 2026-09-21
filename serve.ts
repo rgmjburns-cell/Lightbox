@@ -10,6 +10,7 @@
 // the takeover works across user boundaries.
 import handler from "./dist/server/server.js";
 import { handleLeaderboardApi, startLeaderboardBackups } from "./server/leaderboard.ts";
+import { handleMetricsApi } from "./server/metrics.ts";
 
 // Pinned, NOT read from the environment. The published preview URL
 // (<label>.<PUBLIC_SITE_DOMAIN>) is reverse-proxied to 0.0.0.0:3000 inside the
@@ -42,6 +43,11 @@ for (let attempt = 1; ; attempt++) {
       hostname: HOST,
       async fetch(req) {
         const { pathname } = new URL(req.url);
+        if (pathname.startsWith("/api/metrics") || pathname.startsWith("/api/admin/")) {
+          // First-party usage analytics: POST /api/metrics (ingest) and
+          // GET /api/admin/stats (the passcode-protected dashboard read).
+          return handleMetricsApi(req, pathname);
+        }
         if (pathname.startsWith("/api/")) {
           return handleLeaderboardApi(req, pathname);
         }

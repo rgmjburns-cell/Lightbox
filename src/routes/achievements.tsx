@@ -8,6 +8,7 @@ import {
   type Achievement,
   type AchievementState,
 } from "~/lib/achievements";
+import { useVisit } from "~/lib/metrics";
 
 export const Route = createFileRoute("/achievements")({
   component: Achievements,
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/achievements")({
 type AchievementWithState = Achievement & AchievementState;
 
 function Achievements() {
+  useVisit("/achievements");
   const [allAchievements, setAllAchievements] = useState<AchievementWithState[]>(
     []
   );

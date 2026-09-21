@@ -16,6 +16,7 @@ import {
   type LeaderboardPosition,
 } from "~/lib/leaderboard";
 import type { ServerPlayerProfile } from "~/lib/profile";
+import { useVisit } from "~/lib/metrics";
 
 export const Route = createFileRoute("/leaderboard")({
   component: Leaderboard,
@@ -66,6 +67,7 @@ function BoardRow({
 }
 
 function Leaderboard() {
+  useVisit("/leaderboard");
   const [playerName, setPlayerNameState] = useState<string | null>(() =>
     typeof window === "undefined" ? null : getPlayerName()
   );
