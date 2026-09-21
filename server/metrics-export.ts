@@ -17,12 +17,12 @@
  *     identity folding behind activePlayers, the same bounce-rate rule and the
  *     same one-decimal rounding — so a number quoted from the file matches the
  *     number on the page.
- *   * `roundsBanked` and `roundsPlayed` are deliberately two columns, both printed
- *     for every day: the first is the board's scoring rows (one cumulative row per
- *     player, game and month, so a replay grows a row rather than adding one), the
- *     second is the true count of finished rounds from the event log. The event log
- *     starts mid-September, so `roundsPlayed` is 0 on earlier days; no earlier value
- *     is invented.
+ *   * `roundsPlayed` is the ONE rounds column (owner decision, 21 Sep): finished
+ *     rounds from the event log, one per completed round. The board's scoring rows
+ *     are deliberately NOT exported as a rounds number, because the board keeps one
+ *     cumulative row per player, game and month, so a replay grows a row rather
+ *     than adding one. The event log starts mid-September, so `roundsPlayed` is 0
+ *     on earlier days; no earlier value is invented.
  *   * Plain ASCII in the output: game names are joined with "; ", never an em
  *     dash (house rule: no em dashes anywhere in the product's copy).
  */
@@ -38,17 +38,15 @@ export interface DailyTelemetry {
 }
 
 /**
- * Column order of the CSV, exactly as a spreadsheet should read it. The two round
- * columns sit together (`roundsBanked`, the board's scoring rows, then
- * `roundsPlayed`, the event log's true count of finished rounds) so a reader sees
- * both numbers side by side, as the dashboard shows them.
+ * Column order of the CSV, exactly as a spreadsheet should read it. One rounds
+ * column only, `roundsPlayed` (the event log's count of finished rounds), matching
+ * the dashboard.
  */
 export const CSV_COLUMNS = [
   "date",
   "visits",
   "sessions",
   "gameStarts",
-  "roundsBanked",
   "roundsPlayed",
   "activePlayers",
   "bounceRate",
@@ -114,9 +112,9 @@ export function csvCell(value: string | number | null | undefined): string {
 }
 
 /**
- * "scan-rush 19; ecg-rhythm 3": which games that day banked rounds, in the
+ * "scan-rush 19; ecg-rhythm 3": which games that day's board rows name, in the
  * dashboard's own order (most played first, ties alphabetical), empty when the
- * day banked nothing.
+ * day has no board rows.
  */
 export function gamesPlayedText(games: readonly { game: string; rounds: number }[]): string {
   return games.map((entry) => `${entry.game} ${String(entry.rounds)}`).join("; ");
@@ -140,7 +138,6 @@ export function statsCsv(
         csvCell(row.visits),
         csvCell(row.sessions),
         csvCell(row.gameStarts),
-        csvCell(row.completedRounds),
         csvCell(row.roundsPlayed),
         csvCell(row.activePlayers),
         csvCell(extra?.bounceRate ?? 0),

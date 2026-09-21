@@ -7,6 +7,7 @@ import { describe, expect, test } from "bun:test";
 import {
   MAX_DURATION_SEC,
   averageDuration,
+  boardByDay,
   bounceRate,
   coerceEvent,
   dayKey,
@@ -16,10 +17,9 @@ import {
   mergeDaily,
   perGameRounds,
   round1,
-  roundsByDay,
   sortAverages,
   sortGamesChosen,
-  summariseRounds,
+  summariseBoard,
   utcDayKey,
   type ScoreRow,
 } from "./metrics-core.ts";
@@ -153,10 +153,9 @@ describe("day bucketing", () => {
         visits: 4,
         sessions: 3,
         gameStarts: 2,
-        completedRounds: 1,
         roundsPlayed: 5,
       },
-      { day: "2026-09-19", visits: 1, sessions: 1, gameStarts: 0, completedRounds: 0 },
+      { day: "2026-09-19", visits: 1, sessions: 1, gameStarts: 0 },
     ]);
     expect(filled.map((row) => row.day)).toEqual([
       "2026-09-19",
@@ -169,7 +168,6 @@ describe("day bucketing", () => {
       sessions: 0,
       gameStarts: 0,
       roundsPlayed: 0,
-      completedRounds: 0,
       activePlayers: 0,
       gamesPlayed: [],
     });
@@ -179,7 +177,6 @@ describe("day bucketing", () => {
       sessions: 3,
       gameStarts: 2,
       roundsPlayed: 5,
-      completedRounds: 1,
       activePlayers: 0,
       gamesPlayed: [],
     });
@@ -189,7 +186,6 @@ describe("day bucketing", () => {
     const filled = fillDaily(["2026-09-17", "2026-09-18"], [
       {
         day: "2026-09-17",
-        completedRounds: 2,
         gamesPlayed: [
           { game: "scan-rush", rounds: 1 },
           { game: "ecg-rhythm", rounds: 1 },
@@ -216,7 +212,6 @@ describe("day bucketing", () => {
         sessions: 0,
         gameStarts: 0,
         roundsPlayed: 0,
-        completedRounds: 0,
         activePlayers: 0,
         gamesPlayed: [],
       },
@@ -238,11 +233,11 @@ describe("rounds played (the event log's own per-round count)", () => {
     expect(rows[2].roundsPlayed).toBe(0);
   });
 
-  test("a window's count is the sum of its days, and stays apart from rounds banked", () => {
+  test("a window's count is the sum of its days, and shares its row with the board's players", () => {
     // What the server's two per-day queries answer: the event log counts finished
-    // rounds per day, the board counts scoring rows per day. They are different
-    // numbers on purpose, and replaying one game is exactly where they part
-    // company (a replay adds a finished round but grows an existing board row).
+    // rounds per day, the board says who played and which games. Rounds come from
+    // the log ALONE (the board cannot count individual rounds: a replay grows an
+    // existing row instead of adding one).
     const logged = [
       { day: "2026-09-21", visits: 9, sessions: 4, gameStarts: 8, roundsPlayed: 12 },
       { day: "2026-09-22", visits: 5, sessions: 3, gameStarts: 3, roundsPlayed: 3 },
@@ -250,13 +245,11 @@ describe("rounds played (the event log's own per-round count)", () => {
     const board = [
       {
         day: "2026-09-21",
-        completedRounds: 7,
         activePlayers: 4,
         gamesPlayed: [{ game: "scan-rush", rounds: 7 }],
       },
       {
         day: "2026-09-22",
-        completedRounds: 3,
         activePlayers: 3,
         gamesPlayed: [{ game: "bone-buster", rounds: 3 }],
       },
@@ -271,12 +264,13 @@ describe("rounds played (the event log's own per-round count)", () => {
       sessions: 4,
       gameStarts: 8,
       roundsPlayed: 12,
-      completedRounds: 7,
       activePlayers: 4,
       gamesPlayed: [{ game: "scan-rush", rounds: 7 }],
     });
     expect(sum((row) => row.roundsPlayed)).toBe(15);
-    expect(sum((row) => row.completedRounds)).toBe(10);
+    expect(sum((row) => row.activePlayers)).toBe(7);
+    // No rounds figure comes from the board side at all.
+    expect(Object.keys(rows[0])).not.toContain("completedRounds");
   });
 });
 
@@ -288,9 +282,8 @@ describe("the board side (scores rows)", () => {
     expect(identityKey({ name: "Padded", pid: "  " })).toBe("n:Padded");
   });
 
-  test("summariseRounds counts rows, distinct identities and games desc", () => {
-    const totals = summariseRounds(SEEDS);
-    expect(totals.completedRounds).toBe(10);
+  test("summariseBoard counts distinct identities and games, never rounds", () => {
+    const totals = summariseBoard(SEEDS);
     // Dana, Harrison, Guest 4821, Sam (two ids), Guest 8143, Nobody.
     expect(totals.activePlayers).toBe(7);
     expect(totals.gamesChosen).toEqual([
@@ -303,10 +296,9 @@ describe("the board side (scores rows)", () => {
 
   test("two players sharing a first name count as two, the name pool counts as one", () => {
     const sams = SEEDS.filter((row) => row.name === "Sam");
-    expect(summariseRounds(sams).activePlayers).toBe(2);
+    expect(summariseBoard(sams).activePlayers).toBe(2);
     const guests = SEEDS.filter((row) => row.name === "Guest 4821");
-    expect(summariseRounds(guests)).toEqual({
-      completedRounds: 2,
+    expect(summariseBoard(guests)).toEqual({
       activePlayers: 1,
       gamesChosen: [
         { game: "ecg-rhythm", count: 1 },
@@ -316,18 +308,16 @@ describe("the board side (scores rows)", () => {
   });
 
   test("an empty window is zeros, not NaN", () => {
-    expect(summariseRounds([])).toEqual({
-      completedRounds: 0,
+    expect(summariseBoard([])).toEqual({
       activePlayers: 0,
       gamesChosen: [],
     });
   });
 
-  test("roundsByDay buckets the September rows per UTC day", () => {
-    expect(roundsByDay(SEEDS)).toEqual([
+  test("boardByDay buckets the September rows per UTC day", () => {
+    expect(boardByDay(SEEDS)).toEqual([
       {
         day: "2026-09-17",
-        completedRounds: 6,
         activePlayers: 3,
         gamesPlayed: [
           { game: "scan-rush", rounds: 4 },
@@ -337,23 +327,26 @@ describe("the board side (scores rows)", () => {
       },
       {
         day: "2026-09-18",
-        completedRounds: 2,
         activePlayers: 2,
         gamesPlayed: [{ game: "memory-scan", rounds: 2 }],
       },
       {
         day: "2026-09-21",
-        completedRounds: 1,
         activePlayers: 1,
         gamesPlayed: [{ game: "scan-rush", rounds: 1 }],
       },
     ]);
   });
 
-  test("every day's games add back up to that day's rounds", () => {
-    for (const day of roundsByDay(SEEDS)) {
+  test("every day's game rows add back up to that day's scoring rows", () => {
+    for (const day of boardByDay(SEEDS)) {
       const summed = day.gamesPlayed.reduce((total, entry) => total + entry.rounds, 0);
-      expect(summed).toBe(day.completedRounds);
+      // The rows the board holds for that day: the junk-timestamp row is the only
+      // one that can never appear in a day's games.
+      const rows = SEEDS.filter(
+        (row) => dayKey(row.created_at) === day.day && String(row.game ?? "").trim() !== "",
+      );
+      expect(summed).toBe(rows.length);
     }
   });
 
@@ -365,18 +358,18 @@ describe("the board side (scores rows)", () => {
       { game: "ecg-rhythm", rounds: 1 },
     ]);
     expect(perGameRounds([])).toEqual([]);
-    // Same rows summariseRounds counts: the game breakdown never loses a round.
+    // Every scoring row lands in exactly one game's count (none is lost).
     expect(
       perGameRounds(SEEDS).reduce((total, entry) => total + entry.rounds, 0),
-    ).toBe(summariseRounds(SEEDS).completedRounds);
+    ).toBe(SEEDS.length);
   });
 
-  test("roundsByDay drops rows with an unusable timestamp", () => {
-    const days = roundsByDay(SEEDS);
+  test("boardByDay drops rows with an unusable timestamp", () => {
+    const days = boardByDay(SEEDS);
     expect(days.some((row) => row.day === "not a date")).toBe(false);
     // The junk row's game is gone from that day's games too.
     const pitchDay = SEEDS.filter((row) => dayKey(row.created_at) === "2026-09-17");
-    expect(summariseRounds(pitchDay).gamesChosen).toEqual([
+    expect(summariseBoard(pitchDay).gamesChosen).toEqual([
       { game: "scan-rush", count: 4 },
       { game: "bone-buster", count: 1 },
       { game: "ecg-rhythm", count: 1 },
@@ -388,7 +381,7 @@ describe("the board side (scores rows)", () => {
       { day: "2026-09-21", visits: 2, sessions: 1, gameStarts: 1 },
       { day: "2026-09-20", visits: 1, sessions: 1, gameStarts: 0 },
     ];
-    const merged = mergeDaily(events, roundsByDay(SEEDS));
+    const merged = mergeDaily(events, boardByDay(SEEDS));
     const byDay = new Map(merged.map((row) => [row.day, row]));
     // The day the event log exists for: both sources in one row.
     expect(byDay.get("2026-09-21")).toEqual({
@@ -396,14 +389,12 @@ describe("the board side (scores rows)", () => {
       visits: 2,
       sessions: 1,
       gameStarts: 1,
-      completedRounds: 1,
       activePlayers: 1,
       gamesPlayed: [{ game: "scan-rush", rounds: 1 }],
     });
     // A September day that predates the event log: board numbers only.
     expect(byDay.get("2026-09-17")).toEqual({
       day: "2026-09-17",
-      completedRounds: 6,
       activePlayers: 3,
       gamesPlayed: [
         { game: "scan-rush", rounds: 4 },
@@ -416,9 +407,9 @@ describe("the board side (scores rows)", () => {
   test("mergeDaily never lets a missing value overwrite a real one", () => {
     const merged = mergeDaily(
       [{ day: "2026-09-17", visits: 3 }],
-      [{ day: "2026-09-17", visits: null as unknown as number, completedRounds: 6 }],
+      [{ day: "2026-09-17", visits: null as unknown as number, activePlayers: 6 }],
     );
-    expect(merged).toEqual([{ day: "2026-09-17", visits: 3, completedRounds: 6 }]);
+    expect(merged).toEqual([{ day: "2026-09-17", visits: 3, activePlayers: 6 }]);
   });
 
   test("merged days zero-fill through fillDaily, so September history shows", () => {
@@ -427,7 +418,7 @@ describe("the board side (scores rows)", () => {
       days,
       mergeDaily(
         [{ day: "2026-09-21", visits: 2, sessions: 1, gameStarts: 1, roundsPlayed: 3 }],
-        roundsByDay(SEEDS),
+        boardByDay(SEEDS),
       ),
     );
     expect(rows).toHaveLength(30);
@@ -437,7 +428,6 @@ describe("the board side (scores rows)", () => {
       sessions: 0,
       gameStarts: 0,
       roundsPlayed: 0,
-      completedRounds: 0,
       activePlayers: 0,
       gamesPlayed: [],
     });
@@ -448,7 +438,6 @@ describe("the board side (scores rows)", () => {
       sessions: 0,
       gameStarts: 0,
       roundsPlayed: 0,
-      completedRounds: 6,
       activePlayers: 3,
       gamesPlayed: [
         { game: "scan-rush", rounds: 4 },
@@ -462,10 +451,9 @@ describe("the board side (scores rows)", () => {
       visits: 2,
       sessions: 1,
       gameStarts: 1,
-      // Three finished rounds logged, one scoring row banked on the board: the
-      // replay is exactly the difference between the two columns.
+      // Three finished rounds logged; the board holds one row for that player, game
+      // and month, which is why nothing on this page counts rounds from the board.
       roundsPlayed: 3,
-      completedRounds: 1,
       activePlayers: 1,
       gamesPlayed: [{ game: "scan-rush", rounds: 1 }],
     });
