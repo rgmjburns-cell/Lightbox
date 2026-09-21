@@ -3,46 +3,65 @@
  *
  * Types only — no runtime code — so the server (`server/metrics.ts`) and the
  * dashboard page (`src/routes/admin.tsx`) stay in step without either bundling
- * the other. The numbers come from our own `events` table (page visits, game
- * starts and finished rounds, written by `src/lib/metrics.ts`) plus the
- * leaderboard's `scores` table for context.
+ * the other.
+ *
+ * There are TWO sources, and the dashboard labels every number with the one it
+ * came from, because they cover different periods:
+ *
+ *   * the event log (`events`, written by `src/lib/metrics.ts`) — visits,
+ *     sessions, games started, bounce rate, time played. It starts the day the
+ *     analytics shipped, so it has no history before that.
+ *   * the leaderboard (`scores`) — rounds banked, players, games chosen. It holds
+ *     every round ever banked, so it is the only source that reaches back into
+ *     September. See `MetricsRoundTotals` for the one caveat.
  */
 
-export interface MetricsTotals {
+/** The numbers our own event log can answer, from the day it was switched on. */
+export interface MetricsEventTotals {
   /** Page opens logged in the window. */
   visits: number;
   /** Distinct browser sessions (tabs) that opened at least one page. */
   sessions: number;
   /** Games launched (a game's page mounted). */
   gameStarts: number;
-  /** Rounds that reached a result screen, with a measured duration. */
-  completedRounds: number;
 }
 
-export interface MetricsToday extends MetricsTotals {
+/**
+ * The numbers the leaderboard's own `scores` table answers — real play, back as
+ * far as the board goes. One caveat, repeated in the UI: the board keeps ONE
+ * cumulative row per player, game and month, so these counts are scoring rows
+ * banked (the board's own record), not a tally of every individual round.
+ */
+export interface MetricsRoundTotals {
+  /** Scoring rows the board banked in the window. */
+  completedRounds: number;
+  /** Distinct identities behind those rows (`pid` when present, else the name). */
+  activePlayers: number;
+  /** Submissions per game in the window, most first. */
+  gamesChosen: { game: string; count: number }[];
+}
+
+export interface MetricsToday extends MetricsEventTotals, MetricsRoundTotals {
   /** UTC day the numbers cover. */
   date: string;
   /** % of today's sessions that opened a page but never started a game. */
   bounceRate: number;
-  /**
-   * Distinct names that banked a round today — the people actually playing
-   * (read from `scores`, so it counts finishers only).
-   */
-  activePlayers: number;
 }
 
-export interface MetricsWindow extends MetricsTotals {
+export interface MetricsWindow extends MetricsEventTotals, MetricsRoundTotals {
   days: number;
   /** % of the window's sessions that opened a page but never started a game. */
   bounceRate: number;
-  /** Games launched in the window, most chosen first. */
-  gamesChosen: { game: string; count: number }[];
-  /** Mean seconds played per finished round in the window. */
+  /** Mean seconds played per finished round in the window (event log only). */
   avgDuration: { game: string; rounds: number; avgSec: number }[];
 }
 
-export interface MetricsDailyRow extends MetricsTotals {
+export interface MetricsDailyRow extends MetricsEventTotals {
   day: string;
+  /** Scoring rows the board banked that day (board history). */
+  completedRounds: number;
+  /** Distinct identities that banked a row that day (board history). */
+  activePlayers: number;
 }
 
 export interface MetricsBoardContext {
@@ -59,14 +78,16 @@ export interface MetricsStats {
   /** Server UTC timestamp this payload was built at. */
   generatedAt: string;
   /**
-   * First event we ever recorded, or null while there is none. The dashboard
-   * says so plainly: nothing before this date exists.
+   * First event we ever recorded, or null while there is none. Every number that
+   * comes from the event log (visits, sessions, bounce rate, time played) only
+   * exists from this date on; rounds, players and games come from the board and
+   * go back further. The dashboard says both plainly.
    */
   countingSince: string | null;
   today: MetricsToday;
   last7: MetricsWindow;
   last30: MetricsWindow;
-  /** Visits per day for the last 30 days, oldest first, gaps filled with 0. */
+  /** Per day for the last 30 days, oldest first, gaps filled with 0. */
   daily: MetricsDailyRow[];
   board: MetricsBoardContext;
 }

@@ -17,32 +17,39 @@
  * player identity. See `metrics-core.ts` for the rules and `src/lib/metrics.ts`
  * for the client side.
  *
- * The dashboard's own numbers are computed here from the event log
- * (visits/starts/ends/bounce/durations) plus `scores` for context. Because
- * `scores` keeps ONE cumulative row per (name, game, month, pid), it cannot be
- * used to count individual rounds — completed rounds therefore come from our
- * `game_end` events, which is stated in the UI.
+ * The dashboard is built from TWO sources, and its UI says which is which:
+ *
+ *   * our own event log (`events`) for visits, sessions, games started, bounce
+ *     rate and time played. It only exists from the day this shipped, so it has
+ *     no history before that date (`countingSince`).
+ *   * the leaderboard's own `scores` table for rounds, players and games chosen.
+ *     That table holds every round ever banked, so it is the honest record of the
+ *     September play that happened before the event log existed. Caveat, repeated
+ *     in the UI: `scores` keeps ONE cumulative row per (name, game, month, pid),
+ *     so "rounds" here means scoring rows banked, not every individual round.
  *
  * All queries are read-only EXCEPT the single INSERT in the ingest handler; the
  * board tables are never written by this module.
  */
 import { getDb } from "./leaderboard.ts";
 import {
-  averageDuration,
   bounceRate,
   coerceEvent,
   fillDaily,
   lastNDays,
+  mergeDaily,
+  roundsByDay,
   sortAverages,
-  sortGamesChosen,
+  summariseRounds,
   utcDayKey,
   type DailyCounts,
 } from "./metrics-core.ts";
 import type {
   MetricsDailyRow,
+  MetricsEventTotals,
+  MetricsRoundTotals,
   MetricsStats,
   MetricsToday,
-  MetricsTotals,
   MetricsWindow,
 } from "../src/lib/metrics-types.ts";
 
@@ -101,20 +108,19 @@ async function handleIngest(req: Request): Promise<Response> {
 
 // ── Reads ──────────────────────────────────────────────────────────────────
 
-interface TotalsRow {
+interface EventTotalsRow {
   visits: number | null;
   sessions: number | null;
   gameStarts: number | null;
-  completedRounds: number | null;
 }
 
-function totals(where: string): MetricsTotals {
+/** Visits, sessions and games started — our event log, from the day it went on. */
+function eventTotals(where: string): MetricsEventTotals {
   const row = getDb()
-    .query<TotalsRow, []>(
+    .query<EventTotalsRow, []>(
       `SELECT COALESCE(SUM(type = 'visit'), 0)        AS visits,
               COUNT(DISTINCT CASE WHEN type = 'visit' THEN session END) AS sessions,
-              COALESCE(SUM(type = 'game_start'), 0)   AS gameStarts,
-              COALESCE(SUM(type = 'game_end'), 0)     AS completedRounds
+              COALESCE(SUM(type = 'game_start'), 0)   AS gameStarts
          FROM events
         WHERE ${where}`,
     )
@@ -123,8 +129,26 @@ function totals(where: string): MetricsTotals {
     visits: Number(row?.visits ?? 0),
     sessions: Number(row?.sessions ?? 0),
     gameStarts: Number(row?.gameStarts ?? 0),
-    completedRounds: Number(row?.completedRounds ?? 0),
   };
+}
+
+/**
+ * Rounds, players and games chosen — the leaderboard's own record, which reaches
+ * back far enough to cover the September play that happened before our event log
+ * existed. Reading the rows and folding them in `metrics-core.ts` (rather than
+ * doing the whole thing in SQL) keeps the counting rules unit-tested and identical
+ * to the way the board folds identities. The window keeps this to at most one
+ * month of (name, game, month, pid) rows, so it stays a tiny query.
+ */
+function roundTotals(where: string): MetricsRoundTotals {
+  const rows = getDb()
+    .query<{ name: string; pid: string | null; game: string; created_at: string }, []>(
+      `SELECT name, pid, game, created_at
+         FROM scores
+        WHERE ${where}`,
+    )
+    .all();
+  return summariseRounds(rows);
 }
 
 /** Per-session visit/start counts in a window — the bounce-rate input. */
@@ -141,18 +165,6 @@ function sessionCounts(
         GROUP BY session`,
     )
     .all();
-}
-
-function gamesChosen(where: string): { game: string; count: number }[] {
-  const rows = getDb()
-    .query<{ game: string; count: number }, []>(
-      `SELECT game, COUNT(*) AS count
-         FROM events
-        WHERE type = 'game_start' AND game IS NOT NULL AND ${where}
-        GROUP BY game`,
-    )
-    .all();
-  return sortGamesChosen(rows.map((r) => ({ game: r.game, count: Number(r.count) })));
 }
 
 function avgDuration(where: string): { game: string; rounds: number; avgSec: number }[] {
@@ -178,27 +190,36 @@ function windowStats(days: number): MetricsWindow {
   const where = windowWhere(days);
   return {
     days,
-    ...totals(where),
+    ...eventTotals(where),
+    ...roundTotals(where),
     bounceRate: bounceRate(sessionCounts(where)),
-    gamesChosen: gamesChosen(where),
     avgDuration: avgDuration(where),
   };
 }
 
 function dailyRows(days: number): MetricsDailyRow[] {
-  const rows = getDb()
+  const where = windowWhere(days);
+  const events = getDb()
     .query<Partial<DailyCounts> & { day: string }, []>(
       `SELECT date(created_at) AS day,
               COALESCE(SUM(type = 'visit'), 0)      AS visits,
               COUNT(DISTINCT CASE WHEN type = 'visit' THEN session END) AS sessions,
-              COALESCE(SUM(type = 'game_start'), 0) AS gameStarts,
-              COALESCE(SUM(type = 'game_end'), 0)   AS completedRounds
+              COALESCE(SUM(type = 'game_start'), 0) AS gameStarts
          FROM events
-        WHERE ${windowWhere(days)}
+        WHERE ${where}
         GROUP BY day`,
     )
     .all();
-  return fillDaily(lastNDays(days), rows);
+  const scores = getDb()
+    .query<{ name: string; pid: string | null; game: string; created_at: string }, []>(
+      `SELECT name, pid, game, created_at
+         FROM scores
+        WHERE ${where}`,
+    )
+    .all();
+  // One row per day, carrying the event log's page numbers AND the board's banked
+  // rounds, so a September day reads as "0 visits, 26 rounds" rather than nothing.
+  return fillDaily(lastNDays(days), mergeDaily(events, roundsByDay(scores)));
 }
 
 /** Distinct identities on the month's board — the same folding the board uses. */
@@ -231,20 +252,17 @@ function boardContext(month: string) {
   };
 }
 
-/** Today's numbers: events for the day plus the board's own "who played" count. */
+/**
+ * Today's numbers: the event log for the day's pages plus the board's own count
+ * of who banked a round today (the board is the source that reaches back before
+ * the event log existed, and today it still says the most about real play).
+ */
 function todayStats(): MetricsToday {
-  const active = getDb()
-    .query<{ activePlayers: number | null }, []>(
-      `SELECT COUNT(DISTINCT name) AS activePlayers
-         FROM scores
-        WHERE ${TODAY_WHERE}`,
-    )
-    .get();
   return {
     date: utcDayKey(new Date()),
-    ...totals(TODAY_WHERE),
+    ...eventTotals(TODAY_WHERE),
+    ...roundTotals(TODAY_WHERE),
     bounceRate: bounceRate(sessionCounts(TODAY_WHERE)),
-    activePlayers: Number(active?.activePlayers ?? 0),
   };
 }
 
