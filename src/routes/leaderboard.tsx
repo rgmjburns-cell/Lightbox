@@ -186,7 +186,7 @@ function Leaderboard() {
       }
       const data = (await res.json()) as { ok: boolean; cleared?: number };
       if (!res.ok || !data.ok) {
-        setAdminError("Couldn't clear the board — try again");
+        setAdminError("Couldn't clear the board. Try again.");
         setClearing(false);
         return;
       }
@@ -196,7 +196,7 @@ function Leaderboard() {
       setClearing(false);
       refresh();
     } catch {
-      setAdminError("Couldn't clear the board — try again");
+      setAdminError("Couldn't clear the board. Try again.");
       setClearing(false);
     }
   };
@@ -263,7 +263,7 @@ function Leaderboard() {
           </h2>
           <p className="text-xs text-mutedText mb-3">
             {playerName
-              ? `You're currently playing as ${playerName} — enter your first name to be shown as yourself and carry your scores over.`
+              ? `You're currently playing as ${playerName}. Enter your first name to be shown as yourself and carry your scores over.`
               : "We'll use it to save your score and show your place on the leaderboard."}
           </p>
           {confirmProfile ? (
@@ -328,7 +328,7 @@ function Leaderboard() {
         <div className="card text-center py-6">
           <p className="text-lg mb-3">📡</p>
           <p className="text-sm text-darkText mb-3">
-            Can't reach the board — try again
+            Can't reach the board. Try again.
           </p>
           <button
             type="button"
@@ -344,7 +344,7 @@ function Leaderboard() {
         <div className="card text-center py-8">
           <p className="text-3xl mb-2">👑</p>
           <p className="text-sm text-darkText font-medium">
-            No scores yet — be the first to take the crown!
+            No scores yet. Be the first to take the crown!
           </p>
         </div>
       )}
@@ -424,7 +424,7 @@ function Leaderboard() {
               Clear the leaderboard
             </h3>
             <p className="text-sm text-mutedText mb-4">
-              This wipes all scores — use before a presentation.
+              This wipes all scores. Use before a presentation.
             </p>
             <input
               type="password"

@@ -192,7 +192,7 @@ export default function FilmStack() {
         return;
       }
       if (hand.length >= HAND_SIZE) {
-        setMessage("Your hand is full — return a tile first.");
+        setMessage("Your hand is full. Return a tile first.");
         return;
       }
       setLocked(true);
@@ -231,7 +231,7 @@ export default function FilmStack() {
               setScorePop(false);
               setShake(false);
               setLocked(false);
-              setMessage("Hmm — that set didn't check out. Tiles returned, keep going!");
+              setMessage("Hmm, that set didn't check out. Tiles returned, keep going!");
               setMood("encouraging");
               return;
             }
@@ -254,9 +254,9 @@ export default function FilmStack() {
             const unique = new Set(handTiles.map((h) => h.imageId));
             if (unique.size === HAND_SIZE) {
               setGameOver(true);
-              setMessage("Game over — hand is full of different tiles!");
+              setMessage("Game over! Your hand is full of different tiles!");
               setMood("encouraging");
-            } else setMessage("A pair is ready in your hand — tap it to return a tile and keep playing!");
+            } else setMessage("A pair is ready in your hand. Tap it to return a tile and keep playing!");
           } else setMessage(`${HAND_SIZE - next.length} hand slot${HAND_SIZE - next.length === 1 ? "" : "s"} left`);
           setLocked(false);
         }
@@ -268,14 +268,14 @@ export default function FilmStack() {
     if (locked || hand.length < HAND_SIZE || gameOver) return;
     setHand((h) => h.filter((x) => x !== id));
     setTiles((ts) => ts.map((t) => (t.id === id ? { ...t, inHand: false } : t)));
-    setMessage("Tile returned — choose wisely!");
+    setMessage("Tile returned. Choose wisely!");
   };
   const shuffleBoard = () => {
     if (gameOver || win || levelClear !== null || locked || flying !== null) return;
     // Positions only — identifiers never move; stale match state cleared.
     setTiles((ts) => shufflePositions(ts, Math.random, widthRef.current || FALLBACK_W));
     setMatch([]);
-    setMessage("Board shuffled — your hand is safe.");
+    setMessage("Board shuffled. Your hand is safe.");
   };
   const sorted = [...tiles].sort((a, b) => a.layer - b.layer || a.row - b.row || a.col - b.col);
 
@@ -385,7 +385,7 @@ export default function FilmStack() {
           {gameOver ? (
             <>
               <h2 className="text-2xl font-extrabold text-primary mb-2">Bad luck!</h2>
-              <p className="text-mutedText mb-5">Your hand is full of different tiles — nice try!</p>
+              <p className="text-mutedText mb-5">Your hand is full of different tiles. Nice try!</p>
               {runCompletions > 0 && (
                 <LeaderboardEntry game="film-stack" score={runCompletions} rank={submitRank} onRank={setSubmitRank} />
               )}

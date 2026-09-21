@@ -16,7 +16,7 @@ const playExperiences = [
   {
     id: "scan-rush",
     title: "Scan Rush",
-    subtitle: "Tap the lit bay — fast!",
+    subtitle: "Tap the lit bay fast!",
     icon: "/icons/icon-scan-rush.png",
     color: "from-secondary to-primary/60",
     built: true,

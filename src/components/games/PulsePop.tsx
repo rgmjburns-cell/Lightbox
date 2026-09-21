@@ -230,7 +230,7 @@ export default function PulsePop() {
 
       setRexMood("happy");
       setRexMessage(
-        `Level ${lvl + 1}: ${LEVELS[lvl].label} (${bpm} BPM) — Tap to jump!`
+        `Level ${lvl + 1}: ${LEVELS[lvl].label} (${bpm} BPM). Tap to jump!`
       );
     },
     []
@@ -676,7 +676,7 @@ export default function PulsePop() {
         } else {
           setRexMood("encouraging");
           setRexMessage(
-            `Keep practicing! Cleared ${gv.cleared}/${OBSTACLES_PER_LEVEL} — need 70% to advance.`
+            `Keep practicing! Cleared ${gv.cleared}/${OBSTACLES_PER_LEVEL}, need 70% to advance.`
           );
         }
         setFinalScore(gv.score);
@@ -860,7 +860,7 @@ export default function PulsePop() {
             Combo
           </span>
           <div className="text-2xl font-bold text-primary">
-            {combo > 1 ? `${combo}x` : "—"}
+            {combo > 1 ? `${combo}x` : "·"}
           </div>
         </div>
       </div>
