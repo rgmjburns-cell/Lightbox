@@ -175,4 +175,31 @@ describe("exportFilename", () => {
     expect(exportFilename("csv", new Date("2026-09-21T23:10:00Z"))).toBe("stats-2026-09-21.csv");
     expect(exportFilename("json", new Date("2026-09-21T23:10:00Z"))).toBe("stats-2026-09-21.json");
   });
+
+  test("a requested range carries both ends, so pilot files say which window they are", () => {
+    const built = new Date("2026-09-21T23:10:00Z");
+    const range = { from: "2026-09-21", to: "2026-10-21" };
+    expect(exportFilename("csv", built, range)).toBe("stats-2026-09-21_2026-10-21.csv");
+    expect(exportFilename("json", built, range)).toBe("stats-2026-09-21_2026-10-21.json");
+    // No range (or an explicit null) keeps the plain day name it always had.
+    expect(exportFilename("csv", built, null)).toBe("stats-2026-09-21.csv");
+    expect(exportFilename("csv", built, undefined)).toBe("stats-2026-09-21.csv");
+  });
+});
+
+describe("statsCsv over a requested range", () => {
+  test("the header is unchanged and there is one row per requested day", () => {
+    const days = Array.from({ length: 11 }, (_, i) =>
+      `2026-09-${String(10 + i).padStart(2, "0")}`,
+    );
+    const lines = statsCsv(days.map((day_) => day({ day: day_ })), new Map()).split("\r\n");
+    // Header, 11 UTC days, then the empty string after the trailing newline.
+    expect(lines).toHaveLength(13);
+    expect(lines[0]).toBe(HEADER);
+    expect(lines[0]).toBe(
+      "date,visits,sessions,gameStarts,roundsPlayed,activePlayers,bounceRate,avgDurationSec,gamesPlayed",
+    );
+    expect(lines[1]).toBe("2026-09-10,0,0,0,0,0,0,,");
+    expect(lines[11]).toBe("2026-09-20,0,0,0,0,0,0,,");
+  });
 });

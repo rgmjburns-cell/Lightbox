@@ -149,8 +149,18 @@ export function statsCsv(
   return `${lines.join("\r\n")}\r\n`;
 }
 
-/** `stats-2026-09-21.csv` — the UTC day, matching the dashboard's day bucketing. */
-export function exportFilename(format: "csv" | "json", now: Date = new Date()): string {
+/**
+ * `stats-2026-09-21.csv` — the UTC day the file was built, matching the
+ * dashboard's day bucketing. When the export was asked for a date range the file
+ * carries both ends instead (`stats-2026-09-21_2026-10-21.csv`), so several pilot
+ * exports in one folder say which window each one is.
+ */
+export function exportFilename(
+  format: "csv" | "json",
+  now: Date = new Date(),
+  range?: { from: string; to: string } | null,
+): string {
+  if (range) return `stats-${range.from}_${range.to}.${format}`;
   const day = now.toISOString().slice(0, 10);
   return `stats-${day}.${format}`;
 }

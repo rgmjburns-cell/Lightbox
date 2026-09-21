@@ -125,6 +125,117 @@ export function lastNDays(n: number, now: Date = new Date()): string[] {
   return days;
 }
 
+// ── Day ranges (the export's from/to window) ────────────────────────────────
+//
+// The dashboard's own day table is always "the last 30 days". The export can be
+// asked for any window instead (owner request, 21 Sep: a pilot runs 21 Sep to 21
+// Oct, and a fixed 30-day file does not fit it). The parsing and the sanity rules
+// live here so they are unit-tested without a database; `server/metrics.ts` only
+// turns the resolved days into SQL.
+
+/** A UTC day key as `utcDayKey` writes one: exactly `YYYY-MM-DD`. */
+export const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** The default window when no from/to is asked for: the last 30 UTC days. */
+export const DEFAULT_RANGE_DAYS = 30;
+
+/** The widest window we will build: a year and a day, enough for any pilot. */
+export const MAX_RANGE_DAYS = 366;
+
+const MS_PER_DAY = 86_400_000;
+
+/** Midnight UTC of a `YYYY-MM-DD` key, or NaN when the key is not a real day. */
+export function dayKeyTime(key: string): number {
+  if (!DAY_RE.test(key)) return Number.NaN;
+  const time = Date.parse(`${key}T00:00:00Z`);
+  if (!Number.isFinite(time)) return Number.NaN;
+  // Catches days that parse but do not exist (2026-02-30 rolls into March).
+  return utcDayKey(new Date(time)) === key ? time : Number.NaN;
+}
+
+/** Is this exactly a real UTC calendar day? (`2026-9-1` is not.) */
+export function isDayKey(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(dayKeyTime(value));
+}
+
+/** Every UTC day from `from` to `to`, inclusive, oldest first. */
+export function dayKeysBetween(from: string, to: string): string[] {
+  const start = dayKeyTime(from);
+  const end = dayKeyTime(to);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return [];
+  const days: string[] = [];
+  for (let time = start; time <= end; time += MS_PER_DAY) {
+    days.push(utcDayKey(new Date(time)));
+  }
+  return days;
+}
+
+/** A resolved, valid export window. */
+export interface DayRange {
+  from: string;
+  to: string;
+  /** Every UTC day of the window, inclusive and oldest first. */
+  days: string[];
+}
+
+export type DayRangeResult = { ok: true; range: DayRange } | { ok: false; error: string };
+
+/**
+ * Resolve the export's `?from=` / `?to=` parameters into a concrete day window.
+ *
+ *   * neither given: the last 30 UTC days including today (the dashboard's own
+ *     table, so an export with no parameters is exactly what it always was);
+ *   * both given: those days, inclusive;
+ *   * `from` only: from that day up to today (a campaign starting on a date);
+ *   * `to` only: the 30 days ending on that day (the same shape as the default).
+ *
+ * Rejections are deliberate and are reported in plain words for the dashboard:
+ * a value that is not a real `YYYY-MM-DD` UTC day, `from` after `to`, a window
+ * wider than `MAX_RANGE_DAYS`, or an end later than tomorrow UTC (tomorrow is
+ * allowed so a pilot ending "today" in a UTC+10 clinic still fits).
+ */
+export function resolveDayRange(
+  from: string | null | undefined,
+  to: string | null | undefined,
+  now: Date = new Date(),
+): DayRangeResult {
+  const hasFrom = typeof from === "string" && from.trim() !== "";
+  const hasTo = typeof to === "string" && to.trim() !== "";
+  if (!hasFrom && !hasTo) {
+    const days = lastNDays(DEFAULT_RANGE_DAYS, now);
+    return { ok: true, range: { from: days[0] ?? "", to: days[days.length - 1] ?? "", days } };
+  }
+  const today = utcDayKey(now);
+  const cleanFrom = hasFrom ? String(from).trim() : "";
+  const cleanTo = hasTo ? String(to).trim() : "";
+  if (hasFrom && !isDayKey(cleanFrom)) {
+    return { ok: false, error: "Invalid from date: use YYYY-MM-DD (UTC)" };
+  }
+  if (hasTo && !isDayKey(cleanTo)) {
+    return { ok: false, error: "Invalid to date: use YYYY-MM-DD (UTC)" };
+  }
+  const start = hasFrom ? dayKeyTime(cleanFrom) : Number.NaN;
+  const end = hasTo ? dayKeyTime(cleanTo) : dayKeyTime(today);
+  const newest = dayKeyTime(today) + MS_PER_DAY; // tomorrow UTC
+  const toKey = hasTo ? cleanTo : today;
+  if (end > newest) {
+    return { ok: false, error: "Invalid to date: must not be later than tomorrow (UTC)" };
+  }
+  const fromTime = hasFrom ? start : end - (DEFAULT_RANGE_DAYS - 1) * MS_PER_DAY;
+  if (fromTime > end) {
+    return { ok: false, error: "Invalid range: from must not be after to" };
+  }
+  const span = Math.round((end - fromTime) / MS_PER_DAY) + 1;
+  if (span > MAX_RANGE_DAYS) {
+    return {
+      ok: false,
+      error: `Range too wide: ${String(span)} days requested, the maximum is ${String(MAX_RANGE_DAYS)}`,
+    };
+  }
+  const fromKey = utcDayKey(new Date(fromTime));
+  return { ok: true, range: { from: fromKey, to: toKey, days: dayKeysBetween(fromKey, toKey) } };
+}
+
 /** Round to one decimal place (rates and averages read better than 12.333333). */
 export function round1(value: number): number {
   return Math.round(value * 10) / 10;

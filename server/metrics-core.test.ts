@@ -5,17 +5,22 @@
  */
 import { describe, expect, test } from "bun:test";
 import {
+  DEFAULT_RANGE_DAYS,
   MAX_DURATION_SEC,
+  MAX_RANGE_DAYS,
   averageDuration,
   boardByDay,
   bounceRate,
   coerceEvent,
   dayKey,
+  dayKeysBetween,
   fillDaily,
   identityKey,
+  isDayKey,
   lastNDays,
   mergeDaily,
   perGameRounds,
+  resolveDayRange,
   round1,
   sortAverages,
   sortGamesChosen,
@@ -539,5 +544,168 @@ describe("averages and ordering", () => {
       { game: "bone-buster", rounds: 4, avgSec: 89.9 },
       { game: "scan-rush", rounds: 1, avgSec: 120.4 },
     ]);
+  });
+});
+
+/**
+ * The export's date range (owner request, 21 Sep 2026): `GET
+ * /api/admin/stats/export?from=&to=` narrows the day-by-day table to a window so a
+ * pilot (21 Sep to 21 Oct) can be pulled as one file. The rules live here, so they
+ * are tested without a database: defaults, inclusive days, zero-fill, and every
+ * rejection the endpoint turns into a 400.
+ */
+describe("resolveDayRange", () => {
+  const NOW = new Date("2026-09-21T05:00:00Z");
+  const MS_DAY = 86_400_000;
+  const shift = (days: number): string =>
+    new Date(Date.parse("2026-09-21T00:00:00Z") + days * MS_DAY).toISOString().slice(0, 10);
+
+  test("no parameters is exactly the last 30 UTC days", () => {
+    const result = resolveDayRange(null, null, NOW);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.range.days).toEqual(lastNDays(DEFAULT_RANGE_DAYS, NOW));
+    expect(result.range.days).toHaveLength(30);
+    expect(result.range.from).toBe("2026-08-23");
+    expect(result.range.to).toBe("2026-09-21");
+  });
+
+  test("empty parameters count as absent, so ?from=&to= stays the default", () => {
+    const result = resolveDayRange("", "", NOW);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.range.from).toBe("2026-08-23");
+    expect(result.range.to).toBe("2026-09-21");
+  });
+
+  test("a requested window is inclusive at both ends", () => {
+    const result = resolveDayRange("2026-09-01", "2026-09-21", NOW);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.range.days).toHaveLength(21);
+    expect(result.range.days[0]).toBe("2026-09-01");
+    expect(result.range.days[20]).toBe("2026-09-21");
+    expect(result.range.from).toBe("2026-09-01");
+    expect(result.range.to).toBe("2026-09-21");
+  });
+
+  test("a window reaching past tomorrow UTC is refused while it is still ahead", () => {
+    // The pilot shape (21 Sep to 21 Oct) is a future window while the pilot runs.
+    // It is refused rather than served as a month of zero rows, and the very same
+    // range is accepted once its end date has arrived (see the note in the PR).
+    const ahead = resolveDayRange("2026-09-21", "2026-10-21", NOW);
+    expect(ahead.ok).toBe(false);
+    if (!ahead.ok) expect(ahead.error).toContain("not be later than tomorrow");
+    const arrived = resolveDayRange("2026-09-21", "2026-10-21", new Date("2026-10-21T09:00:00Z"));
+    expect(arrived.ok).toBe(true);
+    if (arrived.ok) {
+      expect(arrived.range.days).toHaveLength(31);
+      expect(arrived.range.days[0]).toBe("2026-09-21");
+      expect(arrived.range.days[30]).toBe("2026-10-21");
+    }
+  });
+
+  test("a single day is a legal one-row range", () => {
+    const result = resolveDayRange("2026-09-17", "2026-09-17", NOW);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.range.days).toEqual(["2026-09-17"]);
+  });
+
+  test("from alone runs up to today, to alone is the 30 days ending there", () => {
+    const openEnded = resolveDayRange("2026-09-15", null, NOW);
+    expect(openEnded.ok).toBe(true);
+    if (openEnded.ok) {
+      expect(openEnded.range.from).toBe("2026-09-15");
+      expect(openEnded.range.to).toBe("2026-09-21");
+      expect(openEnded.range.days).toHaveLength(7);
+    }
+    const endingAt = resolveDayRange(null, "2026-09-20", NOW);
+    expect(endingAt.ok).toBe(true);
+    if (endingAt.ok) {
+      expect(endingAt.range.to).toBe("2026-09-20");
+      expect(endingAt.range.from).toBe("2026-08-22");
+      expect(endingAt.range.days).toHaveLength(DEFAULT_RANGE_DAYS);
+    }
+  });
+
+  test("a range is zero-filled within the window, quiet days included", () => {
+    const result = resolveDayRange("2026-09-15", "2026-09-18", NOW);
+    if (!result.ok) throw new Error("expected a valid range");
+    const rows = fillDaily(result.range.days, mergeDaily([{ day: "2026-09-17", visits: 41 }]));
+    expect(rows.map((row) => row.day)).toEqual([
+      "2026-09-15",
+      "2026-09-16",
+      "2026-09-17",
+      "2026-09-18",
+    ]);
+    expect(rows.map((row) => row.visits)).toEqual([0, 0, 41, 0]);
+    // Nothing is invented for a pre-tracker day: rounds played reads 0.
+    expect(rows.every((row) => row.roundsPlayed === 0)).toBe(true);
+  });
+
+  test("from after to is refused", () => {
+    const result = resolveDayRange("2026-10-21", "2026-09-21", NOW);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain("from must not be after to");
+  });
+
+  test("a value that is not a real YYYY-MM-DD UTC day is refused", () => {
+    for (const bad of ["21-09-2026", "2026-9-1", "yesterday", "2026-13-01", "2026-02-30", "2026-09-21T00:00:00Z"]) {
+      const asFrom = resolveDayRange(bad, "2026-09-21", NOW);
+      expect(asFrom.ok).toBe(false);
+      if (!asFrom.ok) expect(asFrom.error).toBe("Invalid from date: use YYYY-MM-DD (UTC)");
+      const asTo = resolveDayRange("2026-09-01", bad, NOW);
+      expect(asTo.ok).toBe(false);
+      if (!asTo.ok) expect(asTo.error).toBe("Invalid to date: use YYYY-MM-DD (UTC)");
+    }
+  });
+
+  test("an absurdly wide window is refused, and the maximum is allowed", () => {
+    const widest = resolveDayRange(shift(-365), "2026-09-21", NOW);
+    expect(widest.ok).toBe(true);
+    if (widest.ok) expect(widest.range.days).toHaveLength(MAX_RANGE_DAYS);
+    const tooWide = resolveDayRange(shift(-366), "2026-09-21", NOW);
+    expect(tooWide.ok).toBe(false);
+    if (!tooWide.ok) expect(tooWide.error).toContain(`the maximum is ${String(MAX_RANGE_DAYS)}`);
+  });
+
+  test("an end date beyond tomorrow UTC is refused, tomorrow itself is fine", () => {
+    const tomorrow = resolveDayRange("2026-09-21", shift(1), NOW);
+    expect(tomorrow.ok).toBe(true);
+    if (tomorrow.ok) expect(tomorrow.range.to).toBe("2026-09-22");
+    const later = resolveDayRange("2026-09-21", shift(2), NOW);
+    expect(later.ok).toBe(false);
+    if (!later.ok) expect(later.error).toContain("not be later than tomorrow");
+  });
+});
+
+describe("isDayKey and dayKeysBetween", () => {
+  test("isDayKey accepts only real UTC calendar days", () => {
+    expect(isDayKey("2026-09-21")).toBe(true);
+    expect(isDayKey("2026-02-28")).toBe(true);
+    expect(isDayKey("2026-2-8")).toBe(false);
+    expect(isDayKey("2026-02-30")).toBe(false);
+    expect(isDayKey("2026-09-21 ")).toBe(false);
+    expect(isDayKey("")).toBe(false);
+    expect(isDayKey(null)).toBe(false);
+    expect(isDayKey(20260921)).toBe(false);
+  });
+
+  test("dayKeysBetween is inclusive and walks month and year ends", () => {
+    expect(dayKeysBetween("2026-09-20", "2026-09-21")).toEqual(["2026-09-20", "2026-09-21"]);
+    expect(dayKeysBetween("2026-02-27", "2026-03-02")).toEqual([
+      "2026-02-27",
+      "2026-02-28",
+      "2026-03-01",
+      "2026-03-02",
+    ]);
+    expect(dayKeysBetween("2026-12-31", "2027-01-01")).toEqual(["2026-12-31", "2027-01-01"]);
+  });
+
+  test("a reversed or unusable pair yields no days rather than a crash", () => {
+    expect(dayKeysBetween("2026-09-21", "2026-09-20")).toEqual([]);
+    expect(dayKeysBetween("nonsense", "2026-09-21")).toEqual([]);
   });
 });
