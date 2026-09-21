@@ -10,9 +10,10 @@ export const Route = createFileRoute("/admin")({
 /**
  * Admin usage dashboard. Passcode-protected, read-only, and FIRST-PARTY: every
  * number comes from this app's own SQLite database (see `src/lib/metrics.ts`,
- * `server/metrics.ts`) — the leaderboard's own table for rounds banked, players
- * and games chosen, our event log for rounds played, visits, sessions, bounce rate
- * and time played.
+ * `server/metrics.ts`) — the leaderboard's own table for players and games chosen,
+ * our event log for rounds played, visits, sessions, bounce rate and time played.
+ * `roundsPlayed` is the ONLY rounds figure here: see the method notes at the foot
+ * of the page.
  * There is no third-party analytics service anywhere in the product, no cookie and
  * no cross-site anything, so the IT self-check's "no analytics service /
  * third-party disclosure" claim stays true. Every section says which source it
@@ -150,15 +151,15 @@ function DurationTable({ rows }: { rows: { game: string; rounds: number; avgSec:
 }
 
 /**
- * One day's games, from the board's own rows: a chip per game with the rounds it
- * banked, most played first. Nothing renders on a day with no score rows (the
- * Rounds column next to it already reads 0 for that day).
+ * One day's games, from the board's own rows: a chip per game with the scoring
+ * rows it holds, most played first. Nothing renders on a day with no score rows
+ * (the Rounds played column next to it already reads 0 for that day).
  */
 function DayGames({ games }: { games: { game: string; rounds: number }[] }) {
   if (games.length === 0) return null;
   return (
     <tr>
-      <td colSpan={7} className="pt-0 pb-2">
+      <td colSpan={6} className="pt-0 pb-2">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-mutedText mr-1.5">
           Games
         </span>
@@ -166,7 +167,7 @@ function DayGames({ games }: { games: { game: string; rounds: number }[] }) {
           <span
             key={entry.game}
             className="inline-flex items-baseline gap-1 rounded-full bg-lightTeal px-2 py-0.5 mr-1 text-xs whitespace-nowrap"
-            title={`${entry.game}: ${String(entry.rounds)} rounds from the board`}
+            title={`${entry.game}: ${String(entry.rounds)} board rows`}
           >
             <span className="font-medium text-darkText">{entry.game}</span>
             <span className="font-semibold text-secondary">{num(entry.rounds)}</span>
@@ -182,14 +183,9 @@ function WindowBlock({ window: stats, label }: { window: MetricsWindow; label: s
     <>
       <div className="grid grid-cols-2 gap-3 mb-3">
         <StatTile
-          label="Rounds banked"
-          value={num(stats.completedRounds)}
-          hint="Rows on the board, all September"
-        />
-        <StatTile
           label="Rounds played"
           value={num(stats.roundsPlayed)}
-          hint="Completed rounds, since 21 Sep"
+          hint="Completed rounds, counted since 21 Sep"
         />
         <StatTile
           label="Players"
@@ -225,7 +221,7 @@ function WindowBlock({ window: stats, label }: { window: MetricsWindow; label: s
       <h3 className="text-sm font-semibold text-white/80 mb-2">
         Games chosen ({label}, from the board)
       </h3>
-      <GameCounts rows={stats.gamesChosen} emptyText="No rounds banked on the board in this period." />
+      <GameCounts rows={stats.gamesChosen} emptyText="No games chosen on the board in this period." />
       <h3 className="text-sm font-semibold text-white/80 mt-4 mb-2">
         How long games are played ({label}, counted since 21 Sep)
       </h3>
@@ -377,8 +373,8 @@ function Admin() {
               <p className="text-xs text-mutedText mt-0.5">
                 Numbers built {stats.generatedAt}. Days are UTC. Rounds played,
                 visits, sessions, bounce rate and time played are counted from that
-                date. Players and rounds banked come from the leaderboard&apos;s own
-                records, so they cover all of September.
+                date. Players come from the leaderboard&apos;s own records, so they
+                cover all of September.
               </p>
             </div>
             <button
@@ -422,18 +418,13 @@ function Admin() {
 
           <Section
             title="Today (UTC)"
-            subtitle={`${stats.today.date}. Rounds banked and players: from the board, all September. Rounds played, visits, sessions, bounce rate: since 21 Sep.`}
+            subtitle={`${stats.today.date}. Rounds played, visits, sessions and bounce rate: counted since 21 Sep. Players: from the board, all September.`}
           >
             <div className="grid grid-cols-2 gap-3">
               <StatTile
-                label="Rounds banked"
-                value={num(stats.today.completedRounds)}
-                hint="Rows on the board, all September"
-              />
-              <StatTile
                 label="Rounds played"
                 value={num(stats.today.roundsPlayed)}
-                hint="Completed rounds, since 21 Sep"
+                hint="Completed rounds, counted since 21 Sep"
               />
               <StatTile
                 label="Players"
@@ -465,28 +456,27 @@ function Admin() {
 
           <Section
             title="Last 7 days"
-            subtitle="Rounds banked, players and games chosen come from the board (all September). Rounds played, visits, sessions, bounce rate and time played are counted since 21 Sep."
+            subtitle="Players and games chosen come from the board (all September). Rounds played, visits, sessions, bounce rate and time played are counted since 21 Sep."
           >
             <WindowBlock window={stats.last7} label="last 7 days" />
           </Section>
 
           <Section
             title="Last 30 days"
-            subtitle="Rounds banked, players and games chosen come from the board (all September). Rounds played, visits, sessions, bounce rate and time played are counted since 21 Sep."
+            subtitle="Players and games chosen come from the board (all September). Rounds played, visits, sessions, bounce rate and time played are counted since 21 Sep."
           >
             <WindowBlock window={stats.last30} label="last 30 days" />
           </Section>
 
           <Section
             title="Per day"
-            subtitle="Last 30 days, oldest first. Rounds banked, players and each day's games come from the board and cover all of September. Rounds played, visits, sessions and started come from the event log, which was switched on 21 Sep, so earlier days show 0 there. Games are rounds banked per game that day, most played first."
+            subtitle="Last 30 days, oldest first. Rounds played, visits, sessions and started come from the event log, which was switched on 21 Sep, so earlier days show 0 there. Players and each day's games come from the board and cover all of September. Games are the board's scoring rows for that day, most played first."
           >
             <div className="card py-3 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-mutedText uppercase tracking-wide">
                     <th className="font-semibold pb-2">Day</th>
-                    <th className="font-semibold pb-2 text-right">Rounds banked</th>
                     <th className="font-semibold pb-2 text-right">Rounds played</th>
                     <th className="font-semibold pb-2 text-right">Players</th>
                     <th className="font-semibold pb-2 text-right">Visits</th>
@@ -499,9 +489,6 @@ function Admin() {
                     <Fragment key={row.day}>
                       <tr className="border-t border-lightTeal">
                         <td className="py-1.5 text-darkText">{row.day}</td>
-                        <td className="py-1.5 text-right font-semibold text-secondary">
-                          {num(row.completedRounds)}
-                        </td>
                         <td className="py-1.5 text-right font-semibold text-secondary">
                           {num(row.roundsPlayed)}
                         </td>
@@ -524,9 +511,8 @@ function Admin() {
                 </tbody>
               </table>
               <p className="text-xs text-mutedText mt-2">
-                Rounds banked counts board scoring rows, all September. Rounds
-                played counts completed rounds from the event log, so days before
-                21 Sep read 0.
+                Rounds played counts completed rounds from the event log, so days
+                before 21 Sep read 0.
               </p>
             </div>
           </Section>
@@ -581,28 +567,24 @@ function Admin() {
             </p>
             <p>
               <strong className="text-darkText">Two sources, labelled.</strong>{" "}
-              Rounds banked, players and games chosen come from the
-              leaderboard&apos;s own table, which has recorded every round banked
-              since the board went live, so those numbers cover all of September.
-              Rounds played, page visits, sessions, bounce rate and time played come
-              from the app&apos;s own event log, which was switched on partway
-              through September: they say &quot;counted since 21 Sep&quot; because
-              nothing earlier exists. Older days read 0 for those, not because
-              nothing happened, but because nothing was counted.
+              Players and games chosen come from the leaderboard&apos;s own table,
+              which has recorded every score banked since the board went live, so
+              those numbers cover all of September. Rounds played, page visits,
+              sessions, bounce rate and time played come from the app&apos;s own
+              event log, which was switched on partway through September: they say
+              &quot;counted since 21 Sep&quot; because nothing earlier exists. Older
+              days read 0 for those, not because nothing happened, but because
+              nothing was counted.
             </p>
             <p>
-              <strong className="text-darkText">Rounds banked</strong> counts board
-              rows: the leaderboard keeps one running total per player, game and
-              month, so a player who plays the same game three times in a month has
-              one row, not three. It is still the board&apos;s own honest record of
-              real play.
-            </p>
-            <p>
-              <strong className="text-darkText">Rounds played</strong> counts
-              completed rounds from the event log: one entry per finished round, so
-              replaying the same game counts again. That makes it the true tally of
-              individual rounds, and the reason it can read higher than rounds
-              banked. It counts from 21 Sep only, so days before that read 0.
+              <strong className="text-darkText">Rounds played</strong> is the rounds
+              figure, and the only one: it counts completed rounds from the event
+              log, one entry per finished round, so replaying the same game counts
+              again. The board&apos;s own rows are not used for rounds, because the
+              leaderboard keeps one running total per player, game and month: a
+              player who plays the same game three times in a month has one row, not
+              three. Rounds played counts from 21 Sep only, so days before that read
+              0.
             </p>
             <p>
               <strong className="text-darkText">A session</strong> is one tab. Its id

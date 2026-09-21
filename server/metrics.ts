@@ -28,27 +28,27 @@
  *   * our own event log (`events`) for visits, sessions, games started, bounce
  *     rate, time played and rounds played. It only exists from the day this
  *     shipped, so it has no history before that date (`countingSince`).
- *   * the leaderboard's own `scores` table for rounds banked, players and games
- *     chosen. That table holds every round ever banked, so it is the honest record
- *     of the September play that happened before the event log existed. Caveat,
- *     repeated in the UI: `scores` keeps ONE cumulative row per (name, game,
- *     month, pid), so "rounds banked" means scoring rows banked, not every
- *     individual round. `roundsPlayed` (event log) is the true per-round count;
- *     the two are shown side by side and labelled.
+ *   * the leaderboard's own `scores` table for players and games chosen. That
+ *     table holds every round ever banked, so it is the honest record of the
+ *     September play that happened before the event log existed. Caveat, repeated
+ *     in the UI: `scores` keeps ONE cumulative row per (name, game, month, pid),
+ *     so those rows are not a rounds tally. Rounds played is therefore counted
+ *     from the event log alone (owner decision, 21 Sep) and the board's scoring
+ *     rows are never reported as a rounds figure.
  *
  * All queries are read-only EXCEPT the single INSERT in the ingest handler; the
  * board tables are never written by this module.
  */
 import { getDb } from "./leaderboard.ts";
 import {
+  boardByDay,
   bounceRate,
   coerceEvent,
   fillDaily,
   lastNDays,
   mergeDaily,
-  roundsByDay,
   sortAverages,
-  summariseRounds,
+  summariseBoard,
   utcDayKey,
   type DailyCounts,
 } from "./metrics-core.ts";
@@ -60,9 +60,9 @@ import {
   type SessionDayRow,
 } from "./metrics-export.ts";
 import type {
+  MetricsBoardTotals,
   MetricsDailyRow,
   MetricsEventTotals,
-  MetricsRoundTotals,
   MetricsStats,
   MetricsToday,
   MetricsWindow,
@@ -167,14 +167,15 @@ function eventTotals(where: string): MetricsEventTotals {
 }
 
 /**
- * Rounds, players and games chosen — the leaderboard's own record, which reaches
- * back far enough to cover the September play that happened before our event log
- * existed. Reading the rows and folding them in `metrics-core.ts` (rather than
- * doing the whole thing in SQL) keeps the counting rules unit-tested and identical
- * to the way the board folds identities. The window keeps this to at most one
- * month of (name, game, month, pid) rows, so it stays a tiny query.
+ * Players and games chosen — the leaderboard's own record, which reaches back far
+ * enough to cover the September play that happened before our event log existed.
+ * Reading the rows and folding them in `metrics-core.ts` (rather than doing the
+ * whole thing in SQL) keeps the counting rules unit-tested and identical to the
+ * way the board folds identities. The window keeps this to at most one month of
+ * (name, game, month, pid) rows, so it stays a tiny query. Deliberately no rounds
+ * count: see the note at the top of this file.
  */
-function roundTotals(where: string): MetricsRoundTotals {
+function boardTotals(where: string): MetricsBoardTotals {
   const rows = getDb()
     .query<{ name: string; pid: string | null; game: string; created_at: string }, []>(
       `SELECT name, pid, game, created_at
@@ -182,7 +183,7 @@ function roundTotals(where: string): MetricsRoundTotals {
         WHERE ${where}`,
     )
     .all();
-  return summariseRounds(rows);
+  return summariseBoard(rows);
 }
 
 /** Per-session visit/start counts in a window — the bounce-rate input. */
@@ -225,7 +226,7 @@ function windowStats(days: number): MetricsWindow {
   return {
     days,
     ...eventTotals(where),
-    ...roundTotals(where),
+    ...boardTotals(where),
     bounceRate: bounceRate(sessionCounts(where)),
     avgDuration: avgDuration(where),
   };
@@ -252,11 +253,10 @@ function dailyRows(days: number): MetricsDailyRow[] {
         WHERE ${where}`,
     )
     .all();
-  // One row per day, carrying the event log's page numbers AND the board's banked
-  // rounds, so a September day reads as "0 visits, 26 rounds" rather than nothing.
-  // `roundsByDay` also folds those same rows per game, so each day carries its own
-  // games breakdown (`gamesPlayed`) for the dashboard's day-by-day table.
-  return fillDaily(lastNDays(days), mergeDaily(events, roundsByDay(scores)));
+  // One row per day, carrying the event log's page numbers AND the board's own
+  // players and games, so a September day still says who played and what rather
+  // than nothing. Rounds played comes from the event log side only.
+  return fillDaily(lastNDays(days), mergeDaily(events, boardByDay(scores)));
 }
 
 /** Distinct identities on the month's board — the same folding the board uses. */
@@ -290,15 +290,16 @@ function boardContext(month: string) {
 }
 
 /**
- * Today's numbers: the event log for the day's pages plus the board's own count
- * of who banked a round today (the board is the source that reaches back before
- * the event log existed, and today it still says the most about real play).
+ * Today's numbers: the event log for the day's pages and rounds played, plus the
+ * board's own count of who banked a round today (the board is the source that
+ * reaches back before the event log existed, and today it still says the most
+ * about who played).
  */
 function todayStats(): MetricsToday {
   return {
     date: utcDayKey(new Date()),
     ...eventTotals(TODAY_WHERE),
-    ...roundTotals(TODAY_WHERE),
+    ...boardTotals(TODAY_WHERE),
     bounceRate: bounceRate(sessionCounts(TODAY_WHERE)),
   };
 }
