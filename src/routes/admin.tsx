@@ -235,6 +235,7 @@ function Admin() {
   const [stats, setStats] = useState<MetricsStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState<"csv" | "json" | null>(null);
 
   const load = useCallback(async () => {
     if (loading) return;
@@ -262,6 +263,56 @@ function Admin() {
     }
     setLoading(false);
   }, [loading, passcode]);
+
+  /**
+   * Download the same numbers as a CSV (default) or JSON file, with the passcode
+   * in the `x-admin-passcode` header exactly as `load` sends it, so the secret
+   * never lands in a URL. The file is fetched as a blob and handed to the
+   * browser's downloader, so an installed PWA downloads it too.
+   */
+  const exportStats = useCallback(
+    async (format: "csv" | "json") => {
+      if (exporting) return;
+      setExporting(format);
+      setError(null);
+      try {
+        const res = await fetch(`/api/admin/stats/export?format=${format}`, {
+          headers: { "x-admin-passcode": passcode },
+        });
+        if (!res.ok) {
+          setError(
+            res.status === 403
+              ? "Wrong passcode"
+              : res.status === 401
+                ? "Enter a passcode"
+                : "Couldn't export the stats. Try again.",
+          );
+          setExporting(null);
+          return;
+        }
+        const blob = await res.blob();
+        // The server names the file (stats-<UTC day>.<ext>); fall back to the same
+        // shape if a browser hides the header.
+        const named = /filename="?([^";]+)"?/i.exec(
+          res.headers.get("content-disposition") ?? "",
+        );
+        const fallback = `stats-${new Date().toISOString().slice(0, 10)}.${format}`;
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = named?.[1] ?? fallback;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        // Give the browser time to start the download before the blob is freed.
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      } catch {
+        setError("Couldn't export the stats. Try again.");
+      }
+      setExporting(null);
+    },
+    [exporting, passcode],
+  );
 
   const countingSince = stats?.countingSince
     ? `${stats.countingSince.slice(0, 10)} (UTC)`
@@ -333,6 +384,35 @@ function Admin() {
               {loading ? "Loading..." : "Refresh"}
             </button>
           </div>
+
+          <div className="card mb-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-darkText">Export these numbers</p>
+              <p className="text-xs text-mutedText mt-0.5">
+                The per-day table, last 30 days in UTC, one row per day: opens in
+                Excel or Sheets as-is. Same passcode, read-only.
+              </p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => void exportStats("csv")}
+                disabled={exporting !== null}
+                className="btn-primary text-sm py-2 px-3 disabled:opacity-50"
+              >
+                {exporting === "csv" ? "Exporting..." : "Export CSV"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void exportStats("json")}
+                disabled={exporting !== null}
+                className="btn-secondary text-sm py-2 px-3 disabled:opacity-50"
+              >
+                {exporting === "json" ? "Exporting..." : "Export JSON"}
+              </button>
+            </div>
+          </div>
+          {error && <p className="text-sm text-red-500 font-medium mb-4">{error}</p>}
 
           <Section
             title="Today (UTC)"
