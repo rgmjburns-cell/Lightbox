@@ -1,5 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useCallback, useState, type ReactNode } from "react";
+import {
+  defaultExportRange,
+  exportRangeMax,
+  last7DaysRange,
+  lastMonthRange,
+  type ExportPreset,
+} from "~/lib/exportRange";
 import { GAME_META } from "~/lib/leaderboard";
 import type { MetricsStats, MetricsWindow } from "~/lib/metrics-types";
 
@@ -45,34 +52,19 @@ function pct(value: number): string {
 
 /**
  * The export's date range. It starts at the very window the export has always
- * built (the last 30 UTC days including today), so a plain click on Export CSV
- * still downloads the same file as before, and the dates are there to change for
- * a pilot window (21 Sep to 21 Oct). UTC days, the same bucketing as everything
- * else on this page; both ends are inclusive.
+ * built (the last 30 UTC days including today, `defaultExportRange`), so a plain
+ * click on Export CSV still downloads the same file as before. The three preset
+ * buttons fill the same From/To pickers the export already reads: Last 7 days,
+ * Last month and Custom (the pickers themselves, for a pilot window such as
+ * 21 Sep to 21 Oct). UTC days, the same bucketing as everything else on this
+ * page; both ends are inclusive. The date maths lives in `~/lib/exportRange` so
+ * it is unit-tested.
  */
-const DAY_MS = 86_400_000;
-const RANGE_DEFAULT_DAYS = 30;
-
-function utcDateInput(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function defaultExportRange(): { from: string; to: string } {
-  const now = Date.now();
-  return {
-    from: utcDateInput(new Date(now - (RANGE_DEFAULT_DAYS - 1) * DAY_MS)),
-    to: utcDateInput(new Date(now)),
-  };
-}
-
-/**
- * Tomorrow, UTC: the latest To date the export accepts (the server refuses an end
- * beyond it rather than hand back a run of zero rows for days that have not
- * happened). The date picker says so up front instead of failing on the click.
- */
-function exportRangeMax(): string {
-  return utcDateInput(new Date(Date.now() + DAY_MS));
-}
+const PRESETS: { id: ExportPreset; label: string }[] = [
+  { id: "last7", label: "Last 7 days" },
+  { id: "lastMonth", label: "Last month" },
+  { id: "custom", label: "Custom" },
+];
 
 function seconds(value: number): string {
   const total = Math.round(value);
@@ -270,6 +262,18 @@ function Admin() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState<"csv" | "json" | null>(null);
   const [range, setRange] = useState(defaultExportRange);
+  // Which quick choice last set the dates. "custom" is both the initial state
+  // (the card opens on the 30-day default, which no preset describes) and what
+  // editing a date by hand falls back to.
+  const [preset, setPreset] = useState<ExportPreset>("custom");
+
+  /** A preset only fills the From/To pickers; the export reads those inputs. */
+  const applyPreset = (next: ExportPreset) => {
+    setPreset(next);
+    setError(null);
+    if (next === "last7") setRange(last7DaysRange());
+    if (next === "lastMonth") setRange(lastMonthRange());
+  };
 
   /**
    * A plain client-side guard, so an obvious slip is caught before a request is
@@ -454,9 +458,10 @@ function Admin() {
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-darkText">Export these numbers</p>
                 <p className="text-xs text-mutedText mt-0.5">
-                  The per-day table, one row per day, UTC. Set a From and To date
-                  for a pilot window, or leave the 30-day default: opens in Excel
-                  or Sheets as-is. Same passcode, read-only.
+                  The per-day table, one row per day, UTC. Choose Last 7 days or
+                  Last month, or pick Custom and set a From and To date yourself
+                  for a pilot window: opens in Excel or Sheets as-is. Same
+                  passcode, read-only.
                 </p>
               </div>
               <div className="flex gap-2 shrink-0">
@@ -478,6 +483,24 @@ function Admin() {
                 </button>
               </div>
             </div>
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <span className="text-xs font-medium text-mutedText mr-1">Range</span>
+              {PRESETS.map((choice) => (
+                <button
+                  key={choice.id}
+                  type="button"
+                  onClick={() => applyPreset(choice.id)}
+                  aria-pressed={preset === choice.id}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    preset === choice.id
+                      ? "border-secondary bg-secondary text-white"
+                      : "border-lightTeal text-darkText hover:border-secondary"
+                  }`}
+                >
+                  {choice.label}
+                </button>
+              ))}
+            </div>
             <div className="flex flex-wrap items-end gap-x-3 gap-y-2 mt-3">
               <label className="text-xs text-mutedText">
                 <span className="block mb-1 font-medium">From (UTC)</span>
@@ -487,6 +510,7 @@ function Admin() {
                   max={range.to !== "" ? range.to : undefined}
                   onChange={(e) => {
                     setRange((prev) => ({ ...prev, from: e.target.value }));
+                    setPreset("custom");
                     setError(null);
                   }}
                   className="rounded-lg border border-lightTeal px-3 py-1.5 text-sm text-darkText
@@ -502,6 +526,7 @@ function Admin() {
                   max={exportRangeMax()}
                   onChange={(e) => {
                     setRange((prev) => ({ ...prev, to: e.target.value }));
+                    setPreset("custom");
                     setError(null);
                   }}
                   className="rounded-lg border border-lightTeal px-3 py-1.5 text-sm text-darkText

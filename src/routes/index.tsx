@@ -5,7 +5,7 @@ import Rex from "~/components/Rex";
 import InstallBanner from "~/components/InstallBanner";
 import { getPlayerName } from "~/components/Onboarding";
 import { getLastEarnedAchievement } from "~/lib/achievements";
-import { getTotalPoints } from "~/lib/points";
+import { fetchLeaderboard } from "~/lib/leaderboard";
 import brand from "~/branding";
 import { useVisit } from "~/lib/metrics";
 
@@ -83,7 +83,12 @@ const playExperiences = [
 function Home() {
   useVisit("/");
   const playerName = typeof window !== "undefined" ? getPlayerName() : null;
-  const [totalScore, setTotalScore] = useState(0);
+  // The card shows the SAME number the monthly leaderboard shows for this
+  // player: the server's cumulative monthly total, read from the board's own
+  // `you` row. A player with no completed round this month has no row, and the
+  // card then honestly shows 0 — the local per-game bests sum is a lifetime
+  // figure for one device and is NOT what this card means. null = still loading.
+  const [monthlyScore, setMonthlyScore] = useState<number | null>(null);
   const [lastEarned, setLastEarned] = useState(() =>
     typeof window === "undefined"
       ? null
@@ -92,11 +97,21 @@ function Home() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setTotalScore(getTotalPoints());
     // Re-read so it updates immediately after earning a badge and
     // stays correct across navigation/reopen.
     setLastEarned(getLastEarnedAchievement() ?? null);
-  }, []);
+    if (!playerName) return;
+    let active = true;
+    // Same identity resolution as the leaderboard page: the helper sends the
+    // stored name (and the cookie-mirrored player id when there is one).
+    void fetchLeaderboard("all").then((board) => {
+      if (!active) return;
+      setMonthlyScore(board?.you?.score ?? 0);
+    });
+    return () => {
+      active = false;
+    };
+  }, [playerName]);
 
   return (
     <div className="page-container">
@@ -118,7 +133,19 @@ function Home() {
         <div className="card mb-4 flex items-center justify-between">
           <div>
             <p className="text-xs text-mutedText uppercase tracking-wide">Total Score</p>
-            <p className="text-2xl font-bold text-primary">{totalScore.toLocaleString()}</p>
+            {monthlyScore === null ? (
+              <span
+                className="mt-1 block h-7 w-16 rounded bg-lightTeal/60"
+                aria-hidden="true"
+              />
+            ) : (
+              <p className="text-2xl font-bold text-primary">
+                {monthlyScore.toLocaleString()}
+              </p>
+            )}
+            <p className="text-[10px] text-mutedText mt-0.5">
+              This month, on the board
+            </p>
           </div>
           <div className="text-right min-w-0">
             <p className="text-xs text-mutedText uppercase tracking-wide">
