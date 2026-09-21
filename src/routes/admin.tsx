@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useState, type ReactNode } from "react";
 import { GAME_META } from "~/lib/leaderboard";
 import type { MetricsStats, MetricsWindow } from "~/lib/metrics-types";
 
@@ -145,6 +145,34 @@ function DurationTable({ rows }: { rows: { game: string; rounds: number; avgSec:
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * One day's games, from the board's own rows: a chip per game with the rounds it
+ * banked, most played first. Nothing renders on a day with no score rows (the
+ * Rounds column next to it already reads 0 for that day).
+ */
+function DayGames({ games }: { games: { game: string; rounds: number }[] }) {
+  if (games.length === 0) return null;
+  return (
+    <tr>
+      <td colSpan={6} className="pt-0 pb-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-mutedText mr-1.5">
+          Games
+        </span>
+        {games.map((entry) => (
+          <span
+            key={entry.game}
+            className="inline-flex items-baseline gap-1 rounded-full bg-lightTeal px-2 py-0.5 mr-1 text-xs whitespace-nowrap"
+            title={`${entry.game}: ${String(entry.rounds)} rounds from the board`}
+          >
+            <span className="font-medium text-darkText">{entry.game}</span>
+            <span className="font-semibold text-secondary">{num(entry.rounds)}</span>
+          </span>
+        ))}
+      </td>
+    </tr>
   );
 }
 
@@ -360,7 +388,7 @@ function Admin() {
 
           <Section
             title="Per day"
-            subtitle="Last 30 days, oldest first. Rounds and players come from the board and cover all of September. Visits, sessions and started count from 21 Sep, so earlier days show 0 there."
+            subtitle="Last 30 days, oldest first. Rounds, players and each day's games come from the board and cover all of September. Visits, sessions and started count from 21 Sep, so earlier days show 0 there. Games are rounds banked per game that day, most played first."
           >
             <div className="card py-3 overflow-x-auto">
               <table className="w-full text-sm">
@@ -376,24 +404,27 @@ function Admin() {
                 </thead>
                 <tbody>
                   {[...stats.daily].reverse().map((row) => (
-                    <tr key={row.day} className="border-t border-lightTeal">
-                      <td className="py-1.5 text-darkText">{row.day}</td>
-                      <td className="py-1.5 text-right font-semibold text-secondary">
-                        {num(row.completedRounds)}
-                      </td>
-                      <td className="py-1.5 text-right text-darkText">
-                        {num(row.activePlayers)}
-                      </td>
-                      <td className="py-1.5 text-right text-mutedText">
-                        {num(row.visits)}
-                      </td>
-                      <td className="py-1.5 text-right text-mutedText">
-                        {num(row.sessions)}
-                      </td>
-                      <td className="py-1.5 text-right text-mutedText">
-                        {num(row.gameStarts)}
-                      </td>
-                    </tr>
+                    <Fragment key={row.day}>
+                      <tr className="border-t border-lightTeal">
+                        <td className="py-1.5 text-darkText">{row.day}</td>
+                        <td className="py-1.5 text-right font-semibold text-secondary">
+                          {num(row.completedRounds)}
+                        </td>
+                        <td className="py-1.5 text-right text-darkText">
+                          {num(row.activePlayers)}
+                        </td>
+                        <td className="py-1.5 text-right text-mutedText">
+                          {num(row.visits)}
+                        </td>
+                        <td className="py-1.5 text-right text-mutedText">
+                          {num(row.sessions)}
+                        </td>
+                        <td className="py-1.5 text-right text-mutedText">
+                          {num(row.gameStarts)}
+                        </td>
+                      </tr>
+                      <DayGames games={row.gamesPlayed} />
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
