@@ -29,7 +29,7 @@ const brand = {
   },
 
   // ── Welcome ──
-  welcomeMessage: "Welcome to LightBox PLAY! I'm Rex — your friendly radiology buddy. Pick a game and have fun while you wait!",
+  welcomeMessage: "Welcome to LightBox! I'm Rex — your friendly radiology buddy. Pick a game and have fun while you wait!",
 
   // ── Logo ──
   logo: {
