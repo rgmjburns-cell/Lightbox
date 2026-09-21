@@ -148,7 +148,14 @@ describe("day bucketing", () => {
 
   test("fillDaily zero-fills gaps in the requested order", () => {
     const filled = fillDaily(["2026-09-19", "2026-09-20", "2026-09-21"], [
-      { day: "2026-09-21 02:00:00", visits: 4, sessions: 3, gameStarts: 2, completedRounds: 1 },
+      {
+        day: "2026-09-21 02:00:00",
+        visits: 4,
+        sessions: 3,
+        gameStarts: 2,
+        completedRounds: 1,
+        roundsPlayed: 5,
+      },
       { day: "2026-09-19", visits: 1, sessions: 1, gameStarts: 0, completedRounds: 0 },
     ]);
     expect(filled.map((row) => row.day)).toEqual([
@@ -161,6 +168,7 @@ describe("day bucketing", () => {
       visits: 0,
       sessions: 0,
       gameStarts: 0,
+      roundsPlayed: 0,
       completedRounds: 0,
       activePlayers: 0,
       gamesPlayed: [],
@@ -170,6 +178,7 @@ describe("day bucketing", () => {
       visits: 4,
       sessions: 3,
       gameStarts: 2,
+      roundsPlayed: 5,
       completedRounds: 1,
       activePlayers: 0,
       gamesPlayed: [],
@@ -206,11 +215,68 @@ describe("day bucketing", () => {
         visits: 0,
         sessions: 0,
         gameStarts: 0,
+        roundsPlayed: 0,
         completedRounds: 0,
         activePlayers: 0,
         gamesPlayed: [],
       },
     ]);
+  });
+});
+
+describe("rounds played (the event log's own per-round count)", () => {
+  test("a day with events carries its count, a day without reads 0", () => {
+    const rows = fillDaily(
+      ["2026-09-20", "2026-09-21", "2026-09-22"],
+      [{ day: "2026-09-21", visits: 3, sessions: 2, gameStarts: 2, roundsPlayed: 4 }],
+    );
+    // The day the log recorded four finished rounds.
+    expect(rows[1].roundsPlayed).toBe(4);
+    // A day before the log was switched on and a day with nothing played: 0, never
+    // a missing field (the CSV prints the same number the page shows).
+    expect(rows[0].roundsPlayed).toBe(0);
+    expect(rows[2].roundsPlayed).toBe(0);
+  });
+
+  test("a window's count is the sum of its days, and stays apart from rounds banked", () => {
+    // What the server's two per-day queries answer: the event log counts finished
+    // rounds per day, the board counts scoring rows per day. They are different
+    // numbers on purpose, and replaying one game is exactly where they part
+    // company (a replay adds a finished round but grows an existing board row).
+    const logged = [
+      { day: "2026-09-21", visits: 9, sessions: 4, gameStarts: 8, roundsPlayed: 12 },
+      { day: "2026-09-22", visits: 5, sessions: 3, gameStarts: 3, roundsPlayed: 3 },
+    ];
+    const board = [
+      {
+        day: "2026-09-21",
+        completedRounds: 7,
+        activePlayers: 4,
+        gamesPlayed: [{ game: "scan-rush", rounds: 7 }],
+      },
+      {
+        day: "2026-09-22",
+        completedRounds: 3,
+        activePlayers: 3,
+        gamesPlayed: [{ game: "bone-buster", rounds: 3 }],
+      },
+    ];
+    const rows = fillDaily(["2026-09-21", "2026-09-22"], mergeDaily(logged, board));
+    const sum = (pick: (row: (typeof rows)[number]) => number) =>
+      rows.reduce((total, row) => total + pick(row), 0);
+    // One row per day, both sources' numbers in it.
+    expect(rows[0]).toEqual({
+      day: "2026-09-21",
+      visits: 9,
+      sessions: 4,
+      gameStarts: 8,
+      roundsPlayed: 12,
+      completedRounds: 7,
+      activePlayers: 4,
+      gamesPlayed: [{ game: "scan-rush", rounds: 7 }],
+    });
+    expect(sum((row) => row.roundsPlayed)).toBe(15);
+    expect(sum((row) => row.completedRounds)).toBe(10);
   });
 });
 
@@ -359,7 +425,10 @@ describe("the board side (scores rows)", () => {
     const days = lastNDays(30, new Date("2026-09-21T05:00:00Z"));
     const rows = fillDaily(
       days,
-      mergeDaily([{ day: "2026-09-21", visits: 2, sessions: 1, gameStarts: 1 }], roundsByDay(SEEDS)),
+      mergeDaily(
+        [{ day: "2026-09-21", visits: 2, sessions: 1, gameStarts: 1, roundsPlayed: 3 }],
+        roundsByDay(SEEDS),
+      ),
     );
     expect(rows).toHaveLength(30);
     expect(rows[0]).toEqual({
@@ -367,6 +436,7 @@ describe("the board side (scores rows)", () => {
       visits: 0,
       sessions: 0,
       gameStarts: 0,
+      roundsPlayed: 0,
       completedRounds: 0,
       activePlayers: 0,
       gamesPlayed: [],
@@ -377,6 +447,7 @@ describe("the board side (scores rows)", () => {
       visits: 0,
       sessions: 0,
       gameStarts: 0,
+      roundsPlayed: 0,
       completedRounds: 6,
       activePlayers: 3,
       gamesPlayed: [
@@ -391,6 +462,9 @@ describe("the board side (scores rows)", () => {
       visits: 2,
       sessions: 1,
       gameStarts: 1,
+      // Three finished rounds logged, one scoring row banked on the board: the
+      // replay is exactly the difference between the two columns.
+      roundsPlayed: 3,
       completedRounds: 1,
       activePlayers: 1,
       gamesPlayed: [{ game: "scan-rush", rounds: 1 }],

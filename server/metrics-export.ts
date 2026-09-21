@@ -17,6 +17,12 @@
  *     identity folding behind activePlayers, the same bounce-rate rule and the
  *     same one-decimal rounding — so a number quoted from the file matches the
  *     number on the page.
+ *   * `roundsBanked` and `roundsPlayed` are deliberately two columns, both printed
+ *     for every day: the first is the board's scoring rows (one cumulative row per
+ *     player, game and month, so a replay grows a row rather than adding one), the
+ *     second is the true count of finished rounds from the event log. The event log
+ *     starts mid-September, so `roundsPlayed` is 0 on earlier days; no earlier value
+ *     is invented.
  *   * Plain ASCII in the output: game names are joined with "; ", never an em
  *     dash (house rule: no em dashes anywhere in the product's copy).
  */
@@ -31,13 +37,19 @@ export interface DailyTelemetry {
   avgDurationSec: number | null;
 }
 
-/** Column order of the CSV, exactly as a spreadsheet should read it. */
+/**
+ * Column order of the CSV, exactly as a spreadsheet should read it. The two round
+ * columns sit together (`roundsBanked`, the board's scoring rows, then
+ * `roundsPlayed`, the event log's true count of finished rounds) so a reader sees
+ * both numbers side by side, as the dashboard shows them.
+ */
 export const CSV_COLUMNS = [
   "date",
   "visits",
   "sessions",
   "gameStarts",
   "roundsBanked",
+  "roundsPlayed",
   "activePlayers",
   "bounceRate",
   "avgDurationSec",
@@ -129,6 +141,7 @@ export function statsCsv(
         csvCell(row.sessions),
         csvCell(row.gameStarts),
         csvCell(row.completedRounds),
+        csvCell(row.roundsPlayed),
         csvCell(row.activePlayers),
         csvCell(extra?.bounceRate ?? 0),
         csvCell(extra?.avgDurationSec ?? null),

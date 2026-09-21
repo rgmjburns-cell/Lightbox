@@ -26,13 +26,15 @@
  * The dashboard is built from TWO sources, and its UI says which is which:
  *
  *   * our own event log (`events`) for visits, sessions, games started, bounce
- *     rate and time played. It only exists from the day this shipped, so it has
- *     no history before that date (`countingSince`).
- *   * the leaderboard's own `scores` table for rounds, players and games chosen.
- *     That table holds every round ever banked, so it is the honest record of the
- *     September play that happened before the event log existed. Caveat, repeated
- *     in the UI: `scores` keeps ONE cumulative row per (name, game, month, pid),
- *     so "rounds" here means scoring rows banked, not every individual round.
+ *     rate, time played and rounds played. It only exists from the day this
+ *     shipped, so it has no history before that date (`countingSince`).
+ *   * the leaderboard's own `scores` table for rounds banked, players and games
+ *     chosen. That table holds every round ever banked, so it is the honest record
+ *     of the September play that happened before the event log existed. Caveat,
+ *     repeated in the UI: `scores` keeps ONE cumulative row per (name, game,
+ *     month, pid), so "rounds banked" means scoring rows banked, not every
+ *     individual round. `roundsPlayed` (event log) is the true per-round count;
+ *     the two are shown side by side and labelled.
  *
  * All queries are read-only EXCEPT the single INSERT in the ingest handler; the
  * board tables are never written by this module.
@@ -88,6 +90,16 @@ function windowWhere(days: number): string {
   return `date(created_at) >= date('now', '-${String(span)} days')`;
 }
 
+/**
+ * One finished round, as SQL. Exactly the rows "time played" is averaged over
+ * (see `avgDuration`) and the rows "rounds played" counts, so the two numbers can
+ * never disagree about what a round is: a `game_end` event carrying a game and a
+ * duration (the client only sends one for a completed round, and drops rounds
+ * under 5 seconds before sending).
+ */
+const COUNTED_ROUND_SQL =
+  "type = 'game_end' AND game IS NOT NULL AND duration_sec IS NOT NULL";
+
 // ── Ingest ─────────────────────────────────────────────────────────────────
 
 /**
@@ -125,15 +137,23 @@ interface EventTotalsRow {
   visits: number | null;
   sessions: number | null;
   gameStarts: number | null;
+  roundsPlayed: number | null;
 }
 
-/** Visits, sessions and games started — our event log, from the day it went on. */
+/**
+ * Visits, sessions, games started and rounds played — our event log, from the day
+ * it went on. `roundsPlayed` counts finished rounds (one row per completed round),
+ * which is the one thing the board's own record cannot answer: it keeps a single
+ * cumulative row per player, game and month, so a replay grows that row instead of
+ * adding one.
+ */
 function eventTotals(where: string): MetricsEventTotals {
   const row = getDb()
     .query<EventTotalsRow, []>(
       `SELECT COALESCE(SUM(type = 'visit'), 0)        AS visits,
               COUNT(DISTINCT CASE WHEN type = 'visit' THEN session END) AS sessions,
-              COALESCE(SUM(type = 'game_start'), 0)   AS gameStarts
+              COALESCE(SUM(type = 'game_start'), 0)   AS gameStarts,
+              COALESCE(SUM(${COUNTED_ROUND_SQL}), 0)  AS roundsPlayed
          FROM events
         WHERE ${where}`,
     )
@@ -142,6 +162,7 @@ function eventTotals(where: string): MetricsEventTotals {
     visits: Number(row?.visits ?? 0),
     sessions: Number(row?.sessions ?? 0),
     gameStarts: Number(row?.gameStarts ?? 0),
+    roundsPlayed: Number(row?.roundsPlayed ?? 0),
   };
 }
 
@@ -185,7 +206,7 @@ function avgDuration(where: string): { game: string; rounds: number; avgSec: num
     .query<{ game: string; rounds: number; avgSec: number | null }, []>(
       `SELECT game, COUNT(*) AS rounds, AVG(duration_sec) AS avgSec
          FROM events
-        WHERE type = 'game_end' AND game IS NOT NULL AND duration_sec IS NOT NULL
+        WHERE ${COUNTED_ROUND_SQL}
           AND ${where}
         GROUP BY game`,
     )
@@ -217,7 +238,8 @@ function dailyRows(days: number): MetricsDailyRow[] {
       `SELECT date(created_at) AS day,
               COALESCE(SUM(type = 'visit'), 0)      AS visits,
               COUNT(DISTINCT CASE WHEN type = 'visit' THEN session END) AS sessions,
-              COALESCE(SUM(type = 'game_start'), 0) AS gameStarts
+              COALESCE(SUM(type = 'game_start'), 0) AS gameStarts,
+              COALESCE(SUM(${COUNTED_ROUND_SQL}), 0) AS roundsPlayed
          FROM events
         WHERE ${where}
         GROUP BY day`,
