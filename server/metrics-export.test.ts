@@ -21,6 +21,7 @@ function day(overrides: Partial<MetricsDailyRow> & { day: string }): MetricsDail
     visits: 0,
     sessions: 0,
     gameStarts: 0,
+    roundsPlayed: 0,
     completedRounds: 0,
     activePlayers: 0,
     gamesPlayed: [],
@@ -28,7 +29,11 @@ function day(overrides: Partial<MetricsDailyRow> & { day: string }): MetricsDail
   };
 }
 
-/** A quiet day and the real 2026-09-17 shape (25 rounds, 20 players, 4 games). */
+/**
+ * A quiet day and the real 2026-09-17 shape (25 rounds banked, 20 players, 4
+ * games, 31 finished rounds logged — banked is lower because replays grow a
+ * player's existing board row instead of adding one).
+ */
 const QUIET = day({ day: "2026-09-16" });
 const BUSY = day({
   day: "2026-09-17",
@@ -36,6 +41,7 @@ const BUSY = day({
   sessions: 12,
   gameStarts: 30,
   completedRounds: 25,
+  roundsPlayed: 31,
   activePlayers: 20,
   gamesPlayed: [
     { game: "scan-rush", rounds: 19 },
@@ -82,25 +88,44 @@ describe("statsCsv", () => {
   test("header row then one row per day, oldest first", () => {
     const rows = statsCsv([QUIET, BUSY], telemetry).split("\r\n");
     expect(rows[0]).toBe(HEADER);
-    expect(rows[1]).toBe("2026-09-16,0,0,0,0,0,0,,");
+    expect(rows[1]).toBe("2026-09-16,0,0,0,0,0,0,0,,");
     expect(rows[2]).toBe(
-      "2026-09-17,41,12,30,25,20,33.3,88.4,scan-rush 19; ecg-rhythm 3; memory-scan 2; bone-buster 1",
+      "2026-09-17,41,12,30,25,31,20,33.3,88.4,scan-rush 19; ecg-rhythm 3; memory-scan 2; bone-buster 1",
     );
     // Trailing newline, so the file ends with a complete line.
     expect(rows[3]).toBe("");
   });
 
+  test("roundsPlayed is its own column, next to roundsBanked", () => {
+    // Header first: the two round columns sit together, banked then played, so a
+    // reader cannot mistake one for the other.
+    expect(CSV_COLUMNS.indexOf("roundsPlayed")).toBe(
+      CSV_COLUMNS.indexOf("roundsBanked") + 1,
+    );
+    expect(HEADER).toContain("roundsBanked,roundsPlayed");
+    const cells = (statsCsv([QUIET, BUSY], telemetry).split("\r\n")[2] ?? "").split(",");
+    const at = (name: (typeof CSV_COLUMNS)[number]) => cells[CSV_COLUMNS.indexOf(name)];
+    // The day with events: banked (board rows) and played (event log) differ, and
+    // both are printed, exactly as the dashboard shows them.
+    expect(at("roundsBanked")).toBe("25");
+    expect(at("roundsPlayed")).toBe("31");
+    // A day with nothing recorded from the event log reads 0, never blank.
+    const quietCells = (statsCsv([QUIET], telemetry).split("\r\n")[1] ?? "").split(",");
+    expect(quietCells[CSV_COLUMNS.indexOf("roundsPlayed")]).toBe("0");
+    expect(quietCells).toHaveLength(CSV_COLUMNS.length);
+  });
+
   test("a day with no finished rounds leaves avgDurationSec empty", () => {
     const csv = statsCsv([QUIET], new Map([["2026-09-16", { bounceRate: 0, avgDurationSec: null }]]));
-    expect(csv).toContain("2026-09-16,0,0,0,0,0,0,,");
+    expect(csv).toContain("2026-09-16,0,0,0,0,0,0,0,,");
   });
 
   test("no telemetry at all still writes a full, valid row", () => {
     const csv = statsCsv([QUIET], new Map());
-    expect(csv.split("\r\n")[1]).toBe("2026-09-16,0,0,0,0,0,0,,");
+    expect(csv.split("\r\n")[1]).toBe("2026-09-16,0,0,0,0,0,0,0,,");
   });
 
-  test("a game id holding a comma or a quote is escaped, row stays 9 fields", () => {
+  test("a game id holding a comma or a quote is escaped, row stays 10 fields", () => {
     const odd = day({
       day: "2026-09-18",
       completedRounds: 2,
@@ -110,9 +135,9 @@ describe("statsCsv", () => {
       ],
     });
     const row = statsCsv([odd], new Map()).split("\r\n")[1] ?? "";
-    // The eight numeric/date fields stay bare and in order; only the games field
+    // The nine numeric/date fields stay bare and in order; only the games field
     // is quoted (it holds a comma and a quote), with its inner quotes doubled.
-    expect(row).toBe('2026-09-18,0,0,0,2,0,0,,"word ""search"", 2 1; bone-buster 1"');
+    expect(row).toBe('2026-09-18,0,0,0,2,0,0,0,,"word ""search"", 2 1; bone-buster 1"');
   });
 
   test("an empty table is a header row and nothing else", () => {

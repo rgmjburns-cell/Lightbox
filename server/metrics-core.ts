@@ -169,6 +169,13 @@ export interface DailyCounts {
   sessions: number;
   /** Games launched that day (event log only). */
   gameStarts: number;
+  /**
+   * Rounds played that day: finished rounds the event log recorded (one
+   * `game_end` event each). 0 on any day before the log was switched on. Not the
+   * same number as `completedRounds` next to it — see the note above the board
+   * side below for why the board cannot count individual rounds.
+   */
+  roundsPlayed: number;
   /** Scoring rows the board banked that day (the board's own record). */
   completedRounds: number;
   /** Distinct identities behind those rows that day. */
@@ -339,6 +346,7 @@ export function fillDaily(
       visits: Number(row?.visits ?? 0) || 0,
       sessions: Number(row?.sessions ?? 0) || 0,
       gameStarts: Number(row?.gameStarts ?? 0) || 0,
+      roundsPlayed: Number(row?.roundsPlayed ?? 0) || 0,
       completedRounds: Number(row?.completedRounds ?? 0) || 0,
       activePlayers: Number(row?.activePlayers ?? 0) || 0,
       gamesPlayed: Array.isArray(row?.gamesPlayed) ? row.gamesPlayed : [],
