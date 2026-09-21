@@ -219,6 +219,8 @@ function dailyRows(days: number): MetricsDailyRow[] {
     .all();
   // One row per day, carrying the event log's page numbers AND the board's banked
   // rounds, so a September day reads as "0 visits, 26 rounds" rather than nothing.
+  // `roundsByDay` also folds those same rows per game, so each day carries its own
+  // games breakdown (`gamesPlayed`) for the dashboard's day-by-day table.
   return fillDaily(lastNDays(days), mergeDaily(events, roundsByDay(scores)));
 }
 

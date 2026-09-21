@@ -62,6 +62,12 @@ export interface MetricsDailyRow extends MetricsEventTotals {
   completedRounds: number;
   /** Distinct identities that banked a row that day (board history). */
   activePlayers: number;
+  /**
+   * WHICH games were played that day, from the board's own rows: rounds banked
+   * per game, most played first, ties alphabetical. Empty on a day with no score
+   * rows (so a 0-round day carries `[]`, not a missing field).
+   */
+  gamesPlayed: { game: string; rounds: number }[];
 }
 
 export interface MetricsBoardContext {

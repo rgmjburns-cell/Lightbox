@@ -173,6 +173,12 @@ export interface DailyCounts {
   completedRounds: number;
   /** Distinct identities behind those rows that day. */
   activePlayers: number;
+  /**
+   * WHICH games those rows were, that day: rounds banked per game, most played
+   * first. Empty for a day with no score rows. Same rows as `completedRounds`,
+   * folded by game instead of by player.
+   */
+  gamesPlayed: { game: string; rounds: number }[];
 }
 
 // ── The board side: what the `scores` table says about real play ────────────
@@ -237,14 +243,34 @@ export function summariseRounds(rows: readonly ScoreRow[]): RoundTotals {
 }
 
 /**
+ * The same rows as "which games were played": rounds banked per game, most
+ * played first, ties alphabetical. Exact same rows `summariseRounds` counts,
+ * just folded by game instead of by player; a row with no usable game id is
+ * skipped (it still counts as a round, it just cannot be attributed).
+ */
+export function perGameRounds(
+  rows: readonly ScoreRow[],
+): { game: string; rounds: number }[] {
+  return summariseRounds(rows).gamesChosen.map(({ game, count }) => ({
+    game,
+    rounds: count,
+  }));
+}
+
+/**
  * The same rows, bucketed per UTC day (the day the row was last written, which
  * is when the board last banked that player's play): how many rows, how many
- * identities. Rows with an unusable timestamp are dropped; days with no rows are
- * simply absent here and zero-filled later by `fillDaily`.
+ * identities, and which games. Rows with an unusable timestamp are dropped; days
+ * with no rows are simply absent here and zero-filled later by `fillDaily`.
  */
 export function roundsByDay(
   rows: readonly ScoreRow[],
-): { day: string; completedRounds: number; activePlayers: number }[] {
+): {
+  day: string;
+  completedRounds: number;
+  activePlayers: number;
+  gamesPlayed: { game: string; rounds: number }[];
+}[] {
   const byDay = new Map<string, ScoreRow[]>();
   for (const row of rows) {
     const key = dayKey(row.created_at);
@@ -261,6 +287,7 @@ export function roundsByDay(
         day,
         completedRounds: totals.completedRounds,
         activePlayers: totals.activePlayers,
+        gamesPlayed: perGameRounds(list),
       };
     });
 }
@@ -314,6 +341,7 @@ export function fillDaily(
       gameStarts: Number(row?.gameStarts ?? 0) || 0,
       completedRounds: Number(row?.completedRounds ?? 0) || 0,
       activePlayers: Number(row?.activePlayers ?? 0) || 0,
+      gamesPlayed: Array.isArray(row?.gamesPlayed) ? row.gamesPlayed : [],
     };
   });
 }
