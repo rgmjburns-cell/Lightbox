@@ -429,7 +429,7 @@ function Admin() {
               <StatTile
                 label="Players"
                 value={num(stats.today.activePlayers)}
-                hint="Banked a round today, from the board"
+                hint="Played today, from the board"
               />
               <StatTile
                 label="Visits"
@@ -536,7 +536,7 @@ function Admin() {
                   {stats.board.games.length === 0 && (
                     <tr>
                       <td className="py-2 text-mutedText" colSpan={3}>
-                        No scores banked this month.
+                        No scores on the board this month.
                       </td>
                     </tr>
                   )}
@@ -568,7 +568,7 @@ function Admin() {
             <p>
               <strong className="text-darkText">Two sources, labelled.</strong>{" "}
               Players and games chosen come from the leaderboard&apos;s own table,
-              which has recorded every score banked since the board went live, so
+              which has recorded every score since the board went live, so
               those numbers cover all of September. Rounds played, page visits,
               sessions, bounce rate and time played come from the app&apos;s own
               event log, which was switched on partway through September: they say
