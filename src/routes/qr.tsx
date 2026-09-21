@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import Rex from "~/components/Rex";
 import brand from "~/branding";
+import { useVisit } from "~/lib/metrics";
 
 export const Route = createFileRoute("/qr")({
   component: AddToPhonePage,
@@ -112,6 +113,7 @@ const DONE_COPY =
   "YOU'RE DONE! Look for Rex on your Home Screen. Tap him anytime to open LightBox.";
 
 function AddToPhonePage() {
+  useVisit("/qr");
   const [platform, setPlatform] = useState<Platform | null>(null);
   const [iosBrowser, setIosBrowser] = useState<IosBrowser>("safari");
   const [androidBrowser, setAndroidBrowser] = useState<AndroidBrowser>("chrome");

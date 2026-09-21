@@ -2,12 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getPlayerName, setPlayerName } from "~/components/Onboarding";
 import brand from "~/branding";
 import { useState } from "react";
+import { useVisit } from "~/lib/metrics";
 
 export const Route = createFileRoute("/settings")({
   component: Settings,
 });
 
 function Settings() {
+  useVisit("/settings");
   const playerName = typeof window !== "undefined" ? getPlayerName() : "";
   const [editName, setEditName] = useState(false);
   const [nameValue, setNameValue] = useState(playerName || "");

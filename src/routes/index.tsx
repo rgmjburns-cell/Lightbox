@@ -7,6 +7,7 @@ import { getPlayerName } from "~/components/Onboarding";
 import { getLastEarnedAchievement } from "~/lib/achievements";
 import { getTotalPoints } from "~/lib/points";
 import brand from "~/branding";
+import { useVisit } from "~/lib/metrics";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -80,6 +81,7 @@ const playExperiences = [
 ];
 
 function Home() {
+  useVisit("/");
   const playerName = typeof window !== "undefined" ? getPlayerName() : null;
   const [totalScore, setTotalScore] = useState(0);
   const [lastEarned, setLastEarned] = useState(() =>

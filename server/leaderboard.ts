@@ -101,7 +101,13 @@ const PASSCODE = process.env.LEADERBOARD_ADMIN_PASSCODE ?? "clear2026";
 
 let db: Database | null = null;
 
-function getDb(): Database {
+/**
+ * The one handle to the instance's SQLite file (opened lazily, schema migrated on
+ * first use). Exported so the first-party usage analytics (`server/metrics.ts`)
+ * writes its `events` table into the SAME database — one file per brand, one
+ * backup/export story, no second datastore to run or secure.
+ */
+export function getDb(): Database {
   if (!db) {
     mkdirSync(DATA_DIR, { recursive: true });
     db = new Database(DB_PATH);
@@ -180,6 +186,30 @@ function migrate(database: Database): void {
       updated_at TEXT NOT NULL
     )
   `);
+
+  // 4. First-party usage analytics (see server/metrics.ts and metrics-core.ts).
+  //    Additive-only, like everything above: one append-only event log that
+  //    records no personal data and no persistent identifier — `session` is a
+  //    browser-generated random id kept in sessionStorage for the lifetime of a
+  //    tab. A board wipe never touches it, and it never touches the board.
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session TEXT NOT NULL,
+      type TEXT NOT NULL,
+      page TEXT,
+      game TEXT NULL,
+      duration_sec INTEGER NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  // Serves the dashboard's window scans; the session index serves bounce rate.
+  database.exec(
+    "CREATE INDEX IF NOT EXISTS idx_events_type_created ON events(type, created_at)",
+  );
+  database.exec(
+    "CREATE INDEX IF NOT EXISTS idx_events_session ON events(session, type)",
+  );
 }
 
 function currentMonthUtc(): string {
