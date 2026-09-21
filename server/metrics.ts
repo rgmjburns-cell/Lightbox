@@ -1,11 +1,17 @@
 /**
  * First-party usage analytics — storage and HTTP.
  *
- * Two endpoints, both served by this app's own Bun server (wired in `serve.ts`,
+ * Three endpoints, all served by this app's own Bun server (wired in `serve.ts`,
  * alongside the leaderboard API):
  *
- *   POST /api/metrics         fire-and-forget ingest, the only writer.
- *   GET  /api/admin/stats     passcode-protected read for the /admin dashboard.
+ *   POST /api/metrics              fire-and-forget ingest, the only writer.
+ *   GET  /api/admin/stats          passcode-protected read for the /admin dashboard.
+ *   GET  /api/admin/stats/export   the same numbers as a CSV or JSON download, so
+ *                                  the owner can pull them into Excel or Sheets.
+ *
+ * The export is READ-ONLY and is the dashboard's own data, nothing else: it never
+ * touches the leaderboard's restore export (`GET /api/leaderboard/export`), which
+ * stays the separate, full-database backup path.
  *
  * PRIVACY: no third-party analytics service exists anywhere in this codebase and
  * none is used here. Events land in our own SQLite file (`data/leaderboard.db`
@@ -44,6 +50,13 @@ import {
   utcDayKey,
   type DailyCounts,
 } from "./metrics-core.ts";
+import {
+  exportFilename,
+  statsCsv,
+  telemetryByDay,
+  type DurationDayRow,
+  type SessionDayRow,
+} from "./metrics-export.ts";
 import type {
   MetricsDailyRow,
   MetricsEventTotals,
@@ -289,6 +302,36 @@ export function collectStats(): MetricsStats {
   };
 }
 
+/**
+ * The two per-day numbers the dashboard's daily table does not carry: bounce rate
+ * and average time played. Same window, same rules as the 7- and 30-day blocks
+ * above (see `metrics-export.ts`, which folds them with the very same helpers), so
+ * an exported day cannot disagree with the page. Read-only.
+ */
+function dailyTelemetry(days: number) {
+  const where = windowWhere(days);
+  const sessions = getDb()
+    .query<SessionDayRow, []>(
+      `SELECT date(created_at) AS day,
+              session,
+              COALESCE(SUM(type = 'visit'), 0)      AS visits,
+              COALESCE(SUM(type = 'game_start'), 0) AS gameStarts
+         FROM events
+        WHERE ${where}
+        GROUP BY day, session`,
+    )
+    .all();
+  const durations = getDb()
+    .query<DurationDayRow, []>(
+      `SELECT date(created_at) AS day, duration_sec
+         FROM events
+        WHERE type = 'game_end' AND duration_sec IS NOT NULL
+          AND ${where}`,
+    )
+    .all();
+  return telemetryByDay(sessions, durations);
+}
+
 // ── Auth ───────────────────────────────────────────────────────────────────
 
 type AuthResult = "ok" | "missing" | "wrong";
@@ -318,15 +361,56 @@ async function handleStats(req: Request): Promise<Response> {
   }
 }
 
-/** Dispatcher for the two endpoints this module owns (see `serve.ts`). */
+/**
+ * GET /api/admin/stats/export — the dashboard's own numbers as a file, for the
+ * pilot reporting (Excel / Sheets). Same passcode gate and the same 401/403/500
+ * behaviour as the dashboard read; `?format=csv` (the default) or `?format=json`,
+ * where json is exactly the payload `/api/admin/stats` returns. Strictly
+ * read-only: it reads the events log and the board, and writes nothing.
+ */
+async function handleExport(req: Request): Promise<Response> {
+  const auth = authorise(req);
+  if (auth === "missing") return json({ ok: false, error: "Passcode required" }, 401);
+  if (auth === "wrong") return json({ ok: false, error: "Wrong passcode" }, 403);
+  const format =
+    new URL(req.url).searchParams.get("format")?.toLowerCase() === "json" ? "json" : "csv";
+  try {
+    if (format === "json") {
+      return new Response(JSON.stringify(collectStats()), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Disposition": `attachment; filename="${exportFilename("json")}"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+    // The same zero-filled 30-day table the dashboard's per-day section draws,
+    // plus that table's own bounce rate and average time played per day.
+    const csv = statsCsv(dailyRows(DAILY_DAYS), dailyTelemetry(DAILY_DAYS));
+    return new Response(csv, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${exportFilename("csv")}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (err) {
+    console.error("[metrics] stats export failed:", err);
+    return json({ ok: false, error: "Stats unavailable" }, 500);
+  }
+}
+
+/** Dispatcher for the endpoints this module owns (see `serve.ts`). */
 export async function handleMetricsApi(req: Request, pathname: string): Promise<Response> {
   if (pathname === "/api/metrics") {
     if (req.method === "POST") return handleIngest(req);
     return json({ ok: false, error: "Method not allowed" }, 405);
   }
-  if (pathname === "/api/admin/stats") {
-    if (req.method === "GET") return handleStats(req);
-    return json({ ok: false, error: "Method not allowed" }, 405);
+  if (pathname === "/api/admin/stats" || pathname === "/api/admin/stats/export") {
+    if (req.method !== "GET") return json({ ok: false, error: "Method not allowed" }, 405);
+    return pathname === "/api/admin/stats" ? handleStats(req) : handleExport(req);
   }
   return json({ ok: false, error: "Not found" }, 404);
 }
