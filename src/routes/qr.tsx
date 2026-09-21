@@ -38,7 +38,7 @@ const IOS_SAFARI_STEPS: Step[] = [
     icon: "share",
   },
   {
-    text: 'Tap the Share button — the square with the arrow up — at the bottom of the screen.',
+    text: 'Tap the Share button (the square with the arrow up) at the bottom of the screen.',
     icon: "share",
   },
   {
@@ -149,7 +149,7 @@ function AddToPhonePage() {
           Add LightBox to your Home Screen and open it just like an app.
         </p>
         <p className="text-xs text-white/40 mt-3 max-w-sm">
-          No need to do this to play — games work right here, straight away.
+          No need to do this to play. Games work right here, straight away.
           This just puts a LightBox shortcut on your Home Screen for next time.
         </p>
       </div>

@@ -243,7 +243,7 @@ export default function MriMixup() {
       setRexMessage(
         size === 3
           ? `Amazing! You solved it in ${moves} moves! Try 4×4 for a real challenge!`
-          : `Incredible! ${moves} moves — you're a puzzle master, ${playerName}!`
+          : `Incredible! ${moves} moves. You're a puzzle master, ${playerName}!`
       );
     }
   }, [tiles, phase, moves, size, seconds, playerName, highScoreKey]);
@@ -342,7 +342,7 @@ export default function MriMixup() {
         </div>
         <div className="text-center">
           <p className="text-xs text-white/50 uppercase tracking-wide">Best</p>
-          <p className="font-bold text-secondary text-lg">{bestScore > 0 ? bestScore : "—"}</p>
+          <p className="font-bold text-secondary text-lg">{bestScore > 0 ? bestScore : "·"}</p>
         </div>
       </div>
 

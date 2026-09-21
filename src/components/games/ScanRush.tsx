@@ -158,7 +158,7 @@ export default function ScanRush() {
     color: string;
   } | null>(null);
   const [rexMessage, setRexMessage] = useState(
-    "Ready to scan? Tap the lit bays — and don't tap the red ones!"
+    "Ready to scan? Tap the lit bays, and don't tap the red ones!"
   );
   const [rexMood, setRexMood] = useState<"happy" | "excited" | "encouraging">(
     "happy"
@@ -379,7 +379,7 @@ export default function ScanRush() {
     }
     if (changed) {
       if (comboBroken) {
-        setRexMessage("Too slow — chain broken!");
+        setRexMessage("Too slow! Chain broken!");
         setRexMood("encouraging");
       }
       setBays([...baysArr]);
@@ -483,7 +483,7 @@ export default function ScanRush() {
     setCallout(null);
     setShake(false);
     setIsNewBest(false);
-    setRexMessage("GO! Tap the lit bays — don't tap the red ones!");
+    setRexMessage("GO! Tap the lit bays, and don't tap the red ones!");
     setRexMood("happy");
     startedAtRef.current = now;
     endTimeRef.current = now + ROUND_SECONDS * 1000;
@@ -603,7 +603,7 @@ export default function ScanRush() {
         <div className="card mb-3 text-center">
           <h2 className="text-lg font-extrabold text-primary mb-1">⚡ Scan Rush</h2>
           <p className="text-sm text-mutedText mb-3">
-            Tap the lit bays to score — fast! Chain taps for combos. Don't tap
+            Tap the lit bays to score fast! Chain taps for combos. Don't tap
             the red ⚠ bays!
           </p>
           <button className="btn-primary w-full text-lg" onClick={startGame}>
@@ -629,7 +629,7 @@ export default function ScanRush() {
                   isLit
                     ? bay.kind === "good"
                       ? `Scan bay ${idx + 1}: tap it!`
-                      : `Scan bay ${idx + 1}: trap — do not tap`
+                      : `Scan bay ${idx + 1}: trap, do not tap`
                     : `Scan bay ${idx + 1}`
                 }
                 className="relative aspect-square rounded-xl overflow-hidden select-none touch-manipulation transition-transform duration-75 active:scale-95 disabled:cursor-default"

@@ -250,7 +250,7 @@ export default function MemoryScan() {
         } else {
           // No match
           setRexMood("encouraging");
-          setRexMessage("Not a match — try again!");
+          setRexMessage("Not a match. Try again!");
           setLastFlipTime(0);
 
           setTimeout(() => {
