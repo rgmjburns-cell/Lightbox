@@ -19,8 +19,10 @@
  *     server's own UTC timestamp. Nothing else.
  *
  * This file holds the parts that are worth unit-testing on their own: event
- * validation, UTC day bucketing, bounce rate and duration averaging. The SQL and
- * the HTTP handlers live in `server/metrics.ts`.
+ * validation, UTC day bucketing, bounce rate, duration averaging, and the
+ * rounds / players / games folding of the leaderboard's own `scores` rows (the
+ * only source that reaches back before the event log existed). The SQL and the
+ * HTTP handlers live in `server/metrics.ts`.
  */
 
 /** The only event types we accept. */
@@ -161,10 +163,132 @@ export function sortGamesChosen(
 
 export interface DailyCounts {
   day: string;
+  /** Page opens logged that day (event log only, so only days it was on). */
   visits: number;
+  /** Distinct sessions that opened a page that day (event log only). */
   sessions: number;
+  /** Games launched that day (event log only). */
   gameStarts: number;
+  /** Scoring rows the board banked that day (the board's own record). */
   completedRounds: number;
+  /** Distinct identities behind those rows that day. */
+  activePlayers: number;
+}
+
+// ── The board side: what the `scores` table says about real play ────────────
+//
+// The event log only starts the day it was switched on, so it cannot answer
+// "how much was played before that?". The leaderboard's own `scores` table can:
+// it holds every round any player has ever banked, with a UTC timestamp. These
+// helpers turn those rows into the dashboard's rounds / players / games numbers.
+//
+// ONE CAVEAT, stated in the UI too: the board keeps ONE cumulative row per
+// (name, game, month, pid), so a player who plays the same game three times in a
+// month has one row, not three. These counts are therefore "scoring rows banked",
+// which is the board's own honest record of play, not a tally of every round.
+
+/** A banked scoring row, as far as the dashboard cares. */
+export interface ScoreRow {
+  name: string;
+  /** Player id; '' (or missing) means the row sits in the name pool. */
+  pid?: string | null;
+  game: string;
+  /** SQLite `datetime('now')` string (UTC) or a Date. */
+  created_at: string | Date;
+}
+
+/**
+ * The identity a scoring row adds up to, folded exactly the way the board folds
+ * its rows (`server/leaderboard.ts`): the player id when there is one, otherwise
+ * the name. Two same-named players with ids are two players; two legacy rows with
+ * the same name are one.
+ */
+export function identityKey(row: { name: string; pid?: string | null }): string {
+  const pid = typeof row.pid === "string" ? row.pid.trim() : "";
+  return pid === "" ? `n:${row.name}` : `p:${pid}`;
+}
+
+/** What a set of scoring rows adds up to. */
+export interface RoundTotals {
+  /** Scoring rows banked: the board's own record of completed play. */
+  completedRounds: number;
+  /** Distinct identities behind those rows. */
+  activePlayers: number;
+  /** Submissions per game, most first, ties alphabetical. */
+  gamesChosen: { game: string; count: number }[];
+}
+
+/** Fold scoring rows into rounds / players / games chosen. */
+export function summariseRounds(rows: readonly ScoreRow[]): RoundTotals {
+  const players = new Set<string>();
+  const games = new Map<string, number>();
+  for (const row of rows) {
+    players.add(identityKey(row));
+    const game = String(row.game ?? "").trim();
+    if (game) games.set(game, (games.get(game) ?? 0) + 1);
+  }
+  return {
+    completedRounds: rows.length,
+    activePlayers: players.size,
+    gamesChosen: sortGamesChosen(
+      [...games].map(([game, count]) => ({ game, count })),
+    ),
+  };
+}
+
+/**
+ * The same rows, bucketed per UTC day (the day the row was last written, which
+ * is when the board last banked that player's play): how many rows, how many
+ * identities. Rows with an unusable timestamp are dropped; days with no rows are
+ * simply absent here and zero-filled later by `fillDaily`.
+ */
+export function roundsByDay(
+  rows: readonly ScoreRow[],
+): { day: string; completedRounds: number; activePlayers: number }[] {
+  const byDay = new Map<string, ScoreRow[]>();
+  for (const row of rows) {
+    const key = dayKey(row.created_at);
+    if (!key) continue;
+    const list = byDay.get(key);
+    if (list) list.push(row);
+    else byDay.set(key, [row]);
+  }
+  return [...byDay.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([day, list]) => {
+      const totals = summariseRounds(list);
+      return {
+        day,
+        completedRounds: totals.completedRounds,
+        activePlayers: totals.activePlayers,
+      };
+    });
+}
+
+/**
+ * Fold per-day partials from more than one source (the event log, the board) into
+ * one row per calendar day. Sources are applied in order and a source only writes
+ * the fields it actually measured, so the event log's visits and the board's
+ * rounds end up in the same row. (Plain concatenation would not do: `fillDaily`
+ * keeps the last row per day, which would drop the other source's numbers.)
+ */
+export function mergeDaily(
+  ...sources: readonly (readonly Partial<DailyCounts>[])[]
+): Partial<DailyCounts>[] {
+  const byDay = new Map<string, Partial<DailyCounts>>();
+  for (const rows of sources) {
+    for (const row of rows) {
+      const key = dayKey(String(row.day ?? ""));
+      if (!key) continue;
+      const merged: Record<string, unknown> = { ...(byDay.get(key) ?? { day: key }) };
+      for (const [field, value] of Object.entries(row)) {
+        if (field === "day" || value === undefined || value === null) continue;
+        merged[field] = value;
+      }
+      byDay.set(key, merged as unknown as Partial<DailyCounts>);
+    }
+  }
+  return [...byDay.values()];
 }
 
 /**
@@ -189,6 +313,7 @@ export function fillDaily(
       sessions: Number(row?.sessions ?? 0) || 0,
       gameStarts: Number(row?.gameStarts ?? 0) || 0,
       completedRounds: Number(row?.completedRounds ?? 0) || 0,
+      activePlayers: Number(row?.activePlayers ?? 0) || 0,
     };
   });
 }

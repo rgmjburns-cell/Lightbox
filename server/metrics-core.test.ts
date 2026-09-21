@@ -11,14 +11,40 @@ import {
   coerceEvent,
   dayKey,
   fillDaily,
+  identityKey,
   lastNDays,
+  mergeDaily,
   round1,
+  roundsByDay,
   sortAverages,
   sortGamesChosen,
+  summariseRounds,
   utcDayKey,
+  type ScoreRow,
 } from "./metrics-core.ts";
 
 const SESSION = "3f2a91c4-77de-4a1b-9f0e-2c5b8d6a1e4f";
+
+/**
+ * Scoring rows shaped like the live board's: `created_at` is a SQLite UTC
+ * timestamp, `pid` is '' for the name pool (legacy and guest rows) and a
+ * server-issued id for a real name.
+ */
+const SEEDS: ScoreRow[] = [
+  { name: "Dana", pid: "p-dana", game: "scan-rush", created_at: "2026-09-17 03:50:57" },
+  { name: "Dana", pid: "p-dana", game: "bone-buster", created_at: "2026-09-17 03:55:00" },
+  { name: "Harrison", pid: "p-harrison", game: "scan-rush", created_at: "2026-09-17 04:10:00" },
+  { name: "Harrison", pid: "p-harrison", game: "scan-rush", created_at: "2026-09-17 04:20:00" },
+  { name: "Guest 4821", pid: "", game: "scan-rush", created_at: "2026-09-17 04:30:00" },
+  { name: "Guest 4821", pid: "", game: "ecg-rhythm", created_at: "2026-09-17 04:35:00" },
+  // Two different people who share a first name: two ids, so two players.
+  { name: "Sam", pid: "p-sam-a", game: "memory-scan", created_at: "2026-09-18 22:00:00" },
+  { name: "Sam", pid: "p-sam-b", game: "memory-scan", created_at: "2026-09-18 23:30:00" },
+  // The deliberate 0-point test row the live verification left behind.
+  { name: "Guest 8143", pid: "", game: "scan-rush", created_at: "2026-09-21 03:07:46" },
+  // Junk timestamp: never counts anywhere.
+  { name: "Nobody", pid: "", game: "scan-rush", created_at: "not a date" },
+];
 
 describe("coerceEvent", () => {
   test("accepts a well-formed visit", () => {
@@ -135,6 +161,7 @@ describe("day bucketing", () => {
       sessions: 0,
       gameStarts: 0,
       completedRounds: 0,
+      activePlayers: 0,
     });
     expect(filled[2]).toEqual({
       day: "2026-09-21",
@@ -142,6 +169,7 @@ describe("day bucketing", () => {
       sessions: 3,
       gameStarts: 2,
       completedRounds: 1,
+      activePlayers: 0,
     });
   });
 
@@ -151,8 +179,146 @@ describe("day bucketing", () => {
       { day: "2026-09-21", visits: null as unknown as number },
     ]);
     expect(filled).toEqual([
-      { day: "2026-09-21", visits: 0, sessions: 0, gameStarts: 0, completedRounds: 0 },
+      {
+        day: "2026-09-21",
+        visits: 0,
+        sessions: 0,
+        gameStarts: 0,
+        completedRounds: 0,
+        activePlayers: 0,
+      },
     ]);
+  });
+});
+
+describe("the board side (scores rows)", () => {
+  test("identityKey folds a row by player id, else by name, like the board does", () => {
+    expect(identityKey({ name: "Dana", pid: "p-dana" })).toBe("p:p-dana");
+    expect(identityKey({ name: "Guest 4821", pid: "" })).toBe("n:Guest 4821");
+    expect(identityKey({ name: "Legacy" })).toBe("n:Legacy");
+    expect(identityKey({ name: "Padded", pid: "  " })).toBe("n:Padded");
+  });
+
+  test("summariseRounds counts rows, distinct identities and games desc", () => {
+    const totals = summariseRounds(SEEDS);
+    expect(totals.completedRounds).toBe(10);
+    // Dana, Harrison, Guest 4821, Sam (two ids), Guest 8143, Nobody.
+    expect(totals.activePlayers).toBe(7);
+    expect(totals.gamesChosen).toEqual([
+      { game: "scan-rush", count: 6 },
+      { game: "memory-scan", count: 2 },
+      { game: "bone-buster", count: 1 },
+      { game: "ecg-rhythm", count: 1 },
+    ]);
+  });
+
+  test("two players sharing a first name count as two, the name pool counts as one", () => {
+    const sams = SEEDS.filter((row) => row.name === "Sam");
+    expect(summariseRounds(sams).activePlayers).toBe(2);
+    const guests = SEEDS.filter((row) => row.name === "Guest 4821");
+    expect(summariseRounds(guests)).toEqual({
+      completedRounds: 2,
+      activePlayers: 1,
+      gamesChosen: [
+        { game: "ecg-rhythm", count: 1 },
+        { game: "scan-rush", count: 1 },
+      ],
+    });
+  });
+
+  test("an empty window is zeros, not NaN", () => {
+    expect(summariseRounds([])).toEqual({
+      completedRounds: 0,
+      activePlayers: 0,
+      gamesChosen: [],
+    });
+  });
+
+  test("roundsByDay buckets the September rows per UTC day", () => {
+    expect(roundsByDay(SEEDS)).toEqual([
+      { day: "2026-09-17", completedRounds: 6, activePlayers: 3 },
+      { day: "2026-09-18", completedRounds: 2, activePlayers: 2 },
+      { day: "2026-09-21", completedRounds: 1, activePlayers: 1 },
+    ]);
+  });
+
+  test("roundsByDay drops rows with an unusable timestamp", () => {
+    const days = roundsByDay(SEEDS);
+    expect(days.some((row) => row.day === "not a date")).toBe(false);
+    // The junk row's game is gone from that day's games too.
+    const pitchDay = SEEDS.filter((row) => dayKey(row.created_at) === "2026-09-17");
+    expect(summariseRounds(pitchDay).gamesChosen).toEqual([
+      { game: "scan-rush", count: 4 },
+      { game: "bone-buster", count: 1 },
+      { game: "ecg-rhythm", count: 1 },
+    ]);
+  });
+
+  test("mergeDaily keeps one row per day with both sources' numbers", () => {
+    const events = [
+      { day: "2026-09-21", visits: 2, sessions: 1, gameStarts: 1 },
+      { day: "2026-09-20", visits: 1, sessions: 1, gameStarts: 0 },
+    ];
+    const merged = mergeDaily(events, roundsByDay(SEEDS));
+    const byDay = new Map(merged.map((row) => [row.day, row]));
+    // The day the event log exists for: both sources in one row.
+    expect(byDay.get("2026-09-21")).toEqual({
+      day: "2026-09-21",
+      visits: 2,
+      sessions: 1,
+      gameStarts: 1,
+      completedRounds: 1,
+      activePlayers: 1,
+    });
+    // A September day that predates the event log: board numbers only.
+    expect(byDay.get("2026-09-17")).toEqual({
+      day: "2026-09-17",
+      completedRounds: 6,
+      activePlayers: 3,
+    });
+  });
+
+  test("mergeDaily never lets a missing value overwrite a real one", () => {
+    const merged = mergeDaily(
+      [{ day: "2026-09-17", visits: 3 }],
+      [{ day: "2026-09-17", visits: null as unknown as number, completedRounds: 6 }],
+    );
+    expect(merged).toEqual([{ day: "2026-09-17", visits: 3, completedRounds: 6 }]);
+  });
+
+  test("merged days zero-fill through fillDaily, so September history shows", () => {
+    const days = lastNDays(30, new Date("2026-09-21T05:00:00Z"));
+    const rows = fillDaily(
+      days,
+      mergeDaily([{ day: "2026-09-21", visits: 2, sessions: 1, gameStarts: 1 }], roundsByDay(SEEDS)),
+    );
+    expect(rows).toHaveLength(30);
+    expect(rows[0]).toEqual({
+      day: "2026-08-23",
+      visits: 0,
+      sessions: 0,
+      gameStarts: 0,
+      completedRounds: 0,
+      activePlayers: 0,
+    });
+    const pitchDay = rows.find((row) => row.day === "2026-09-17");
+    expect(pitchDay).toEqual({
+      day: "2026-09-17",
+      visits: 0,
+      sessions: 0,
+      gameStarts: 0,
+      completedRounds: 6,
+      activePlayers: 3,
+    });
+    const today = rows.find((row) => row.day === "2026-09-21");
+    expect(today).toEqual({
+      day: "2026-09-21",
+      visits: 2,
+      sessions: 1,
+      gameStarts: 1,
+      completedRounds: 1,
+      activePlayers: 1,
+    });
   });
 });
 

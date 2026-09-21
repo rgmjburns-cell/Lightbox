@@ -25,10 +25,13 @@
  *     the app behaves exactly as before (silently, no event).
  *   * The /admin dashboard deliberately never calls these helpers.
  *
- * Timing: `game_end`'s duration is measured in the browser from the moment the
- * round started (the game page mounted, or the previous round's result screen)
- * up to the result screen. A round that reports less than MIN_ROUND_SEC is treated
- * as junk and dropped — a real round of any of our games takes longer than that.
+ * Timing: `game_end`'s duration is measured in the browser from the first tap
+ * inside the game up to the result screen. Starting the clock on mount would count
+ * however long somebody sat on a start screen as "time played", which is not play,
+ * so the clock waits for the player's first input (a tap, click or key press) and
+ * a round with no input at all reports nothing. A round that reports less than
+ * MIN_ROUND_SEC is treated as junk and dropped — a real round of any of our games
+ * takes longer than that.
  */
 import { useEffect } from "react";
 
@@ -151,26 +154,66 @@ export function useVisit(page: TrackedPage | (string & {})): void {
 // ── Game rounds ────────────────────────────────────────────────────────────
 
 // When each game's current round began, per tab. Keyed by game id so a player
-// switching games (or a second mounted game) cannot cross wires.
-const roundStartedAt = new Map<string, number>();
+// switching games (or a second mounted game) cannot cross wires. `null` means a
+// round is open but play has not started yet: the clock is armed and waiting for
+// the player's first input, so idle time on a start screen is never counted.
+const roundStartedAt = new Map<string, number | null>();
 
-/** A game component mounted: the player chose this game, and a round is on. */
+/** Input events that mean "play has started". */
+const START_EVENTS = ["pointerdown", "touchstart", "keydown"] as const;
+
+/**
+ * Start the clock for every open, not-yet-started round. Idempotent: a round
+ * that is already running keeps its original start time, so later taps (and the
+ * extra touchstart/pointerdown pair) cannot extend a measurement.
+ */
+function noteFirstInput(): void {
+  const now = Date.now();
+  for (const [game, startedAt] of roundStartedAt) {
+    if (startedAt === null) roundStartedAt.set(game, now);
+  }
+}
+
+/**
+ * Listen for the first input of a round on the whole document: whichever element
+ * the player touches (a card, a tile, a canvas, a level Start button) the clock
+ * starts as play begins. Capture phase, so it wins the race with the game's own
+ * handler by a fraction of a millisecond in the same task.
+ */
+function armOnFirstInput(): () => void {
+  for (const type of START_EVENTS) {
+    document.addEventListener(type, noteFirstInput, { capture: true, passive: true });
+  }
+  return () => {
+    for (const type of START_EVENTS) {
+      document.removeEventListener(type, noteFirstInput, { capture: true });
+    }
+  };
+}
+
+/**
+ * A game component mounted: the player chose this game (one `game_start` event,
+ * which is what the funnel counts) and a round is now open, waiting for input.
+ */
 export function startGameRound(game: string): void {
   if (typeof window === "undefined") return;
-  roundStartedAt.set(game, Date.now());
+  roundStartedAt.set(game, null);
   send("game_start", { game });
 }
 
 /**
- * A round reached its result screen. Reports the seconds played and re-arms the
- * clock, so a replay ("Play Again" without a remount) is timed from this round's
- * end rather than accumulating across every round of the visit.
+ * A round reached its result screen. Reports the seconds actually played (from the
+ * player's first input) and re-arms the clock, so a replay ("Play Again" without a
+ * remount) is timed from that next tap rather than accumulating across every round
+ * of the visit. A round where nothing was ever touched reports nothing: there is
+ * no honest duration to report, and inventing one would inflate "time played".
  */
 export function endGameRound(game: string): void {
   if (typeof window === "undefined") return;
-  const startedAt = roundStartedAt.get(game);
-  if (startedAt === undefined) return; // no round in flight — nothing to report
-  roundStartedAt.set(game, Date.now());
+  if (!roundStartedAt.has(game)) return; // no round in flight — nothing to report
+  const startedAt = roundStartedAt.get(game) ?? null;
+  roundStartedAt.set(game, null); // next round waits for its own first input
+  if (startedAt === null) return; // never touched
   const elapsedSec = (Date.now() - startedAt) / 1000;
   if (elapsedSec < MIN_ROUND_SEC) return; // duplicate/degenerate submit
   send("game_end", { game, duration_sec: elapsedSec });
@@ -187,6 +230,10 @@ export function useGameRound(game: string | null | undefined): void {
     if (!game) return;
     trackVisit(`/play/${game}`);
     startGameRound(game);
-    return () => resetGameRound(game);
+    const disarm = armOnFirstInput();
+    return () => {
+      disarm();
+      resetGameRound(game);
+    };
   }, [game]);
 }
