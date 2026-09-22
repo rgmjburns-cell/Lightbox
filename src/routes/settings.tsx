@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getPlayerName, setPlayerName } from "~/components/Onboarding";
+import { deletePlayerData, setPlayerId } from "~/lib/leaderboard";
 import brand from "~/branding";
 import { useState } from "react";
 import { useVisit } from "~/lib/metrics";
@@ -13,6 +14,8 @@ function Settings() {
   const playerName = typeof window !== "undefined" ? getPlayerName() : "";
   const [editName, setEditName] = useState(false);
   const [nameValue, setNameValue] = useState(playerName || "");
+  const [clearError, setClearError] = useState("");
+  const [clearing, setClearing] = useState(false);
 
   const handleSaveName = () => {
     const trimmed = nameValue.trim();
@@ -23,11 +26,40 @@ function Settings() {
     }
   };
 
-  const handleClearData = () => {
-    if (window.confirm("This will clear all your game data. Are you sure?")) {
-      localStorage.clear();
-      window.location.reload();
+  /**
+   * "Clear All Data" has to mean all of it, and part of the player's data lives
+   * on the server: their rows on the shared monthly leaderboard, their identity
+   * and their profile. So the server erase comes FIRST and the device is only
+   * wiped once it has confirmed. A failed call leaves everything as it was and
+   * says so, rather than reloading into a "cleared" state that is not true.
+   * Order: server delete, then the id cookie (which would otherwise identify the
+   * device again on its next visit), then local storage, then reload.
+   */
+  const handleClearData = async () => {
+    const confirmed = window.confirm(
+      "Remove your scores from the leaderboard and clear all data saved on this " +
+        "device? This cannot be undone.",
+    );
+    if (!confirmed || clearing) return;
+    setClearing(true);
+    setClearError("");
+    const deleted = await deletePlayerData();
+    if (!deleted) {
+      setClearing(false);
+      setClearError(
+        "Could not remove your scores from the leaderboard. Check your connection and try again.",
+      );
+      return;
     }
+    // Erase the identity itself: expiring the cookie (path=/) is what stops this
+    // device being recognised again after the reload.
+    setPlayerId(null);
+    try {
+      localStorage.clear();
+    } catch {
+      // Storage can be unavailable (private mode); the server side is already gone.
+    }
+    window.location.reload();
   };
 
   return (
@@ -82,14 +114,21 @@ function Settings() {
       <div className="card border border-red-200">
         <h3 className="text-sm font-semibold text-red-500 mb-2">Data</h3>
         <p className="text-xs text-mutedText mb-3">
-          All your data is stored on this device only. Clear it to start fresh.
+          Removes your scores from the leaderboard and all saved data on this device.
+          This cannot be undone.
         </p>
+        {clearError && (
+          <p role="alert" className="text-xs text-red-500 mb-3">
+            {clearError}
+          </p>
+        )}
         <button
-          onClick={handleClearData}
+          onClick={() => void handleClearData()}
+          disabled={clearing}
           className="text-sm text-red-500 font-medium border border-red-300 rounded-lg px-4 py-2
-                     hover:bg-red-50 active:scale-95 transition-all"
+                     hover:bg-red-50 active:scale-95 transition-all disabled:opacity-60"
         >
-          Clear All Data
+          {clearing ? "Clearing..." : "Clear All Data"}
         </button>
       </div>
     </div>
