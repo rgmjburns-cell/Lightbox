@@ -11,6 +11,7 @@
 import handler from "./dist/server/server.js";
 import { handleLeaderboardApi, startLeaderboardBackups } from "./server/leaderboard.ts";
 import { handleMetricsApi } from "./server/metrics.ts";
+import { cacheControlFor, withNoCache } from "./server/cache-control.ts";
 
 // Pinned, NOT read from the environment. The published preview URL
 // (<label>.<PUBLIC_SITE_DOMAIN>) is reverse-proxied to 0.0.0.0:3000 inside the
@@ -53,11 +54,24 @@ for (let attempt = 1; ; attempt++) {
         }
         if (pathname !== "/") {
           const file = Bun.file(CLIENT_DIR + pathname);
-          if (await file.exists()) return new Response(file);
+          if (await file.exists()) {
+            // Cache-Control per URL: content-hashed /assets/* is immutable,
+            // every other client file (and the HTML below) must revalidate —
+            // see server/cache-control.ts for the white-page bug this fixes.
+            const cacheControl = cacheControlFor(pathname);
+            return new Response(
+              file,
+              cacheControl ? { headers: { "Cache-Control": cacheControl } } : {},
+            );
+          }
         }
-        return (
+        // SSR: the HTML documents. Always revalidate (no-store would be
+        // stronger, but no-cache keeps the browser able to 304), so a stale
+        // shell can never be paired with the new build's asset hashes.
+        const res = await (
           handler as { fetch: (r: Request) => Response | Promise<Response> }
         ).fetch(req);
+        return withNoCache(res);
       },
     });
     break;
