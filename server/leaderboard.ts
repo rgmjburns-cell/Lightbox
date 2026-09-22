@@ -53,7 +53,7 @@
 //   without their values ever being touched).
 import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   ACHIEVEMENTS,
   EMPTY_ACHIEVEMENT_STATS,
@@ -64,8 +64,12 @@ import {
   type AchievementStats,
 } from "./achievement-core.ts";
 
-const DB_PATH = join(import.meta.dir, "..", "data", "leaderboard.db");
-const DATA_DIR = join(import.meta.dir, "..", "data");
+// The instance's one SQLite file. LEADERBOARD_DB_PATH exists so a test can point
+// the real handler at a scratch database (see `player-delete.test.ts`); unset in
+// every deployment, where the path is the mounted volume's data/leaderboard.db.
+const DB_PATH =
+  process.env.LEADERBOARD_DB_PATH ?? join(import.meta.dir, "..", "data", "leaderboard.db");
+const DATA_DIR = dirname(DB_PATH);
 const BACKUPS_DIR = join(DATA_DIR, "backups");
 const SNAPSHOT_KEEP = 10;
 const SNAPSHOT_RE = /^leaderboard-\d{8}-\d{6}\.db$/;
@@ -1256,6 +1260,105 @@ async function handleExport(req: Request): Promise<Response> {
   }
 }
 
+// ── Player self-service erasure (Settings → "Clear All Data") ───────────────
+//
+// The player's own delete. There is no passcode: the proof of ownership is the
+// identity the caller already holds, exactly as with every other player
+// endpoint (a round is banked under a `playerId` on the same trust basis).
+//
+// Two shapes, and the difference matters:
+//
+//   * WITH a player id (the `lightboxPlayerId` cookie the client mirrors its id
+//     into, falling back to the body's `playerId` for a device whose cookie is
+//     missing): that id's scores rows, its `players` row and its
+//     `player_profiles` row go, in one transaction. A `name` in the same request
+//     is IGNORED — a name is not proof of anything, so it can never widen the
+//     delete beyond the caller's own id.
+//   * WITHOUT any id: the caller is a GUEST ("Guest NNNN") or a pre-identity
+//     player whose rows sit in the anonymous name pool (`pid = ''`). Only that
+//     pool row for exactly the name supplied is deleted. Rows owned by a real id
+//     are never touched by a name-only request, so naming somebody else deletes
+//     nothing of theirs beyond the shared name pool they were never attributed
+//     to.
+//
+// The first-party `events` table is NOT touched and cannot be: it stores no
+// name, no id and no persistent identifier (its `session` is a random token that
+// lives in sessionStorage for one tab), so there is nothing there that belongs
+// to this player. Guest-upgrade merges copy rows, so deleting by id can never
+// leave a duplicate behind.
+const PLAYER_ID_COOKIE = "lightboxPlayerId";
+/** One cookie's value from a request's `Cookie` header, or null when absent. */
+function cookieValue(req: Request, name: string): string | null {
+  const header = req.headers.get("cookie");
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    if (part.slice(0, eq).trim() !== name) continue;
+    const raw = part.slice(eq + 1).trim();
+    if (raw.length === 0) return null;
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  }
+  return null;
+}
+interface DeleteCounts {
+  scores: number;
+  players: number;
+  profiles: number;
+}
+const NOTHING_DELETED: DeleteCounts = { scores: 0, players: 0, profiles: 0 };
+/** A body that may be absent, empty, malformed or JSON — never throws. */
+async function readJsonObject(req: Request): Promise<Record<string, unknown>> {
+  try {
+    const body: unknown = await req.json();
+    return typeof body === "object" && body !== null
+      ? (body as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+/**
+ * POST /api/player/delete — erase the caller's own rows from the board.
+ *
+ * Body: `{ name?, playerId? }` (both optional). Returns
+ * `{ ok: true, deleted: { scores, players, profiles } }` so the caller can report
+ * honestly what went; a caller with no identity to erase gets `ok: true` and
+ * zeros, which is the truth (nothing of theirs was on the board) and lets the
+ * device-side wipe proceed.
+ */
+async function handlePlayerDelete(req: Request): Promise<Response> {
+  const raw = await readJsonObject(req);
+  // The cookie is the identity this device proved; the body id is the same
+  // client's own fallback for a browser that dropped the cookie.
+  const playerId =
+    validPlayerId(cookieValue(req, PLAYER_ID_COOKIE)) ?? validPlayerId(raw.playerId);
+  if (!playerId) {
+    const name = validName(raw.name);
+    if (name === null) return json({ ok: true, deleted: NOTHING_DELETED });
+    const database = getDb();
+    const scores = Number(
+      database.query("DELETE FROM scores WHERE name = ? AND pid = ''").run(name).changes,
+    );
+    // Nothing else to remove: an anonymous pool row has no `players` row and no
+    // profile (both are keyed by an id this caller does not have).
+    return json({ ok: true, deleted: { scores, players: 0, profiles: 0 } });
+  }
+  const database = getDb();
+  const erase = database.transaction((id: string): DeleteCounts => {
+    const scores = Number(database.query("DELETE FROM scores WHERE pid = ?").run(id).changes);
+    const players = Number(database.query("DELETE FROM players WHERE id = ?").run(id).changes);
+    const profiles = Number(
+      database.query("DELETE FROM player_profiles WHERE player_id = ?").run(id).changes,
+    );
+    return { scores, players, profiles };
+  });
+  return json({ ok: true, deleted: erase(playerId) });
+}
 export async function handleLeaderboardApi(req: Request, pathname: string): Promise<Response> {
   if (pathname === "/api/leaderboard") {
     if (req.method === "GET") return handleGet(new URL(req.url));
@@ -1270,6 +1373,13 @@ export async function handleLeaderboardApi(req: Request, pathname: string): Prom
   }
   if (pathname === "/api/player/profile") {
     if (req.method === "GET") return handlePlayerProfile(new URL(req.url));
+    return json({ ok: false, error: "Method not allowed" }, 405);
+  }
+  // Self-service erasure (Settings → "Clear All Data"): the caller's OWN rows,
+  // authenticated by the identity it already holds. No passcode, and it never
+  // touches the admin whole-board wipe below.
+  if (pathname === "/api/player/delete") {
+    if (req.method === "POST") return handlePlayerDelete(req);
     return json({ ok: false, error: "Method not allowed" }, 405);
   }
   if (pathname === "/api/leaderboard/clear") {

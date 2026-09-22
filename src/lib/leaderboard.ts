@@ -7,6 +7,7 @@
  *   POST /api/leaderboard/clear           admin wipe (passcode)
  *   POST /api/player/claim                resolve the identity behind a name
  *   GET  /api/player/profile?id=|name=    the durable player profile
+ *   POST /api/player/delete               erase THIS player's own rows (Settings)
  * (see server/leaderboard.ts for the exact JSON contracts).
  *
  * Player identity: a real first name gets a hidden, server-issued player id
@@ -338,6 +339,43 @@ export async function submitScore(
   }
 }
 
+/** What the server erased for this player: rows off the board, and its profile. */
+export interface DeletePlayerDataResult {
+  scores: number;
+  players: number;
+  profiles: number;
+}
+/**
+ * Erase this device's own server-side data: the scores rows it put on the board,
+ * its identity row and its mirrored profile (POST /api/player/delete).
+ *
+ * The server trusts the identity this device already holds: the id cookie the
+ * client mirrors (see `~/lib/playerIdentity`) is what authorises the delete, and
+ * the id/name are sent along as well so the call still works on a device whose
+ * cookie is missing. A guest ("Guest NNNN") has no id, so its own name is what
+ * identifies its anonymous row.
+ *
+ * Returns null when the call failed. The caller must then NOT wipe local storage:
+ * a silent local wipe would leave the player convinced their board rows were
+ * erased when they were not.
+ */
+export async function deletePlayerData(): Promise<DeletePlayerDataResult | null> {
+  const name = getPlayerName();
+  const playerId = getPlayerId();
+  const result = await postJson("/api/player/delete", {
+    ...(name ? { name } : {}),
+    ...(playerId ? { playerId } : {}),
+  });
+  if (!result) return null;
+  const deleted = result.data.deleted as Record<string, unknown> | undefined;
+  const count = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) ? value : 0;
+  return {
+    scores: count(deleted?.scores),
+    players: count(deleted?.players),
+    profiles: count(deleted?.profiles),
+  };
+}
 /**
  * Fetch this month's board. `game` filters to a single game; "all" (default) is
  * the combined board where each player's score is the SUM of every point they
