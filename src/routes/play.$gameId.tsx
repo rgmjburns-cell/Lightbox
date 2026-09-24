@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
-import brand from "~/branding";
 import { useGameRound } from "~/lib/metrics";
 const BoneBuster = lazy(() => import("~/components/games/BoneBuster"));
 const ScanSearch = lazy(() => import("~/components/games/ScanSearch"));
@@ -43,7 +42,7 @@ function PlayGame() {
         )}
         <div>
           <h1 className="text-xl font-bold text-primary">{game.title}</h1>
-          <p className="text-sm text-mutedText">PLAY Experience</p>
+          <p className="text-sm text-mutedText">Game</p>
         </div>
       </div>
       <Suspense

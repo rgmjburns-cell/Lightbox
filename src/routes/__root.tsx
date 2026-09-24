@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { useState, useEffect, type ReactNode } from "react";
 import appCss from "~/styles/app.css?url";
-import brand from "~/branding";
+import brand from "~/lib/brand";
 import NavBar from "~/components/NavBar";
 import Onboarding from "~/components/Onboarding";
 import {
@@ -25,11 +25,12 @@ export const Route = createRootRoute({
         name: "viewport",
         content: "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no",
       },
-      { name: "theme-color", content: "#0A1628" },
+      { name: "theme-color", content: brand.colors.themeColor },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
-      { name: "apple-mobile-web-app-title", content: "LightBox" },
-      { title: brand.name },
+      { name: "apple-mobile-web-app-title", content: brand.productName },
+      { name: "brand-id", content: brand.brandId },
+      { title: brand.productName },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -110,10 +111,11 @@ function RootComponent() {
         <header className="sticky top-0 z-30 bg-white/5 backdrop-blur-md safe-area-top">
           <div className="max-w-lg mx-auto flex items-center justify-between h-14 px-4">
             <div className="flex items-center gap-2">
+              {/* The brand's own mark, from the brand config. */}
               <img
-                src="/welcome-lightbox-logo-opt.png"
-                alt="LightBox"
-                className="h-14 w-auto"
+                src={brand.logoUrl}
+                alt={brand.logoAlt}
+                className="h-12 w-auto"
               />
             </div>
             {playerName && (

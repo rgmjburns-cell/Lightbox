@@ -1,11 +1,11 @@
 import type { ServerPlayerProfile } from "~/lib/profile";
 
 interface ProfileRestorePromptProps {
-  /** The profile the server found for the typed first name. */
+  /** The profile the server found for the typed nickname. */
   profile: ServerPlayerProfile;
   /** "That's me" — adopt this profile (name, totals, bests, badges). */
   onRestore: () => void;
-  /** "Start fresh" — keep playing as a new player with the same first name. */
+  /** "Start fresh" — keep playing as a new player with the same nickname. */
   onFresh: () => void;
   busy?: boolean;
   /** Headline above the card (the two call sites word it differently). */
@@ -13,12 +13,12 @@ interface ProfileRestorePromptProps {
 }
 
 /**
- * Shown when a player types a first name on a device that has no player id and
+ * Shown when a player types a nickname on a device that has no player id and
  * the server finds exactly ONE profile with that name — the installed-PWA case,
  * where local storage started empty.
  *
  * The player decides, and only their tap adopts the profile: two people who
- * share a first name are never merged behind anyone's back (if the server finds
+ * share a nickname are never merged behind anyone's back (if the server finds
  * more than one profile for the name it does not offer this prompt at all).
  */
 export default function ProfileRestorePrompt({
@@ -38,7 +38,7 @@ export default function ProfileRestorePrompt({
         className="text-white/70 mt-1"
         style={{ fontSize: "clamp(0.65rem, 1.5vh, 0.8rem)", lineHeight: 1.5 }}
       >
-        A player called{" "}
+        A player using the nickname{" "}
         <span className="font-semibold text-white">{profile.name}</span> already
         has {profile.monthlyTotal.toLocaleString()} points this month
         {badgeCount > 0 ? ` and ${badgeCount.toLocaleString()} badge${badgeCount === 1 ? "" : "s"}` : ""}.

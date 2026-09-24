@@ -6,7 +6,7 @@ import InstallBanner from "~/components/InstallBanner";
 import { getPlayerName } from "~/components/Onboarding";
 import { getLastEarnedAchievement } from "~/lib/achievements";
 import { fetchLeaderboard } from "~/lib/leaderboard";
-import brand from "~/branding";
+import brand from "~/lib/brand";
 import { useVisit } from "~/lib/metrics";
 
 export const Route = createFileRoute("/")({
@@ -120,7 +120,7 @@ function Home() {
         <Rex className="w-16 h-16 shrink-0" mood="happy" />
         <div>
           <h1 className="text-xl font-bold text-white">
-            {playerName ? `Hi, ${playerName}!` : "LightBox"}
+            {playerName ? `Hi, ${playerName}!` : brand.productName}
           </h1>
           <p className="text-sm text-white/70">
             {playerName ? "Ready to play?" : brand.welcomeMessage}
@@ -190,7 +190,7 @@ function Home() {
       )}
 
       {/* ── Section Title ── */}
-      <h2 className="text-lg font-bold text-white mb-4">PLAY Experiences</h2>
+      <h2 className="text-lg font-bold text-white mb-4">Games</h2>
 
       {/* ── Game Grid ── */}
       <div className="grid grid-cols-2 gap-3">

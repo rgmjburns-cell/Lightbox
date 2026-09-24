@@ -104,15 +104,15 @@ export default function LeaderboardEntry({
     <div className="mb-4">
       <p className="text-sm text-mutedText mb-2">
         {isGuest
-          ? `Enter your first name to be shown as (you're currently ${storedName})`
-          : "Enter your first name to join the leaderboard"}
+          ? `Enter your nickname to be shown as (you're currently ${storedName})`
+          : "Enter your nickname to join the leaderboard"}
       </p>
       <div className="flex gap-2">
         <input
           type="text"
           value={nameInput}
           onChange={(e) => setNameInput(e.target.value)}
-          placeholder="First name"
+          placeholder="Nickname"
           maxLength={20}
           autoFocus
           onKeyDown={(e) => {

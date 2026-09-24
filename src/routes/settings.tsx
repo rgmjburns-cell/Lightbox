@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getPlayerName, setPlayerName } from "~/components/Onboarding";
 import { deletePlayerData, setPlayerId } from "~/lib/leaderboard";
-import brand from "~/branding";
+import brand from "~/lib/brand";
 import { useState } from "react";
 import { useVisit } from "~/lib/metrics";
 
@@ -68,7 +68,7 @@ function Settings() {
 
       {/* Player Name */}
       <div className="card mb-4">
-        <h3 className="text-sm font-semibold text-mutedText mb-2">Player Name</h3>
+        <h3 className="text-sm font-semibold text-mutedText mb-2">Nickname</h3>
         {editName ? (
           <div className="flex gap-2">
             <input
@@ -101,12 +101,12 @@ function Settings() {
       <div className="card mb-4">
         <h3 className="text-sm font-semibold text-mutedText mb-2">About</h3>
         <p className="text-sm text-darkText">
-          {brand.name} is a patient engagement platform for radiology waiting rooms.
-          Play games, earn achievements, and compete on the leaderboard while you
-          wait for your scan.
+          {brand.productName} is a patient engagement platform for radiology
+          waiting rooms. Play games, earn achievements, and compete on the
+          leaderboard while you wait for your scan.
         </p>
         <p className="text-xs text-mutedText mt-2">
-          Powered by {brand.logo.text}
+          Powered by {brand.brandName}
         </p>
       </div>
 
