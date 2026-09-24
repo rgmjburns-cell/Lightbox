@@ -57,6 +57,21 @@ export interface ProfileSnapshot {
   badges: Record<string, string>;
 }
 
+/**
+ * The SURVIVOR half of a player's data: badge unlocks and per-game personal
+ * bests, kept server-side in a table the monthly purge leaves alone. It is what
+ * a device gets back in a brand-new month even though the player's name, scores
+ * and profile are gone.
+ *
+ * There is deliberately no name in here — a name is exactly what must not come
+ * back from a wipe.
+ */
+export interface ServerSurvivorProgress {
+  badges: { id: string; unlockedAt: string }[];
+  bests: Record<string, number>;
+  updatedAt: string | null;
+}
+
 /** Everything this device knows, for mirroring on the server. */
 export function readProfileSnapshot(): ProfileSnapshot {
   return {
@@ -64,6 +79,22 @@ export function readProfileSnapshot(): ProfileSnapshot {
     stats: readAchievementStats(),
     badges: readUnlockedBadges(),
   };
+}
+
+/**
+ * Write survivor progress (badges + personal bests) into this device.
+ *
+ * Merges upwards only — a badge the device already knows about is never removed
+ * and a best is never lowered — and touches NOTHING else: no name (the player
+ * types a fresh nickname for the new month), no player id, no stats. This is the
+ * path that shows a returning player their badges after the monthly purge.
+ */
+export function applySurvivorProgress(progress: ServerSurvivorProgress): void {
+  if (typeof window === "undefined") return;
+  for (const [key, value] of Object.entries(progress.bests ?? {})) {
+    setGameBest(key, value);
+  }
+  mergeUnlockedBadges(progress.badges ?? []);
 }
 
 /**

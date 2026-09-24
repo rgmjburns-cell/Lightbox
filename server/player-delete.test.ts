@@ -36,7 +36,7 @@ const ID_COOKIE = "lightboxPlayerId";
 
 interface DeleteResponse {
   ok: boolean;
-  deleted: { scores: number; players: number; profiles: number };
+  deleted: { scores: number; players: number; profiles: number; progress: number };
 }
 
 /** One request through the real router, exactly as serve.ts calls it. */
@@ -82,6 +82,19 @@ function seedProfile(id: string): void {
     )
     .run(id, new Date().toISOString());
 }
+/**
+ * The survivor row (`player_progress`): badge unlocks + personal bests, the one
+ * table the monthly purge leaves alone. "Clear All Data" must NOT leave it
+ * behind — the player is asking for all of their data to go.
+ */
+function seedProgress(id: string): void {
+  getDb()
+    .query(
+      `INSERT INTO player_progress (pid, badges_json, bests_json, updated_at)
+       VALUES (?, '{"first-scan":"2026-09-01T00:00:00.000Z"}', '{"scanRushHighScore":700}', ?)`,
+    )
+    .run(id, new Date().toISOString());
+}
 function rows<T>(sql: string, ...params: (string | number)[]): T[] {
   return getDb()
     .query(sql)
@@ -98,7 +111,10 @@ function boardDump(): string {
   const profiles = rows<{ player_id: string }>(
     "SELECT player_id FROM player_profiles ORDER BY player_id",
   );
-  return JSON.stringify({ scores, players, profiles });
+  const progress = rows<{ pid: string }>(
+    "SELECT pid FROM player_progress ORDER BY pid",
+  );
+  return JSON.stringify({ scores, players, profiles, progress });
 }
 
 beforeAll(() => {
@@ -107,6 +123,7 @@ beforeAll(() => {
   seedScore("Dana", "pidDana00000001", "scan-rush", 1200);
   seedPlayer("pidDana00000001", "Dana");
   seedProfile("pidDana00000001");
+  seedProgress("pidDana00000001");
   seedScore("Sam", "pidSamA00000001", "memory-scan", 300);
   seedScore("Sam", "pidSamB00000001", "memory-scan", 500);
   seedPlayer("pidSamA00000001", "Sam");
@@ -121,15 +138,16 @@ beforeAll(() => {
   seedScore("EraseMeTest", "pidErase00000001", "bone-buster", 40);
   seedPlayer("pidErase00000001", "EraseMeTest");
   seedProfile("pidErase00000001");
+  seedProgress("pidErase00000001");
   seedPlayer("pidEmpty00000001", "EraseEmpty");
 });
 
 describe("POST /api/player/delete — caller with a player id cookie", () => {
-  test("removes exactly that id's scores, player row and profile", async () => {
+  test("removes exactly that id's scores, player row, profile and survivor progress", async () => {
     const before = boardDump();
     const result = await del({ cookieId: "pidErase00000001" });
     expect(result.ok).toBe(true);
-    expect(result.deleted).toEqual({ scores: 2, players: 1, profiles: 1 });
+    expect(result.deleted).toEqual({ scores: 2, players: 1, profiles: 1, progress: 1 });
     expect(boardDump()).not.toBe(before);
     // Its own rows are gone...
     expect(rows("SELECT id FROM scores WHERE pid = ?", "pidErase00000001")).toEqual([]);
@@ -137,6 +155,12 @@ describe("POST /api/player/delete — caller with a player id cookie", () => {
     expect(rows("SELECT player_id FROM player_profiles WHERE player_id = ?", "pidErase00000001")).toEqual(
       [],
     );
+    // ...including the badge/personal-best survivor row: "Clear All Data" wipes
+    // everything of theirs, unlike the monthly rollover which keeps it.
+    expect(rows("SELECT pid FROM player_progress WHERE pid = ?", "pidErase00000001")).toEqual([]);
+    expect(rows("SELECT pid FROM player_progress WHERE pid = ?", "pidDana00000001")).toEqual([
+      { pid: "pidDana00000001" },
+    ]);
     // ...and nobody else's moved.
     expect(rows("SELECT score FROM scores WHERE pid = ?", "pidDana00000001")).toEqual([{ score: 1200 }]);
     expect(rows("SELECT score FROM scores WHERE pid = ?", "pidSamA00000001")).toEqual([{ score: 300 }]);
@@ -153,12 +177,12 @@ describe("POST /api/player/delete — caller with a player id cookie", () => {
 
   test("a second call for the same id is a clean no-op", async () => {
     const result = await del({ cookieId: "pidErase00000001" });
-    expect(result).toEqual({ ok: true, deleted: { scores: 0, players: 0, profiles: 0 } });
+    expect(result).toEqual({ ok: true, deleted: { scores: 0, players: 0, profiles: 0, progress: 0 } });
   });
 
   test("the id in the body works when the cookie is missing", async () => {
     const result = await del({ body: { playerId: "pidEmpty00000001" } });
-    expect(result.deleted).toEqual({ scores: 0, players: 1, profiles: 0 });
+    expect(result.deleted).toEqual({ scores: 0, players: 1, profiles: 0, progress: 0 });
     expect(rows("SELECT id FROM players WHERE id = ?", "pidEmpty00000001")).toEqual([]);
   });
 
@@ -166,7 +190,7 @@ describe("POST /api/player/delete — caller with a player id cookie", () => {
     const before = boardDump();
     const result = await del({ cookieId: "pidDana00000001", body: { name: "Megan" } });
     // p-dana's own rows go (it is the caller's id), but "Megan" is ignored...
-    expect(result.deleted).toEqual({ scores: 1, players: 1, profiles: 1 });
+    expect(result.deleted).toEqual({ scores: 1, players: 1, profiles: 1, progress: 1 });
     expect(rows("SELECT score FROM scores WHERE pid = '' ORDER BY name")).toEqual([
       { score: 90 },
       { score: 4000 },
@@ -180,7 +204,7 @@ describe("POST /api/player/delete — caller with a player id cookie", () => {
   test("a cookie id that owns nothing deletes nothing", async () => {
     const before = boardDump();
     const result = await del({ cookieId: "pidUnknown000001", body: { name: "Sam" } });
-    expect(result).toEqual({ ok: true, deleted: { scores: 0, players: 0, profiles: 0 } });
+    expect(result).toEqual({ ok: true, deleted: { scores: 0, players: 0, profiles: 0, progress: 0 } });
     expect(boardDump()).toBe(before);
   });
 });
@@ -188,7 +212,7 @@ describe("POST /api/player/delete — caller with a player id cookie", () => {
 describe("POST /api/player/delete — caller with no id (guest / legacy pool row)", () => {
   test("removes only the pid='' row for exactly that name", async () => {
     const result = await del({ body: { name: "Guest 1234" } });
-    expect(result).toEqual({ ok: true, deleted: { scores: 1, players: 0, profiles: 0 } });
+    expect(result).toEqual({ ok: true, deleted: { scores: 1, players: 0, profiles: 0, progress: 0 } });
     expect(rows("SELECT id FROM scores WHERE name = ? AND pid = ''", "Guest 1234")).toEqual([]);
     // The other identities' rows are all still there.
     expect(rows("SELECT score FROM scores WHERE pid = ?", "pidSamA00000001")).toHaveLength(1);
@@ -197,7 +221,7 @@ describe("POST /api/player/delete — caller with no id (guest / legacy pool row
 
   test("a legacy pool row can be cleared by its name too", async () => {
     const result = await del({ body: { name: "Megan" } });
-    expect(result).toEqual({ ok: true, deleted: { scores: 1, players: 0, profiles: 0 } });
+    expect(result).toEqual({ ok: true, deleted: { scores: 1, players: 0, profiles: 0, progress: 0 } });
     expect(rows("SELECT id FROM scores WHERE name = 'Megan'")).toEqual([]);
   });
 
@@ -205,7 +229,7 @@ describe("POST /api/player/delete — caller with no id (guest / legacy pool row
     const before = boardDump();
     const result = await del({ body: { name: "Sam" } });
     // Sam's rows are pid-owned, so a name-only request matches no pool row.
-    expect(result).toEqual({ ok: true, deleted: { scores: 0, players: 0, profiles: 0 } });
+    expect(result).toEqual({ ok: true, deleted: { scores: 0, players: 0, profiles: 0, progress: 0 } });
     expect(boardDump()).toBe(before);
   });
 
@@ -213,7 +237,7 @@ describe("POST /api/player/delete — caller with no id (guest / legacy pool row
     // A cookie the server never issued is not an identity; the guest name is.
     seedScore("Guest 9999", "", "ecg-rhythm", 5);
     const result = await del({ cookieId: "not a valid id", body: { name: "Guest 9999" } });
-    expect(result).toEqual({ ok: true, deleted: { scores: 1, players: 0, profiles: 0 } });
+    expect(result).toEqual({ ok: true, deleted: { scores: 1, players: 0, profiles: 0, progress: 0 } });
   });
 });
 
@@ -222,7 +246,7 @@ describe("POST /api/player/delete — nothing to erase", () => {
     const before = boardDump();
     expect(await del({ body: null })).toEqual({
       ok: true,
-      deleted: { scores: 0, players: 0, profiles: 0 },
+      deleted: { scores: 0, players: 0, profiles: 0, progress: 0 },
     });
     expect(boardDump()).toBe(before);
   });
@@ -230,7 +254,7 @@ describe("POST /api/player/delete — nothing to erase", () => {
   test("a malformed JSON body is ok with zero counts", async () => {
     expect(await del({ body: "{not json" })).toEqual({
       ok: true,
-      deleted: { scores: 0, players: 0, profiles: 0 },
+      deleted: { scores: 0, players: 0, profiles: 0, progress: 0 },
     });
   });
 
@@ -238,11 +262,11 @@ describe("POST /api/player/delete — nothing to erase", () => {
     const before = boardDump();
     expect(await del({ body: { name: "x".repeat(40) } })).toEqual({
       ok: true,
-      deleted: { scores: 0, players: 0, profiles: 0 },
+      deleted: { scores: 0, players: 0, profiles: 0, progress: 0 },
     });
     expect(await del({ body: { name: "Megan!!" } })).toEqual({
       ok: true,
-      deleted: { scores: 0, players: 0, profiles: 0 },
+      deleted: { scores: 0, players: 0, profiles: 0, progress: 0 },
     });
     expect(boardDump()).toBe(before);
   });
