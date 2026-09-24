@@ -31,8 +31,10 @@ import {
 } from "./playerIdentity";
 import {
   applyServerProfile,
+  applySurvivorProgress,
   readProfileSnapshot,
   type ServerPlayerProfile,
+  type ServerSurvivorProgress,
 } from "./profile";
 import { endGameRound } from "./metrics";
 
@@ -138,6 +140,14 @@ function profileFrom(data: Record<string, unknown>): ServerPlayerProfile | null 
     : null;
 }
 
+/** The survivor badges/bests a response carries, if any (`progress`). */
+function progressFrom(data: Record<string, unknown>): ServerSurvivorProgress | null {
+  const progress = data.progress;
+  return typeof progress === "object" && progress !== null
+    ? (progress as ServerSurvivorProgress)
+    : null;
+}
+
 /**
  * Claim/resolve the identity behind a first name (POST /api/player/claim).
  *
@@ -169,6 +179,10 @@ export async function claimPlayerName(
 
   const profile = profileFrom(result.data);
   if (profile) applyServerProfile(profile);
+  // Survivor badges/bests (they outlive the monthly purge) — applied even when
+  // there is no profile at all, and never carrying a name.
+  const progress = progressFrom(result.data);
+  if (progress) applySurvivorProgress(progress);
   const playerId = typeof result.data.playerId === "string" ? result.data.playerId : null;
   if (playerId) setPlayerId(playerId);
   return {
@@ -211,6 +225,11 @@ export async function probePlayerProfileByName(
  * it to this device. This is the boot-time rehydration: an installed PWA whose
  * other keys are gone still has the id, and gets its name, bests, stats and
  * badges back. Returns the profile, or null when there is nothing to restore.
+ *
+ * The SURVIVOR half (`progress`) is applied either way: after a monthly purge
+ * there is no profile — no name, no scores, no identity rows — but the player's
+ * badge unlocks and personal bests are still theirs, so they are restored from
+ * the same response. No name is ever taken from `progress`.
  */
 export async function rehydratePlayerProfile(
   playerId?: string,
@@ -222,6 +241,8 @@ export async function rehydratePlayerProfile(
     if (!res.ok) return null;
     const data = (await res.json()) as { ok: boolean; profile?: unknown };
     if (data.ok !== true) return null;
+    const progress = progressFrom(data as Record<string, unknown>);
+    if (progress) applySurvivorProgress(progress);
     if (typeof data.profile !== "object" || data.profile === null) return null;
     const profile = data.profile as ServerPlayerProfile;
     applyServerProfile(profile);
@@ -344,6 +365,11 @@ export interface DeletePlayerDataResult {
   scores: number;
   players: number;
   profiles: number;
+  /**
+   * Survivor rows erased as well (`player_progress`: badge unlocks + personal
+   * bests). "Clear All Data" means all of it, so the progress table goes too.
+   */
+  progress: number;
 }
 /**
  * Erase this device's own server-side data: the scores rows it put on the board,
@@ -374,6 +400,7 @@ export async function deletePlayerData(): Promise<DeletePlayerDataResult | null>
     scores: count(deleted?.scores),
     players: count(deleted?.players),
     profiles: count(deleted?.profiles),
+    progress: count(deleted?.progress),
   };
 }
 /**

@@ -398,7 +398,7 @@ function Leaderboard() {
 
       <p className="text-xs text-mutedText text-center mt-6">
         Every completed game adds to your monthly total. Scores reset on the 1st
-        of each month.
+        of each month, and your badges and personal bests stay with you.
       </p>
 
       {/* ── Admin clear (discreet — presentation prep only) ── */}

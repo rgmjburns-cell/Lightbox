@@ -47,6 +47,12 @@
 //     client-side profile, mirrored server-side: per-game personal bests by
 //     storage key, the achievement inputs, and the badges earned (with unlockedAt
 //     so a restored profile looks the same as it did before).
+//   * `player_progress(pid, badges_json, bests_json, updated_at)` — the SURVIVOR
+//     half of the same data: badge unlocks and per-game personal bests, in a
+//     table the monthly purge never deletes (owner decision 2026-09-24). It is
+//     what lets a returning player still see their badges and their best-that-
+//     must-be-beaten in a new month, while their name, scores and profile are
+//     gone. No name is stored here, so it can never resurrect one.
 //
 //   Read the `/api/player/*` block below for the endpoints and the exact
 //   identity-resolution rules (including how pre-identity legacy rows are adopted
@@ -191,6 +197,30 @@ function migrate(database: Database): void {
     )
   `);
 
+  // 3b. Survivor progress (`player_progress`) — the part of a player that is
+  //     OURS, not the month's (owner decision 2026-09-24). Badge unlocks and
+  //     per-game personal bests live here as well as in the profile above, and
+  //     the monthly purge does NOT delete this table (see runMonthlyRollover):
+  //     a returning player still sees the badges they earned and still knows
+  //     the personal best they are chasing, while their name, their scores and
+  //     their profile are gone for good.
+  //
+  //     Keyed by the same hidden pid as scores.pid / players.id /
+  //     player_profiles.player_id (the id mirrored into the device's
+  //     `lightboxPlayerId` cookie), so a device that keeps its cookie — an
+  //     installed PWA with empty local storage, or a phone that comes back next
+  //     month — is recognised and gets its progress back. Deliberately NO name
+  //     column: nothing in this table can resurrect a stale "is this you?" name.
+  //     Additive like everything else, and a no-op once applied.
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS player_progress (
+      pid TEXT PRIMARY KEY,
+      badges_json TEXT NOT NULL DEFAULT '{}',
+      bests_json TEXT NOT NULL DEFAULT '{}',
+      updated_at TEXT NOT NULL
+    )
+  `);
+
   // 4. First-party usage analytics (see server/metrics.ts and metrics-core.ts).
   //    Additive-only, like everything above: one append-only event log that
   //    records no personal data and no persistent identifier — `session` is a
@@ -232,13 +262,21 @@ function currentMonthUtc(): string {
   return `${now.getUTCFullYear()}-${month}`;
 }
 
-// ── Month rollover: nothing survives the boundary ───────────────────────────
+// ── Month rollover: no NAME or SCORE survives the boundary ─────────────────
 //
 // The board is monthly: the 1st of the month (UTC) starts a new month. At the
 // owner's request (IDX raised stale matches during the IT self-check) a rollover
-// now ALSO purges identity data, so no score, name, identity or profile crosses
+// also purges identity data, so no score, name, identity or profile crosses
 // into the next month. Without it a player typing a nickname in October could be
 // offered a "is this you?" profile left behind by a stranger in September.
+//
+// What DOES survive (owner decision 2026-09-24): the player's own progress —
+// their badge unlocks and their per-game personal bests, in `player_progress`.
+// Those are personal achievements, not the month's ranking: a player coming back
+// in October should still see the badges they earned and still know the best
+// they are trying to beat. Everything identifying still goes — no name, no
+// score, no profile, so the stale-match problem stays solved (the survivor table
+// stores no name at all).
 //
 // The boundary is a moment, not a scheduled job: the server can be idle over
 // midnight on the 1st, so the purge runs on the next request instead, driven by
@@ -254,7 +292,9 @@ function currentMonthUtc(): string {
 //     player_profiles are deleted and the marker moves forward in ONE
 //     transaction, so a crash can never leave the board half-purged. Running it
 //     again is harmless: the marker has already moved, so the deletes are not
-//     repeated, and the deletes themselves are idempotent.
+//     repeated, and the deletes themselves are idempotent. `player_progress` is
+//     NOT in that transaction — badge unlocks and personal bests are the one
+//     thing that crosses the boundary on purpose (owner decision 2026-09-24).
 //   * marker > current month: the clock went backwards (a restore, a test rig).
 //     The month has not rolled over, so nothing is deleted.
 //
@@ -309,14 +349,22 @@ export function runMonthlyRollover(month: string = currentMonthUtc()): RolloverR
     const scores = Number(database.query("DELETE FROM scores").run().changes);
     const players = Number(database.query("DELETE FROM players").run().changes);
     const profiles = Number(database.query("DELETE FROM player_profiles").run().changes);
+    // `player_progress` is deliberately NOT deleted: badge unlocks and per-game
+    // personal bests are the player's own progress and survive every month
+    // (owner decision 2026-09-24). It holds no name, so nothing here can be
+    // matched against a nickname in the new month.
     writeActiveMonth(next);
     return { scores, players, profiles };
   });
 
   const deleted = purge(month);
+  const keptProgress = Number(
+    getDb().query<{ n: number }, []>("SELECT COUNT(*) AS n FROM player_progress").get()?.n ?? 0,
+  );
   console.log(
     `[leaderboard] month rollover ${from} -> ${month}: purged ${String(deleted.scores)} scores, ` +
-      `${String(deleted.players)} players, ${String(deleted.profiles)} profiles`,
+      `${String(deleted.players)} players, ${String(deleted.profiles)} profiles ` +
+      `(kept ${String(keptProgress)} player_progress rows)`,
   );
   return { from, to: month, rolled: true, deleted };
 }
@@ -703,6 +751,82 @@ function readJsonObject(raw: string): Record<string, unknown> {
     return {};
   }
 }
+// NOTE: keep this name distinct from `readJsonBody` below. Two function
+// declarations cannot share a name in one module — the later one silently wins
+// module-wide — and a body reader shadowing this blob parser makes every stored
+// profile read as empty (that is exactly the bug PR #66 introduced and this
+// comment prevents from coming back).
+
+/** Personal bests from a stored JSON blob (unknown keys/values dropped). */
+function parseBests(raw: string): Record<string, number> {
+  const bests: Record<string, number> = {};
+  for (const [key, value] of Object.entries(readJsonObject(raw))) {
+    if (BEST_KEY_RE.test(key) && typeof value === "number" && Number.isFinite(value)) {
+      bests[key] = Math.max(0, Math.floor(value));
+    }
+  }
+  return bests;
+}
+
+/** Badge unlocks (id → unlockedAt ISO) from a stored JSON blob. */
+function parseBadges(raw: string): Record<string, string> {
+  const badges: Record<string, string> = {};
+  for (const [key, value] of Object.entries(readJsonObject(raw))) {
+    if (typeof value === "string") badges[key] = value;
+  }
+  return badges;
+}
+
+/**
+ * The survivor row for one identity: the badge unlocks and personal bests that
+ * cross the month boundary. Absent (all-empty) for a player who has never
+ * synced a snapshot — that is not an error, every reader treats it as "nothing
+ * to restore".
+ */
+function readProgressRow(
+  playerId: string,
+): { badges: Record<string, string>; bests: Record<string, number>; updatedAt: string | null } {
+  const row = getDb()
+    .query<{ badges_json: string; bests_json: string; updated_at: string }, [string]>(
+      "SELECT badges_json, bests_json, updated_at FROM player_progress WHERE pid = ?",
+    )
+    .get(playerId);
+  if (!row) return { badges: {}, bests: {}, updatedAt: null };
+  return {
+    badges: parseBadges(row.badges_json),
+    bests: parseBests(row.bests_json),
+    updatedAt: row.updated_at,
+  };
+}
+
+/**
+ * Write the survivor row. MONOTONE by construction: what is already stored is
+ * merged in first, so a later, weaker snapshot can never take a badge or a
+ * personal best away — the exact guarantee `player_profiles` gives, held for the
+ * one table the monthly purge leaves alone.
+ */
+function writeProgress(
+  playerId: string,
+  badges: Record<string, string>,
+  bests: Record<string, number>,
+  now: string,
+): void {
+  const existing = readProgressRow(playerId);
+  getDb()
+    .query(
+      `INSERT INTO player_progress (pid, badges_json, bests_json, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(pid) DO UPDATE SET badges_json = excluded.badges_json,
+                                      bests_json = excluded.bests_json,
+                                      updated_at = excluded.updated_at`,
+    )
+    .run(
+      playerId,
+      JSON.stringify(mergeBadges(existing.badges, badges)),
+      JSON.stringify(mergeBests(existing.bests, bests)),
+      now,
+    );
+}
 
 function readProfileBlob(playerId: string): ProfileBlob {
   const row = getDb()
@@ -710,25 +834,18 @@ function readProfileBlob(playerId: string): ProfileBlob {
       "SELECT bests, stats, badges FROM player_profiles WHERE player_id = ?",
     )
     .get(playerId);
-  if (!row) return emptyProfileBlob();
-
-  const bests: Record<string, number> = {};
-  for (const [key, value] of Object.entries(readJsonObject(row.bests))) {
-    if (BEST_KEY_RE.test(key) && typeof value === "number" && Number.isFinite(value)) {
-      bests[key] = Math.max(0, Math.floor(value));
-    }
-  }
-  const badges: Record<string, string> = {};
-  for (const [key, value] of Object.entries(readJsonObject(row.badges))) {
-    if (typeof value === "string") badges[key] = value;
-  }
+  // The survivor row is the FLOOR of the profile, and it is the only thing left
+  // after a monthly purge: merging it in here (monotone, both ways) is what makes
+  // badges and personal bests readable for a player whose `players` and
+  // `player_profiles` rows are gone.
+  const progress = readProgressRow(playerId);
   return {
-    bests,
+    bests: mergeBests(progress.bests, row ? parseBests(row.bests) : {}),
     stats: mergeAchievementStats(
       EMPTY_ACHIEVEMENT_STATS,
-      coerceAchievementStats(readJsonObject(row.stats)),
+      coerceAchievementStats(row ? readJsonObject(row.stats) : {}),
     ),
-    badges,
+    badges: mergeBadges(progress.badges, row ? parseBadges(row.badges) : {}),
   };
 }
 
@@ -744,6 +861,39 @@ function writeProfileBlob(playerId: string, blob: ProfileBlob): void {
                                            updated_at = excluded.updated_at`,
     )
     .run(playerId, JSON.stringify(blob.bests), JSON.stringify(blob.stats), JSON.stringify(blob.badges), now);
+  // Every writer of the profile is also a writer of the survivor row: badge
+  // unlocks and personal bests are what must outlive the monthly purge, so they
+  // are persisted in both places from the one call site.
+  writeProgress(playerId, blob.badges, blob.bests, now);
+}
+
+/**
+ * The survivor progress for an identity, in the shape the client restores from:
+ * badges (in ACHIEVEMENTS order) and personal bests. `null` when this pid has
+ * never recorded any progress. Reads `player_progress` ALONE — it answers even
+ * when the player's identity and profile rows were purged at a month boundary.
+ *
+ * A name is deliberately absent: after a purge there is no name to send, and
+ * sending the old one would re-create exactly the stale-match problem the purge
+ * exists to prevent.
+ */
+function survivorProgress(playerId: string): {
+  badges: { id: string; unlockedAt: string }[];
+  bests: Record<string, number>;
+  updatedAt: string | null;
+} | null {
+  const row = readProgressRow(playerId);
+  const badges = mergeBadges({}, row.badges);
+  const bests = mergeBests({}, row.bests);
+  if (Object.keys(badges).length === 0 && Object.keys(bests).length === 0) return null;
+  return {
+    badges: ACHIEVEMENTS.filter((a) => badges[a.id]).map((a) => ({
+      id: a.id,
+      unlockedAt: badges[a.id],
+    })),
+    bests,
+    updatedAt: row.updatedAt,
+  };
 }
 
 /** Higher-is-better personal bests, keyed by the client's storage key. */
@@ -987,6 +1137,11 @@ async function handlePlayerClaim(req: Request): Promise<Response> {
     created: identity.created,
     lost: identity.lost ?? null,
     profile: buildProfile(identity.id),
+    // Badges and personal bests that outlived the monthly purge, readable even
+    // before this claim created the fresh identity/profile rows. Contains no
+    // name: the nickname above is the one this player just typed, never a
+    // remembered one.
+    progress: survivorProgress(identity.id),
   });
 }
 
@@ -996,6 +1151,13 @@ async function handlePlayerClaim(req: Request): Promise<Response> {
  * its id: it answers only when EXACTLY ONE identity uses that name (`profile`
  * null with `reason: "ambiguous"` otherwise). Neither form creates, adopts or
  * renames anything.
+ *
+ * `progress` is the survivor half: badge unlocks and personal bests from
+ * `player_progress`, which the monthly purge leaves alone. It is returned even
+ * when `profile` is null (the caller's identity rows were purged, or this pid
+ * never had any), so a device that keeps its `lightboxPlayerId` cookie gets its
+ * badges and bests back in a brand-new month without a name coming back with
+ * them.
  */
 function handlePlayerProfile(requestUrl: URL): Response {
   const idParam = requestUrl.searchParams.get("id");
@@ -1003,7 +1165,12 @@ function handlePlayerProfile(requestUrl: URL): Response {
     const playerId = validPlayerId(idParam);
     if (!playerId) return json({ ok: false, error: "Invalid playerId" }, 400);
     const profile = buildProfile(playerId);
-    return json({ ok: true, profile, reason: profile ? "found" : "unknown-id" });
+    return json({
+      ok: true,
+      profile,
+      reason: profile ? "found" : "unknown-id",
+      progress: survivorProgress(playerId),
+    });
   }
 
   const name = validName(requestUrl.searchParams.get("name"));
@@ -1369,10 +1536,10 @@ async function handleExport(req: Request): Promise<Response> {
 //
 //   * WITH a player id (the `lightboxPlayerId` cookie the client mirrors its id
 //     into, falling back to the body's `playerId` for a device whose cookie is
-//     missing): that id's scores rows, its `players` row and its
-//     `player_profiles` row go, in one transaction. A `name` in the same request
-//     is IGNORED — a name is not proof of anything, so it can never widen the
-//     delete beyond the caller's own id.
+//     missing): that id's scores rows, its `players` row, its `player_profiles`
+//     row and its `player_progress` row go, in one transaction. A `name` in the
+//     same request is IGNORED — a name is not proof of anything, so it can never
+//     widen the delete beyond the caller's own id.
 //   * WITHOUT any id: the caller is a GUEST ("Guest NNNN") or a pre-identity
 //     player whose rows sit in the anonymous name pool (`pid = ''`). Only that
 //     pool row for exactly the name supplied is deleted. Rows owned by a real id
@@ -1408,10 +1575,17 @@ interface DeleteCounts {
   scores: number;
   players: number;
   profiles: number;
+  /** Survivor rows (`player_progress`) erased with the rest of the player. */
+  progress: number;
 }
-const NOTHING_DELETED: DeleteCounts = { scores: 0, players: 0, profiles: 0 };
-/** A body that may be absent, empty, malformed or JSON — never throws. */
-async function readJsonObject(req: Request): Promise<Record<string, unknown>> {
+const NOTHING_DELETED: DeleteCounts = { scores: 0, players: 0, profiles: 0, progress: 0 };
+/**
+ * A body that may be absent, empty, malformed or JSON — never throws.
+ *
+ * Named `readJsonBody`, NOT `readJsonObject`: the stored-blob parser above holds
+ * that name, and a duplicate function declaration would shadow it module-wide.
+ */
+async function readJsonBody(req: Request): Promise<Record<string, unknown>> {
   try {
     const body: unknown = await req.json();
     return typeof body === "object" && body !== null
@@ -1431,7 +1605,7 @@ async function readJsonObject(req: Request): Promise<Record<string, unknown>> {
  * device-side wipe proceed.
  */
 async function handlePlayerDelete(req: Request): Promise<Response> {
-  const raw = await readJsonObject(req);
+  const raw = await readJsonBody(req);
   // The cookie is the identity this device proved; the body id is the same
   // client's own fallback for a browser that dropped the cookie.
   const playerId =
@@ -1445,7 +1619,7 @@ async function handlePlayerDelete(req: Request): Promise<Response> {
     );
     // Nothing else to remove: an anonymous pool row has no `players` row and no
     // profile (both are keyed by an id this caller does not have).
-    return json({ ok: true, deleted: { scores, players: 0, profiles: 0 } });
+    return json({ ok: true, deleted: { scores, players: 0, profiles: 0, progress: 0 } });
   }
   const database = getDb();
   const erase = database.transaction((id: string): DeleteCounts => {
@@ -1454,7 +1628,13 @@ async function handlePlayerDelete(req: Request): Promise<Response> {
     const profiles = Number(
       database.query("DELETE FROM player_profiles WHERE player_id = ?").run(id).changes,
     );
-    return { scores, players, profiles };
+    // "Clear All Data" is the player asking for EVERYTHING of theirs to go, so
+    // the survivor row goes too — it is their badges and their bests. (The
+    // monthly purge is the one path that keeps it; see runMonthlyRollover.)
+    const progress = Number(
+      database.query("DELETE FROM player_progress WHERE pid = ?").run(id).changes,
+    );
+    return { scores, players, profiles, progress };
   });
   return json({ ok: true, deleted: erase(playerId) });
 }
