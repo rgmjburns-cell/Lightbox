@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import Rex from "~/components/Rex";
-import brand from "~/branding";
+import brand from "~/lib/brand";
 import { useVisit } from "~/lib/metrics";
 
 export const Route = createFileRoute("/qr")({
@@ -35,7 +35,7 @@ interface Step {
 
 const IOS_SAFARI_STEPS: Step[] = [
   {
-    text: "Open LightBox in Safari.",
+    text: `Open ${brand.productName} in Safari.`,
     icon: "share",
   },
   {
@@ -54,7 +54,7 @@ const IOS_SAFARI_STEPS: Step[] = [
 
 const IOS_CHROME_STEPS: Step[] = [
   {
-    text: "Open LightBox in Chrome.",
+    text: `Open ${brand.productName} in Chrome.`,
     icon: "menu",
   },
   {
@@ -73,7 +73,7 @@ const IOS_CHROME_STEPS: Step[] = [
 
 const ANDROID_CHROME_STEPS: Step[] = [
   {
-    text: "Open LightBox in Chrome.",
+    text: `Open ${brand.productName} in Chrome.`,
     icon: "menu",
   },
   {
@@ -92,7 +92,7 @@ const ANDROID_CHROME_STEPS: Step[] = [
 
 const ANDROID_SAMSUNG_STEPS: Step[] = [
   {
-    text: "Open LightBox in Samsung Internet.",
+    text: `Open ${brand.productName} in Samsung Internet.`,
     icon: "menu",
   },
   {
@@ -110,7 +110,7 @@ const ANDROID_SAMSUNG_STEPS: Step[] = [
 ];
 
 const DONE_COPY =
-  "YOU'RE DONE! Look for Rex on your Home Screen. Tap him anytime to open LightBox.";
+  `YOU'RE DONE! Look for Rex on your Home Screen. Tap him anytime to open ${brand.productName}.`;
 
 function AddToPhonePage() {
   useVisit("/qr");
@@ -145,14 +145,14 @@ function AddToPhonePage() {
       <div className="flex flex-col items-center text-center mb-5">
         <Rex className="w-16 h-16 mb-2" mood="happy" />
         <h1 className="text-2xl font-bold text-white tracking-wide">
-          KEEP LIGHTBOX ONE TAP AWAY
+          KEEP {brand.productName.toUpperCase()} ONE TAP AWAY
         </h1>
         <p className="text-sm text-white/70 mt-2 max-w-md">
-          Add LightBox to your Home Screen and open it just like an app.
+          Add {brand.productName} to your Home Screen and open it just like an app.
         </p>
         <p className="text-xs text-white/40 mt-3 max-w-sm">
           No need to do this to play. Games work right here, straight away.
-          This just puts a LightBox shortcut on your Home Screen for next time.
+          This just puts a {brand.productName} shortcut on your Home Screen for next time.
         </p>
       </div>
 
@@ -240,7 +240,7 @@ function AddToPhonePage() {
         />
         <p className="text-darkText font-bold text-[15px] leading-snug">{DONE_COPY}</p>
         <p className="text-xs text-mutedText mt-2">
-          {brand.name} keeps your scores and progress, however you open it.
+          {brand.productName} keeps your scores and progress, however you open it.
         </p>
       </div>
     </div>

@@ -214,12 +214,111 @@ function migrate(database: Database): void {
   database.exec(
     "CREATE INDEX IF NOT EXISTS idx_events_session ON events(session, type)",
   );
+
+  // 5. Server bookkeeping. One row today: `active_month`, the calendar month the
+  //    board currently belongs to. It is what makes the monthly purge below fire
+  //    exactly once, at the month boundary and nowhere else.
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
 }
 
 function currentMonthUtc(): string {
   const now = new Date();
   const month = String(now.getUTCMonth() + 1).padStart(2, "0");
   return `${now.getUTCFullYear()}-${month}`;
+}
+
+// ── Month rollover: nothing survives the boundary ───────────────────────────
+//
+// The board is monthly: the 1st of the month (UTC) starts a new month. At the
+// owner's request (IDX raised stale matches during the IT self-check) a rollover
+// now ALSO purges identity data, so no score, name, identity or profile crosses
+// into the next month. Without it a player typing a nickname in October could be
+// offered a "is this you?" profile left behind by a stranger in September.
+//
+// The boundary is a moment, not a scheduled job: the server can be idle over
+// midnight on the 1st, so the purge runs on the next request instead, driven by
+// the `meta.active_month` marker. Exactly four cases, and only one of them
+// deletes anything:
+//
+//   * no marker yet (a fresh database, or one restored from a snapshot): the
+//     marker is written and NOTHING is deleted. A deployment must never mistake
+//     itself for a month boundary and wipe the board it inherited.
+//   * marker === the current month: nothing to do, which is every normal request
+//     and is what keeps the purge off the mid-month path.
+//   * marker < current month: the boundary was crossed. Scores, players and
+//     player_profiles are deleted and the marker moves forward in ONE
+//     transaction, so a crash can never leave the board half-purged. Running it
+//     again is harmless: the marker has already moved, so the deletes are not
+//     repeated, and the deletes themselves are idempotent.
+//   * marker > current month: the clock went backwards (a restore, a test rig).
+//     The month has not rolled over, so nothing is deleted.
+//
+// The first-party `events` log is deliberately untouched. It holds no name, no
+// id and no persistent identifier, and it is the pilot's own reporting history:
+// it is also how the dashboard can still show what happened last month.
+export interface RolloverResult {
+  /** The month the marker named before this call (null when there was none). */
+  from: string | null;
+  /** The month the board belongs to after this call. */
+  to: string;
+  /** True only when THIS call performed the purge. */
+  rolled: boolean;
+  deleted: { scores: number; players: number; profiles: number };
+}
+
+const ACTIVE_MONTH_KEY = "active_month";
+
+/** The month the board belongs to, or null when it has never been recorded. */
+function readActiveMonth(): string | null {
+  const row = getDb()
+    .query<{ value: string }, [string]>("SELECT value FROM meta WHERE key = ?")
+    .get(ACTIVE_MONTH_KEY);
+  return row && MONTH_RE.test(row.value) ? row.value : null;
+}
+
+function writeActiveMonth(month: string): void {
+  getDb()
+    .query(
+      `INSERT INTO meta (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    )
+    .run(ACTIVE_MONTH_KEY, month);
+}
+
+/**
+ * Enforce the month boundary. `month` is injectable so a test can drive the
+ * calendar; every real caller uses the current UTC month.
+ */
+export function runMonthlyRollover(month: string = currentMonthUtc()): RolloverResult {
+  const database = getDb();
+  const from = readActiveMonth();
+  const nothing = { scores: 0, players: 0, profiles: 0 };
+
+  if (from === null) {
+    writeActiveMonth(month);
+    return { from: null, to: month, rolled: false, deleted: nothing };
+  }
+  if (from >= month) return { from, to: from, rolled: false, deleted: nothing };
+
+  const purge = database.transaction((next: string) => {
+    const scores = Number(database.query("DELETE FROM scores").run().changes);
+    const players = Number(database.query("DELETE FROM players").run().changes);
+    const profiles = Number(database.query("DELETE FROM player_profiles").run().changes);
+    writeActiveMonth(next);
+    return { scores, players, profiles };
+  });
+
+  const deleted = purge(month);
+  console.log(
+    `[leaderboard] month rollover ${from} -> ${month}: purged ${String(deleted.scores)} scores, ` +
+      `${String(deleted.players)} players, ${String(deleted.profiles)} profiles`,
+  );
+  return { from, to: month, rolled: true, deleted };
 }
 
 function json(body: unknown, status = 200): Response {
@@ -1360,6 +1459,16 @@ async function handlePlayerDelete(req: Request): Promise<Response> {
   return json({ ok: true, deleted: erase(playerId) });
 }
 export async function handleLeaderboardApi(req: Request, pathname: string): Promise<Response> {
+  // The month boundary is checked before any route is served: a board request is
+  // the moment the server learns time has moved on, and the purge has to happen
+  // BEFORE a nickname is claimed, or a player could still be offered the previous
+  // month's profile. It is a no-op on every other request. A failure here must not
+  // take the API down: the board keeps working and the next request retries.
+  try {
+    runMonthlyRollover();
+  } catch (err) {
+    console.error("[leaderboard] monthly rollover failed:", err);
+  }
   if (pathname === "/api/leaderboard") {
     if (req.method === "GET") return handleGet(new URL(req.url));
     if (req.method === "POST") return handlePost(req);

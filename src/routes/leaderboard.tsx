@@ -73,7 +73,7 @@ function Leaderboard() {
   );
   const [nameInput, setNameInput] = useState("");
   const [saving, setSaving] = useState(false);
-  // A profile the server matched to the typed first name, waiting for the player
+  // A profile the server matched to the typed nickname, waiting for the player
   // to confirm ("that's me") before anything is adopted.
   const [confirmProfile, setConfirmProfile] = useState<ServerPlayerProfile | null>(null);
   const [entries, setEntries] = useState<LeaderboardEntry[] | null>(null);
@@ -131,7 +131,7 @@ function Leaderboard() {
     // Guest → real name: parks the guest as pending-previous so the player's
     // next game submission merges their guest rows into this name.
     upgradePlayerName(trimmed);
-    // Ask the server who this first name belongs to. On a device that has no
+    // Ask the server who this nickname belongs to. On a device that has no
     // identity yet and whose typed name matches exactly one existing player (the
     // installed-PWA case) this comes back as a question, not a decision.
     const result = await resolvePlayerName(trimmed);
@@ -261,11 +261,11 @@ function Leaderboard() {
       ) : (
         <div className="card mb-4">
           <h2 className="text-sm font-semibold text-darkText mb-1">
-            Enter your first name to play
+            Enter your nickname to play
           </h2>
           <p className="text-xs text-mutedText mb-3">
             {playerName
-              ? `You're currently playing as ${playerName}. Enter your first name to be shown as yourself and carry your scores over.`
+              ? `You're playing as ${playerName}. Enter a nickname to be shown as yourself and carry your scores over.`
               : "We'll use it to save your score and show your place on the leaderboard."}
           </p>
           {confirmProfile ? (
@@ -282,7 +282,7 @@ function Leaderboard() {
                 type="text"
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
-                placeholder="First name"
+                placeholder="Nickname"
                 maxLength={20}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void handleSaveName();

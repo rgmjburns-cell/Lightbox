@@ -7,6 +7,7 @@ import {
 } from "~/lib/leaderboard";
 import type { ServerPlayerProfile } from "~/lib/profile";
 import ProfileRestorePrompt from "~/components/ProfileRestorePrompt";
+import brand from "~/lib/brand";
 
 export function getPlayerName(): string | null {
   if (typeof window === "undefined") return null;
@@ -21,11 +22,14 @@ interface OnboardingProps {
 
 const HIGHLIGHT = "#008C95";
 
+/** "Rad Games" -> ["Rad", "Games"], so the second word can carry the accent. */
+const wordmark = brand.productName.split(" ");
+
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const [name, setName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
-  // Set when the typed first name matches exactly one existing profile on the
+  // Set when the typed nickname matches exactly one existing profile on the
   // server — the installed-PWA case, where this device's storage started empty
   // but the player has been playing somewhere else. The PLAYER decides; nothing
   // is adopted until they tap "Yes, that's me".
@@ -44,7 +48,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     if (!isValid || isSubmitting) return;
     setIsSubmitting(true);
     setPlayerName(trimmed);
-    // Who does this first name belong to? A device with no player id gets the
+    // Who does this nickname belong to? A device with no player id gets the
     // unique-match profile back to confirm; everything else continues straight on.
     const result = await resolvePlayerName(trimmed);
     if (result.status === "confirm") {
@@ -108,20 +112,26 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           className="flex flex-col items-center"
           style={{ gap: "0px" }}
         >
-          {/* LightBox logo */}
-          <img
-            src="/welcome-lightbox-logo-opt.png?v=3"
-            alt="LightBox"
+          {/* The product wordmark. Text, not artwork: the old logo image still
+              reads "LightBox", and the owner's own mark for the new name is a
+              pending asset, so the name is drawn from the brand config. */}
+          <h1
+            className="text-white font-extrabold tracking-tight text-center"
             style={{
-              width: "clamp(200px, 30vw, 250px)",
-              height: "auto",
-              display: "block",
+              fontSize: "clamp(2rem, 8.5vw, 3rem)",
+              lineHeight: 1.05,
               margin: "0 auto",
               marginBottom: "-15px",
+              textShadow: "0 6px 24px rgba(0,140,149,0.35)",
             }}
-          />
+          >
+            {wordmark[0]}
+            {wordmark[1] && (
+              <span style={{ color: brand.colors.secondary }}> {wordmark[1]}</span>
+            )}
+          </h1>
 
-          {/* Rex — centered between LightBox and IDX */}
+          {/* Rex, between the wordmark and the brand logo */}
           <img
             src="/welcome-rex-opt.png"
             alt="Rex"
@@ -133,10 +143,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             }}
           />
 
-          {/* IDX logo */}
+          {/* The brand's own logo, from the brand config. */}
           <img
-            src="/welcome-idx-logo.png"
-            alt="Integral Diagnostics"
+            src={brand.logoUrl}
+            alt={brand.logoAlt}
             className="w-[84px] h-auto"
           />
         </div>
@@ -190,15 +200,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             className="text-white font-bold w-full text-left"
             style={{ fontSize: "clamp(0.65rem, 1.6vh, 0.875rem)" }}
           >
-            Enter your first name
+            Enter your nickname
           </label>
 
           <p
             className="text-white/50 w-full text-left"
             style={{ fontSize: "clamp(0.6rem, 1.4vh, 0.75rem)", lineHeight: 1.5 }}
           >
-            We&rsquo;ll use it to save your score and show your place on the
-            leaderboard.
+            We&rsquo;ll save your score and show your nickname on the
+            leaderboard. A nickname or alias keeps your real name private.
           </p>
 
           {/* Name input */}
@@ -211,7 +221,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="First name"
+              placeholder="Nickname"
               maxLength={20}
               autoFocus
               onKeyDown={(e) => {
@@ -262,8 +272,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           className="text-white/40 text-center leading-relaxed max-w-[24rem]"
           style={{ fontSize: "clamp(0.55rem, 1.3vh, 0.7rem)" }}
         >
-          Created by Integral Diagnostics to make your waiting experience a
-          little brighter.
+          {brand.tagline} Built to make your wait a little brighter.
         </p>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import brand from "~/branding";
+import brand from "~/lib/brand";
 
 const STORAGE_KEY = "installBannerDismissed";
 
@@ -52,7 +52,7 @@ export default function InstallBanner() {
         <span className="text-3xl shrink-0">📱</span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-primary">
-            Add {brand.shortName} to your home screen
+            Add {brand.productName} to your home screen
           </p>
           <p className="text-xs text-mutedText mt-0.5">
             Tap the share button{" "}
