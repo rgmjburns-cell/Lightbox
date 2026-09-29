@@ -11,6 +11,7 @@
  *
  *   public/brands/<brand>/welcome-logo.png   the brand mark on the welcome screen
  *   public/brands/<brand>/tile-logo.png      the mark on a game page's title tile
+ *   public/brands/<brand>/home-logo.png      the brand mark on the games home header
  *   public/brands/<brand>/rex.png            the mascot, drawn everywhere by Rex.tsx
  *   public/brands/<brand>/icon-512.png       PWA / home-screen icon
  *   public/brands/<brand>/icon-192.png       PWA / home-screen icon
@@ -37,7 +38,11 @@
  *
  * Cropping uses an alpha threshold (>8/255): the exports carry a faint
  * near-invisible glow out to the canvas edge, and cropping to that would leave
- * a lopsided margin that pulls the artwork off centre.
+ * a lopsided margin that pulls the artwork off centre. The one exception is the
+ * home-header mark (owner request, 29 Sep): that export already arrives with
+ * true transparency and small, even margins, so it is scaled whole — which also
+ * keeps its aspect at exactly 3.00, the same wide-lockup shape the header slot
+ * draws for the other brand.
  *
  * The supplied home-screen icons are opaque (a white background behind Rex), and
  * they are kept that way: an app icon is drawn on the phone's own home screen,
@@ -53,11 +58,14 @@ import sharp from "sharp";
 const SRC = "public/_originals/brands";
 const OUT = "public/brands";
 
-/** The supplied original for each derived file, per brand. */
+/** The supplied original for each derived file, per brand. Only the pilot brand
+ * that the owner sent separate home-header artwork for carries `homeLogo`; the
+ * other two reuse the files above (`brand.ts` says which). */
 const BRANDS = {
   "imaging-queensland": {
     logo: "iq-logo.png",
     tile: "iq-tile-logo.png",
+    homeLogo: "iq-home-logo.png",
     rex: "iq-rex.png",
     icon: "iq-app-icon.png",
   },
@@ -77,6 +85,14 @@ const LOGO_WIDTH = 750;
 
 /** Title-tile logo height in device pixels: 32 CSS px on a 3x screen. */
 const TILE_LOGO_HEIGHT = 96;
+/**
+ * Home-header logo width in device pixels. The games home header draws the mark
+ * at `h-10` (40 CSS px) so a 3:1 lockup is ~120 CSS px wide, i.e. 360 device px
+ * on a 3x screen; 1086 is 3x that again, which leaves the mark crisp on a 3x
+ * phone if the slot ever grows to `h-12`. The owner's export is 2172x724, so
+ * this is a straight half-scale (584 kB -> ~65 kB) with its alpha kept.
+ */
+const HOME_LOGO_WIDTH = 1086;
 
 /**
  * A pixel at least this light on every channel is the tile logo's flat white
@@ -231,6 +247,32 @@ async function writeTileLogo(file, dest) {
   };
 }
 
+/**
+ * Scale the games home header's mark to HOME_LOGO_WIDTH, whole.
+ *
+ * The other two brands' header marks are reused files (the master's shared mark
+ * and the pilot's tile lockup), and this is the one brand whose header artwork
+ * the owner supplied separately. It arrives with true transparency and even
+ * margins, so it is neither keyed nor cropped: the supplied canvas is scaled as
+ * it is, keeping its 3.00 aspect and every anti-aliased edge exactly as drawn.
+ */
+async function writeHomeLogo(file, dest) {
+  const meta = await sharp(file).metadata();
+  const height = Math.round((HOME_LOGO_WIDTH * meta.height) / meta.width);
+  const info = await sharp(file)
+    .resize({ width: HOME_LOGO_WIDTH, height, fit: "fill", kernel: "lanczos3" })
+    .png(PNG)
+    .toFile(dest);
+  return {
+    dest,
+    width: info.width,
+    height: info.height,
+    bytes: info.size,
+    src: `${meta.width}x${meta.height}`,
+    hasAlpha: meta.hasAlpha,
+  };
+}
+
 /** Resize the supplied square icon to each size the app installs at. */
 async function writeIcons(file, dir) {
   const meta = await sharp(file).metadata();
@@ -253,10 +295,16 @@ for (const [brand, files] of Object.entries(BRANDS)) {
   for (const key of ["logo", "tile", "rex", "icon"]) {
     if (!originals.includes(files[key])) throw new Error(`missing original ${SRC}/${files[key]}`);
   }
+  if (files.homeLogo && !originals.includes(files.homeLogo)) {
+    throw new Error(`missing original ${SRC}/${files.homeLogo}`);
+  }
   report.push({
     brand,
     logo: await writeLogo(path.join(SRC, files.logo), path.join(dir, "welcome-logo.png")),
     tile: await writeTileLogo(path.join(SRC, files.tile), path.join(dir, "tile-logo.png")),
+    home: files.homeLogo
+      ? await writeHomeLogo(path.join(SRC, files.homeLogo), path.join(dir, "home-logo.png"))
+      : null,
     rex: await writeRex(path.join(SRC, files.rex), path.join(dir, "rex.png")),
     icons: await writeIcons(path.join(SRC, files.icon), dir),
   });
@@ -267,6 +315,9 @@ for (const row of report) {
   console.log(row.brand);
   console.log(`  welcome-logo.png  ${row.logo.width}x${row.logo.height}  ${kB(row.logo.bytes)}  (cropped from ${row.logo.src})`);
   console.log(`  tile-logo.png     ${row.tile.width}x${row.tile.height}  ${kB(row.tile.bytes)}  (cropped from ${row.tile.src}, white keyed out)`);
+  if (row.home) {
+    console.log(`  home-logo.png     ${row.home.width}x${row.home.height}  ${kB(row.home.bytes)}  (scaled from ${row.home.src}, alpha kept)`);
+  }
   console.log(`  rex.png           ${row.rex.width}x${row.rex.height}  ${kB(row.rex.bytes)}  (cropped from ${row.rex.src}, width fill ${row.rex.fill})`);
   for (const icon of row.icons) {
     console.log(`  icon-${icon.size}.png      ${icon.size}x${icon.size}  ${kB(icon.bytes)}${icon.hasAlpha ? "" : "  (opaque, as supplied)"}`);

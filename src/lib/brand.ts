@@ -36,13 +36,13 @@
  * below stays unified — see "Browser and PWA chrome"):
  *
  *   - `logoUrl` is the shared Rad Games master mark, and it STAYS that in all
- *     three entries: it is what the header draws on every instance (owner
- *     direction: "make sure the rad games logo that you have already in place
- *     stays like it is").
+ *     three entries: it is what the app header (`src/routes/__root.tsx`) draws on
+ *     every instance (owner direction: "make sure the rad games logo that you
+ *     have already in place stays like it is").
  *   - `welcomeLogoUrl` is the mark the welcome/login screen draws, and THAT is
  *     per brand: Imaging Queensland and The Xray Group show the owner's artwork
  *     (a Rad Games lockup carrying that brand's Rex), while the master keeps the
- *     shared mark. The header draws `logoUrl`, never this one.
+ *     shared mark. Neither header draws this one.
  *   - `rexImageUrl` is the mascot `Rex.tsx` draws everywhere in the app (games,
  *     leaderboard, onboarding), so the instance's Rex follows the brand with no
  *     per-screen work.
@@ -51,6 +51,12 @@
  *     the master at the shared Rad Games mark. The tile is white, so these must
  *     read on white — the pilot brands' are coloured lockups, and they are
  *     produced with their white background keyed out to transparency.
+ *   - `homeLogoUrl` is the mark on the games home header (`src/routes/index.tsx`),
+ *     in the empty space opposite the player's name (owner request, 29 Sep). It
+ *     is per brand, and it is the ONE mark that is not the shared Rad Games one
+ *     on the pilot instances: the home screen greets the brand's own patient, so
+ *     it carries that brand's mark. This screen is dark navy, so every file here
+ *     must read on navy.
  *   - `welcomeShowsRex` is false for the two pilot brands because their welcome
  *     logos already contain Rex (owner direction: "as they have Rex in them we
  *     don't need Rex as well on the logo in page"). The master draws the shared
@@ -118,9 +124,10 @@ export interface BrandConfig {
     themeColor: string;
   };
   /**
-   * Path under public/ for the header's mark: the shared Rad Games mark in all
-   * three entries (owner direction, 29 Sep). The welcome screen draws
-   * `welcomeLogoUrl` instead.
+   * Path under public/ for the app header's mark (`src/routes/__root.tsx`): the
+   * shared Rad Games mark in all three entries (owner direction, 29 Sep). The
+   * welcome screen draws `welcomeLogoUrl` instead, and the games home screen its
+   * own `homeLogoUrl`.
    */
   logoUrl: string;
   /** The accessible name for the mark above (the brand's name). */
@@ -145,6 +152,15 @@ export interface BrandConfig {
    * the shared Rad Games mark so it is not the only blank tile.
    */
   tileLogoUrl: string;
+  /**
+   * Path under public/ for the mark on the games home header
+   * (`src/routes/index.tsx`), right-aligned opposite the player's name. Per
+   * brand, and the one place a pilot instance does NOT show the shared Rad Games
+   * mark: that header greets this brand's own player, so it draws this brand's
+   * own mark (owner request, 29 Sep). Drawn on the app's dark navy background,
+   * so it must read on navy.
+   */
+  homeLogoUrl: string;
   /**
    * Whether the welcome screen draws the mascot as well as the mark. False where
    * the welcome logo already contains Rex, so he is not shown twice.
@@ -189,6 +205,9 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     logoAlt: "Rad Games",
     welcomeLogoUrl: "/rad-games-logo.png", // the master's own mark
     tileLogoUrl: "/rad-games-logo.png", // the shared mark: the master has no other
+    // Same mark again: on the master instance the shared mark IS the brand's
+    // mark, and it is drawn on the same dark navy it was designed for.
+    homeLogoUrl: "/rad-games-logo.png",
     rexImageUrl: "/welcome-rex-opt.png", // the navy Rex, unchanged
     welcomeShowsRex: true, // mark AND Rex: the look the master has always had
     icon192Url: "/icon-192.png",
@@ -219,6 +238,10 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // The owner's tile mark for this brand (a red Sunshine Coast Radiology
     // lockup), sized for a game page's title tile.
     tileLogoUrl: "/brands/imaging-queensland/tile-logo.png",
+    // The brand's mark for the home header, supplied as a true-transparency
+    // export by the owner (29 Sep) and only used here: the welcome screen keeps
+    // the lockup above, which carries this brand's Rex.
+    homeLogoUrl: "/brands/imaging-queensland/home-logo.png",
     rexImageUrl: "/brands/imaging-queensland/rex.png",
     welcomeShowsRex: false, // the welcome logo already contains Rex
     icon192Url: "/brands/imaging-queensland/icon-192.png",
@@ -249,6 +272,11 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // The owner's tile mark for this brand (the x-ray group lockup), sized for a
     // game page's title tile.
     tileLogoUrl: "/brands/the-xray-group/tile-logo.png",
+    // The home header draws this brand's tile lockup rather than its welcome
+    // artwork: the welcome logo is a Rad Games lockup carrying Rex (busy and
+    // unreadable at 40 CSS px), while this one is the brand's own wordmark in the
+    // same wide ~3:1 shape the other two brands' header marks have.
+    homeLogoUrl: "/brands/the-xray-group/tile-logo.png",
     rexImageUrl: "/brands/the-xray-group/rex.png",
     welcomeShowsRex: false, // the welcome logo already contains Rex
     icon192Url: "/brands/the-xray-group/icon-192.png",
