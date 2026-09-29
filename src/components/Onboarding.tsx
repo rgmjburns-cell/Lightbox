@@ -7,6 +7,7 @@ import {
 } from "~/lib/leaderboard";
 import type { ServerPlayerProfile } from "~/lib/profile";
 import ProfileRestorePrompt from "~/components/ProfileRestorePrompt";
+import Rex from "~/components/Rex";
 import brand from "~/lib/brand";
 
 export function getPlayerName(): string | null {
@@ -135,13 +136,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             />
           </h1>
 
-          {/* Rex, between the product mark and the brand's own mark */}
-          <img
-            src="/welcome-rex-opt.png"
-            alt="Rex"
-            className="welcome-rex-float welcome-rex-cape"
+          {/* Rex, between the product mark and the brand's own mark. He comes
+              from the shared component, so this screen gets the instance's cape
+              colour the same way every game screen does. The artwork is square,
+              so width follows the same clamp as the height (the wrapper has to
+              be sized explicitly; the image just fills it). */}
+          <Rex
             style={{
               height: "clamp(90px, 20vw, 268px)",
+              width: "clamp(90px, 20vw, 268px)",
               marginTop: "0px",
               filter: "drop-shadow(0 12px 34px rgba(0,140,149,0.28))",
             }}
