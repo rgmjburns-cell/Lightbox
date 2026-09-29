@@ -123,7 +123,29 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             style={{
               lineHeight: 0,
               margin: "0 auto",
-              marginBottom: "-8px",
+              // The gap between the mark and the headline under it, and the ONLY
+              // spacing there is (this h1 is the last thing in its section). It
+              // is gated on `welcomeShowsRex` because the two cases end at very
+              // different places (owner report, 29 Sep):
+              //
+              //   - Where Rex is drawn below the mark (the master), his artwork
+              //     carries 81 of its 400 rows of transparent padding under his
+              //     feet, so pulling the headline up by 8px costs nothing
+              //     visible. That is the look the owner approved, so it stays
+              //     exactly as it is.
+              //   - The pilot brands' welcome marks have no such padding: their
+              //     alpha bounding box is the whole 750x537 canvas (the white
+              //     "GAMES" letters are the last row), so the same -8px landed
+              //     the headline's glyphs ON the mark — 2.5px of overlap at a
+              //     390px-wide phone. They get a real gap instead: 2.1vh is
+              //     17.7px at 390x844, which leaves the headline's caps 22px
+              //     clear of the mark, the same visible clearance the master
+              //     already has (measured, not guessed). The mark's measured
+              //     width, the copy and everything below the headline are
+              //     untouched.
+              marginBottom: brand.welcomeShowsRex
+                ? "-8px"
+                : "clamp(12px, 2.1vh, 26px)",
             }}
           >
             <img

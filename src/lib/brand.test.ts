@@ -354,6 +354,15 @@ describe("the cape machinery is gone", () => {
     expect(onboarding).toContain("brand.welcomeLogoUrl");
     expect(onboarding).toContain("brand.welcomeShowsRex");
     expect(onboarding).not.toContain("src={brand.logoUrl}");
+    // The mark's bottom clearance is gated on the same flag: the master keeps
+    // its exact -8px pull-up (its Rex artwork has transparent padding under him
+    // that absorbs it), while a mark drawn flush to its own bottom edge takes a
+    // real gap. An ungated negative margin would touch the headline on those
+    // brands again.
+    expect(onboarding).toMatch(
+      /marginBottom: brand\.welcomeShowsRex\s*\?\s*"-8px"\s*:\s*"clamp\(/,
+    );
+    expect(onboarding).not.toMatch(/marginBottom: "-8px"/);
   });
 });
 describe("resolveBrandId", () => {
