@@ -2,11 +2,12 @@
  * Rad Games (LightBox PLAY) — the ONE brand config module.
  *
  * The product ships as one codebase with one deployed instance per brand. Each
- * brand gets its own name, logo, URL and Rex cape colour, with identical
- * presentation otherwise and identical game logic and data behaviour: the navy
- * theme, layout and every screen are shared, and there is deliberately no
- * per-brand skinning beyond the fields below. Every user-visible brand fact
- * lives here, so no screen has to hardcode a brand string of its own.
+ * brand gets its own name, logo, URL and Rex cape colour, and NOTHING else: the
+ * presentation of every instance is identical (the dark navy theme, layout and
+ * every screen are shared, and there is deliberately no per-brand skinning — not
+ * even a colour — beyond the fields below), and game logic and data behaviour
+ * are identical too. Every user-visible brand fact lives here, so no screen has
+ * to hardcode a brand string of its own.
  *
  * There are THREE instances (owner decision 2026-09-29):
  *   - `rad-games` — the neutral master, and the app that is live today
@@ -54,7 +55,19 @@
  *
  * The PWA manifest (`name`, `short_name`, `theme_color`) is generated from this
  * module at build time by the `brand-manifest` plugin in `vite.config.ts`, so it
- * follows the brand automatically.
+ * follows the brand automatically. Only the name follows the brand: every
+ * instance ships the same `theme_color`, because the `colors` block below is one
+ * unified palette (see "Browser and PWA chrome").
+ *
+ * Browser and PWA chrome
+ * ----------------------
+ * The `colors` block is IDENTICAL in all three instances (owner decision
+ * 2026-09-29: no per-brand skins — the dark navy theme and every other
+ * presentation choice stay the same across apps). It only colours the browser
+ * and installed-app chrome (the `theme-color` meta tag in `src/routes/__root.tsx`
+ * and the manifest's `theme_color`); the app UI is CSS-driven from
+ * `src/styles/app.css` and is the same on every instance. Rex's cape
+ * (`rexCapeColor`) is the ONE authorised per-brand visual difference.
  *
  * What is deliberately NOT here
  * -----------------------------
@@ -77,8 +90,15 @@ export interface BrandConfig {
   welcomeMessage: string;
   /** How the brand signs itself in the footer of the welcome screen. */
   tagline: string;
+  /**
+   * Browser and PWA chrome colours: the app's existing charcoal/teal palette.
+   * IDENTICAL for every instance (owner decision 2026-09-29: no per-brand
+   * skins) — these feed the `theme-color` meta tag and the PWA manifest's
+   * `theme_color`, and a per-brand value here would change nothing a player
+   * sees inside the app, because the UI is CSS-driven and shared.
+   */
   colors: {
-    /** Main brand colour. */
+    /** Main colour: the app's existing deep charcoal. */
     primary: string;
     /** Accent colour: buttons, highlights, the second word of the wordmark. */
     secondary: string;
@@ -112,7 +132,8 @@ export const DEFAULT_REX_CAPE_COLOR = "#204670";
  * `rad-games` is the neutral master (no owner network named on screen, no cape
  * override); the two pilot brands come from the owner's decisions
  * (Imaging Queensland is the confirmed QLD brand, The Xray Group the VIC one).
- * The logo is the shared Rad Games mark for all three, and the cape colours are
+ * The `colors` palette and the logo are the same in all three entries (see
+ * "Browser and PWA chrome"); only the cape colours differ, and they are
  * placeholders the owner will finalise.
  */
 export const BRANDS: Record<BrandId, BrandConfig> = {
@@ -124,6 +145,9 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // The neutral master names no network: it is the product's own instance, so
     // its line stays generic rather than signing itself to a radiology group.
     tagline: "Play radiology-themed games while you wait.",
+    // Unified brand palette — identical across all instances (owner decision
+    // 29 Sep): this block only colours browser/PWA chrome; the app UI is
+    // CSS-driven and identical everywhere.
     colors: {
       primary: "#2D2D2D", // Deep Charcoal (the app's existing palette)
       secondary: "#008C95", // Teal accent
@@ -139,6 +163,9 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     productName: PRODUCT_NAME,
     welcomeMessage: `Welcome to ${PRODUCT_NAME}! I am Rex, your friendly radiology buddy. Pick a game and have fun while you wait!`,
     tagline: "Brought to you by Imaging Queensland.",
+    // Unified brand palette — identical across all instances (owner decision
+    // 29 Sep): this block only colours browser/PWA chrome; the app UI is
+    // CSS-driven and identical everywhere.
     colors: {
       primary: "#2D2D2D", // Deep Charcoal (the app's existing palette)
       secondary: "#008C95", // Teal accent
@@ -158,10 +185,13 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     productName: PRODUCT_NAME,
     welcomeMessage: `Welcome to ${PRODUCT_NAME}! I am Rex, your friendly radiology buddy. Pick a game and have fun while you wait!`,
     tagline: "Brought to you by The Xray Group.",
+    // Unified brand palette — identical across all instances (owner decision
+    // 29 Sep): this block only colours browser/PWA chrome; the app UI is
+    // CSS-driven and identical everywhere.
     colors: {
-      primary: "#173A5E", // Deep clinical navy (placeholder)
-      secondary: "#00A3AD", // Bright teal accent (placeholder)
-      themeColor: "#0B1F33",
+      primary: "#2D2D2D", // Deep Charcoal (the app's existing palette)
+      secondary: "#008C95", // Teal accent
+      themeColor: "#0A1628",
     },
     // The same shared Rad Games master mark; swap for the Xray Group mark when
     // that artwork arrives.

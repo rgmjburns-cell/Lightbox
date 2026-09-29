@@ -6,6 +6,11 @@
  * default brand instead of a blank UI, and every user-visible string a brand
  * carries is the renamed product rather than the old "LightBox" name.
  *
+ * Presentation is deliberately NOT per-brand (owner decision 2026-09-29: no
+ * per-brand skins), so the `colors` block is pinned as one unified palette that
+ * all three entries must share — it only colours browser/PWA chrome, and the app
+ * UI is identical everywhere.
+ *
  * Rex's cape is the one thing a brand may change about how the app looks, so it
  * is pinned here too: the two pilot brands carry a cape colour, the neutral
  * master does not, and the cape mask the colour is painted through really is a
@@ -84,10 +89,27 @@ describe("brand config", () => {
       expect(BRANDS[id].tagline).toContain(BRANDS[id].brandName);
       expect(masterTagline).not.toContain(BRANDS[id].brandName);
     }
-    // A brand must be able to look different from the other one.
-    expect(BRANDS["imaging-queensland"].colors).not.toEqual(
-      BRANDS["the-xray-group"].colors,
-    );
+    // Browser/PWA chrome is NOT per-brand (owner decision 29 Sep: no per-brand
+    // skins), so no two instances may ship a different palette.
+    expect(BRANDS["imaging-queensland"].colors).toEqual(BRANDS["rad-games"].colors);
+    expect(BRANDS["the-xray-group"].colors).toEqual(BRANDS["rad-games"].colors);
+  });
+
+  test("all three instances share one identical browser/PWA palette", () => {
+    // The app's existing palette, pinned by value: `colors` only colours the
+    // browser and installed-app chrome (the `theme-color` meta tag and the
+    // manifest's `theme_color`). The app UI itself is CSS-driven and the same
+    // everywhere, so a differing block here would be the only per-brand visual
+    // difference in the codebase — which the owner ruled out on 29 Sep. Rex's
+    // cape is the one authorised per-brand difference, and it is not in here.
+    const unified = {
+      primary: "#2D2D2D", // deep charcoal
+      secondary: "#008C95", // teal accent
+      themeColor: "#0A1628",
+    };
+    for (const id of BRAND_IDS) {
+      expect(BRANDS[id].colors).toEqual(unified);
+    }
   });
 
   test("no brand carries the retired product name", () => {
@@ -270,10 +292,20 @@ describe("manifestFor", () => {
     const manifest = manifestFor(BRANDS["the-xray-group"]);
     expect(manifest.name).toBe("Rad Games");
     expect(manifest.short_name).toBe("Rad Games");
+    // One unified palette, so this is the same charcoal for every instance
+    // rather than a per-brand chrome colour.
+    expect(manifest.theme_color).toBe("#2D2D2D");
     expect(manifest.theme_color).toBe(BRANDS["the-xray-group"].colors.primary);
     expect(manifest.start_url).toBe("/");
     expect(manifest.display).toBe("standalone");
     expect(manifest.icons.map((icon) => icon.sizes)).toEqual(["192x192", "512x512"]);
+  });
+
+  test("every brand's manifest carries the same unified theme colour", () => {
+    // Only the name and description follow the brand; the chrome does not.
+    for (const id of BRAND_IDS) {
+      expect(manifestFor(BRANDS[id]).theme_color).toBe("#2D2D2D");
+    }
   });
 
   test("it defaults to the running brand", () => {
