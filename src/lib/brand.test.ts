@@ -7,6 +7,9 @@
  * carries is the renamed product rather than the old "LightBox" name.
  */
 import { describe, expect, test } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import sharp from "sharp";
 import {
   BRANDS,
   BRAND_IDS,
@@ -76,6 +79,34 @@ describe("brand config", () => {
   });
 });
 
+describe("brand logo asset", () => {
+  const publicFile = (url: string) =>
+    fileURLToPath(new URL(`../../public/${url.replace(/^\//, "")}`, import.meta.url));
+  test("every brand's logo file exists in public/", () => {
+    for (const id of BRAND_IDS) {
+      expect(existsSync(publicFile(BRANDS[id].logoUrl))).toBe(true);
+    }
+  });
+  test("the shared Rad Games mark is a wide, transparent PNG that loads fast", async () => {
+    // The mark replaced the corporate placeholder, so this pins the properties
+    // the two places that draw it rely on: a transparent background (the header
+    // and the welcome screen are dark), a wide lockup (sized by width, not
+    // height) and a file small enough for a waiting-room phone connection.
+    const file = publicFile("/rad-games-logo.png");
+    const bytes = readFileSync(file);
+    expect(bytes.subarray(0, 8)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    );
+    const meta = await sharp(file).metadata();
+    expect(meta.format).toBe("png");
+    expect(meta.hasAlpha).toBe(true);
+    const width = meta.width ?? 0;
+    const height = meta.height ?? 0;
+    expect(width).toBeGreaterThanOrEqual(600); // sharp on a 3x phone screen
+    expect(width / height).toBeGreaterThan(1.8); // wide lockup
+    expect(bytes.length).toBeLessThan(250 * 1024);
+  });
+});
 describe("resolveBrandId", () => {
   test("accepts a known id, ignoring case and padding", () => {
     expect(resolveBrandId("imaging-queensland")).toBe("imaging-queensland");
