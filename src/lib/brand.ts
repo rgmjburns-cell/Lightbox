@@ -23,12 +23,15 @@
  *
  * Swapping logos
  * --------------
- * `logoUrl` is a path under `public/`. The brands' own logo artwork has not been
- * supplied yet, so each brand points at an existing asset as a placeholder. To
- * use the real mark: drop the file in (for example
+ * `logoUrl` is a path under `public/`. Both brands currently point at the shared
+ * Rad Games master mark (`public/rad-games-logo.png`, the wide RAD GAMES lockup
+ * with a transparent background) because the per-brand marks have not been
+ * supplied yet: the product mark is what a player sees, and the brand's own name
+ * is carried by `brandName`/`tagline` copy and the title bar until its artwork
+ * lands. To use a brand's own mark when it arrives: drop the file in (for example
  * `public/brands/imaging-queensland.png`) and change that one field. The header
- * and the welcome screen draw the logo on a dark background, so it must be a
- * light-on-dark mark. `logoAlt` is the accessible name next to it.
+ * and the welcome screen draw the logo on a dark background, so it must read on
+ * dark. `logoAlt` is the accessible name next to it.
  *
  * The PWA manifest (`name`, `short_name`, `theme_color`) is generated from this
  * module at build time by the `brand-manifest` plugin in `vite.config.ts`, so it
@@ -88,7 +91,9 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
       secondary: "#008C95", // Teal accent
       themeColor: "#0A1628",
     },
-    logoUrl: "/welcome-idx-logo.png", // placeholder: light-on-dark corporate mark
+    // The shared Rad Games master mark. A per-brand mark overrides this field
+    // when the brand's own artwork arrives.
+    logoUrl: "/rad-games-logo.png",
     logoAlt: "Imaging Queensland",
   },
   "the-xray-group": {
@@ -102,7 +107,9 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
       secondary: "#00A3AD", // Bright teal accent (placeholder)
       themeColor: "#0B1F33",
     },
-    logoUrl: "/welcome-idx-logo.png", // placeholder: swap for the Xray Group mark
+    // The same shared Rad Games master mark; swap for the Xray Group mark when
+    // that artwork arrives.
+    logoUrl: "/rad-games-logo.png",
     logoAlt: "The Xray Group",
   },
 };

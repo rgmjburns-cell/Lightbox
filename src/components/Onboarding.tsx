@@ -22,9 +22,6 @@ interface OnboardingProps {
 
 const HIGHLIGHT = "#008C95";
 
-/** "Rad Games" -> ["Rad", "Games"], so the second word can carry the accent. */
-const wordmark = brand.productName.split(" ");
-
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const [name, setName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -112,26 +109,33 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           className="flex flex-col items-center"
           style={{ gap: "0px" }}
         >
-          {/* The product wordmark. Text, not artwork: the old logo image still
-              reads "LightBox", and the owner's own mark for the new name is a
-              pending asset, so the name is drawn from the brand config. */}
+          {/* The Rad Games mark, in the spot the product logo has always
+              occupied on this screen: the owner's artwork replaced the styled
+              text that stood in for it while the mark was a pending asset. It is
+              a wide lockup (about 2.1:1) on a transparent background, so it is
+              sized by width, the same as the logo it replaces. */}
           <h1
-            className="text-white font-extrabold tracking-tight text-center"
+            className="text-center"
             style={{
-              fontSize: "clamp(2rem, 8.5vw, 3rem)",
-              lineHeight: 1.05,
+              lineHeight: 0,
               margin: "0 auto",
-              marginBottom: "-15px",
-              textShadow: "0 6px 24px rgba(0,140,149,0.35)",
+              marginBottom: "-8px",
             }}
           >
-            {wordmark[0]}
-            {wordmark[1] && (
-              <span style={{ color: brand.colors.secondary }}> {wordmark[1]}</span>
-            )}
+            <img
+              src={brand.logoUrl}
+              alt={brand.productName}
+              style={{
+                width: "clamp(200px, 30vw, 250px)",
+                height: "auto",
+                display: "block",
+                margin: "0 auto",
+                filter: "drop-shadow(0 8px 26px rgba(0,140,149,0.35))",
+              }}
+            />
           </h1>
 
-          {/* Rex, between the wordmark and the brand logo */}
+          {/* Rex, between the product mark and the brand's own mark */}
           <img
             src="/welcome-rex-opt.png"
             alt="Rex"
@@ -143,12 +147,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             }}
           />
 
-          {/* The brand's own logo, from the brand config. */}
-          <img
-            src={brand.logoUrl}
-            alt={brand.logoAlt}
-            className="w-[84px] h-auto"
-          />
+          {/* Where a brand's OWN mark sits once its artwork lands (it was the
+              corporate placeholder here). It is deliberately not drawn today:
+              `brand.logoUrl` is the same shared Rad Games mark as the hero
+              above, so rendering it here would show the product mark twice, and
+              the 84px slot this placeholder used is far too small for a wide
+              lockup. The brand is named by `brand.tagline` on the line below. */}
         </div>
 
         {/* ══════════════════════════════════════════════
