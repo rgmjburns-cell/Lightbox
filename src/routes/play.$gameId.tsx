@@ -20,7 +20,7 @@ const gameMeta: Record<string, { title: string; icon: string }> = {
   "ecg-rhythm": { title: "Pulse Pop", icon: "/icons/icon-pulse-pop.png" },
   "colour-rex": { title: "Colour Rex", icon: "/icons/icon-colour-rex.png" },
   "film-stack": { title: "Film Stack", icon: "/icons/icon-film-stack.png" },
-  "scan-rush": { title: "Scan Rush", icon: "/icons/icon-scan-rush.png" },
+  "scan-rush": { title: "Scan Quest", icon: "/icons/icon-scan-rush.png" },
 };
 function PlayGame() {
   const { gameId } = Route.useParams();

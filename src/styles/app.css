@@ -488,7 +488,7 @@ body::after {
    requestAnimationFrame, never by CSS animation events. Collapsing a
    duration therefore only removes the motion, not the outcome. Visual
    cues whose *resting* state carries the information are unaffected:
-   e.g. Scan Rush's lit bay still shows its tile image (srPopIn ends
+   e.g. Scan Quest's lit bay still shows its tile image (srPopIn ends
    visible) and its hazard bay still shows its red gradient + ⚠️ — only
    the extra glow pulse is calmed.
    ────────────────────────────────────────────────────────────── */
