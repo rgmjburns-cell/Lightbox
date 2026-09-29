@@ -326,9 +326,9 @@ describe("brand artwork files", () => {
       "/brands/imaging-queensland/home-logo.png",
     );
     // The Xray Group's welcome logo is a Rad Games lockup carrying Rex (busy at
-    // 40 CSS px), so its header draws the brand's own wide wordmark lockup: the
-    // tile artwork, which is the same ~3:1 shape as the other two brands' marks.
-    expect(BRANDS["the-xray-group"].homeLogoUrl).toBe("/brands/the-xray-group/tile-logo.png");
+    // 40 CSS px), so its header draws the brand's own wide wordmark export, which
+    // the owner supplied on 29 Sep: the same ~3:1 shape as the other two marks.
+    expect(BRANDS["the-xray-group"].homeLogoUrl).toBe("/brands/the-xray-group/home-logo.png");
     for (const id of BRAND_IDS) {
       const url = BRANDS[id].homeLogoUrl;
       expect(url.startsWith("/")).toBe(true);
@@ -370,13 +370,10 @@ describe("brand artwork files", () => {
       const meta = await sharp(file).metadata();
       expect(meta.format).toBe("png");
       expect(meta.hasAlpha).toBe(true);
-      // The mark is sized by HEIGHT on screen (`h-10` = 40 CSS px). The master's
-      // mark and Imaging Queensland's owner-supplied export both carry far more
-      // pixels than 3x DPR asks for; The Xray Group's is the brand's own tile
-      // lockup at 96 device px (32 CSS px at 3x), the smallest art any of the
-      // three can offer — its only larger export is the welcome artwork, which is
-      // a Rad Games mark with Rex and does not carry the brand's name at all.
-      // This floor catches a header pointed at a thumbnail-sized file.
+      // The mark is sized by HEIGHT on screen (`h-10` = 40 CSS px), so the 3x-DPR
+      // slot is ~120 device px tall. All three marks clear that: the master's is
+      // 420 px and the two owner-supplied exports are 362 and 118. This floor
+      // catches a header pointed at a thumbnail-sized or pre-scaled file.
       expect(meta.height ?? 0).toBeGreaterThanOrEqual(96);
       expect(readFileSync(file).length).toBeLessThan(150 * 1024);
 
@@ -419,6 +416,49 @@ describe("brand artwork files", () => {
     expect(alphaAt(info.width - 1, 0)).toBe(0);
     expect(alphaAt(0, info.height - 1)).toBe(0);
     expect(alphaAt(info.width - 1, info.height - 1)).toBe(0);
+  });
+
+  test("the Xray Group header mark is the owner's export, drawn near 1:1", async () => {
+    // The second owner-supplied mark (29 Sep) is small and tightly cut: 351x118
+    // with true transparency and ink edge to edge, so there is no margin to trim
+    // and no reason to resample it. At `h-10` (40 CSS px) its 2.97 aspect draws
+    // ~119 CSS px wide, which is within ~2% of the 3x-DPR slot and well above 2x
+    // — sharper per device pixel than any other header mark, and 6.6 kB on the
+    // wire. This pins the file, not the slot (the slot is shared and pinned
+    // separately), so re-cropping or downscaling the artwork fails here.
+    const file = publicFile(BRANDS["the-xray-group"].homeLogoUrl);
+    const meta = await sharp(file).metadata();
+    expect(meta.width).toBe(351);
+    expect(meta.height).toBe(118);
+    expect(Math.abs((meta.width ?? 0) / (meta.height ?? 1) - 2.97)).toBeLessThan(0.02);
+    expect(readFileSync(file).length).toBeLessThan(150 * 1024);
+
+    const { data, info } = await sharp(file)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const alphaAt = (x: number, y: number) => data[(y * info.width + x) * 4 + 3];
+    expect(alphaAt(0, 0)).toBe(0);
+    expect(alphaAt(info.width - 1, 0)).toBe(0);
+    expect(alphaAt(0, info.height - 1)).toBe(0);
+    expect(alphaAt(info.width - 1, info.height - 1)).toBe(0);
+
+    let x0 = info.width;
+    let x1 = -1;
+    let y0 = info.height;
+    let y1 = -1;
+    for (let y = 0; y < info.height; y++) {
+      for (let x = 0; x < info.width; x++) {
+        if (alphaAt(x, y) < 200) continue;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+    // The mark fills its canvas: the shared slot draws the wordmark, not padding.
+    expect((x1 - x0 + 1) / info.width).toBeGreaterThan(0.98);
+    expect((y1 - y0 + 1) / info.height).toBeGreaterThan(0.95);
   });
 
   test("the games home header draws the brand's mark at one shared size", () => {

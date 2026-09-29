@@ -272,11 +272,13 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // The owner's tile mark for this brand (the x-ray group lockup), sized for a
     // game page's title tile.
     tileLogoUrl: "/brands/the-xray-group/tile-logo.png",
-    // The home header draws this brand's tile lockup rather than its welcome
-    // artwork: the welcome logo is a Rad Games lockup carrying Rex (busy and
-    // unreadable at 40 CSS px), while this one is the brand's own wordmark in the
-    // same wide ~3:1 shape the other two brands' header marks have.
-    homeLogoUrl: "/brands/the-xray-group/tile-logo.png",
+    // The brand's mark for the home header, supplied by the owner (29 Sep) as a
+    // small true-transparency export used here and nowhere else. It is not the
+    // welcome logo (a Rad Games lockup carrying Rex, unreadable at 40 CSS px) and
+    // no longer the tile lockup: 351x118 with ink edge to edge is the same wide
+    // ~3:1 wordmark shape the other two brands' header marks have, and it draws
+    // 119 CSS px wide in the 40 CSS px slot, so nothing is resampled.
+    homeLogoUrl: "/brands/the-xray-group/home-logo.png",
     rexImageUrl: "/brands/the-xray-group/rex.png",
     welcomeShowsRex: false, // the welcome logo already contains Rex
     icon192Url: "/brands/the-xray-group/icon-192.png",
