@@ -46,6 +46,11 @@
  *   - `rexImageUrl` is the mascot `Rex.tsx` draws everywhere in the app (games,
  *     leaderboard, onboarding), so the instance's Rex follows the brand with no
  *     per-screen work.
+ *   - `tileLogoUrl` is the small mark on a game page's white title tile (owner
+ *     request, 29 Sep): the two pilot brands point at their own tile artwork,
+ *     the master at the shared Rad Games mark. The tile is white, so these must
+ *     read on white — the pilot brands' are coloured lockups, and they are
+ *     produced with their white background keyed out to transparency.
  *   - `welcomeShowsRex` is false for the two pilot brands because their welcome
  *     logos already contain Rex (owner direction: "as they have Rex in them we
  *     don't need Rex as well on the logo in page"). The master draws the shared
@@ -133,6 +138,14 @@ export interface BrandConfig {
    */
   rexImageUrl: string;
   /**
+   * Path under public/ for the small mark on a game page's white title tile
+   * (`src/routes/play.$gameId.tsx`), right-aligned beside the game name. Every
+   * brand carries one: the two pilot brands use the owner's own tile artwork (a
+   * wide, coloured lockup that reads on the white tile), and the master keeps
+   * the shared Rad Games mark so it is not the only blank tile.
+   */
+  tileLogoUrl: string;
+  /**
    * Whether the welcome screen draws the mascot as well as the mark. False where
    * the welcome logo already contains Rex, so he is not shown twice.
    */
@@ -175,6 +188,7 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     logoUrl: "/rad-games-logo.png", // the master mark IS this brand's mark
     logoAlt: "Rad Games",
     welcomeLogoUrl: "/rad-games-logo.png", // the master's own mark
+    tileLogoUrl: "/rad-games-logo.png", // the shared mark: the master has no other
     rexImageUrl: "/welcome-rex-opt.png", // the navy Rex, unchanged
     welcomeShowsRex: true, // mark AND Rex: the look the master has always had
     icon192Url: "/icon-192.png",
@@ -202,6 +216,9 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // The brand's own welcome artwork (Rad Games lockup with Imaging
     // Queensland's Rex), so this screen does not draw Rex separately.
     welcomeLogoUrl: "/brands/imaging-queensland/welcome-logo.png",
+    // The owner's tile mark for this brand (a red Sunshine Coast Radiology
+    // lockup), sized for a game page's title tile.
+    tileLogoUrl: "/brands/imaging-queensland/tile-logo.png",
     rexImageUrl: "/brands/imaging-queensland/rex.png",
     welcomeShowsRex: false, // the welcome logo already contains Rex
     icon192Url: "/brands/imaging-queensland/icon-192.png",
@@ -229,6 +246,9 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // The brand's own welcome artwork (Rad Games lockup with The Xray Group's
     // Rex), so this screen does not draw Rex separately.
     welcomeLogoUrl: "/brands/the-xray-group/welcome-logo.png",
+    // The owner's tile mark for this brand (the x-ray group lockup), sized for a
+    // game page's title tile.
+    tileLogoUrl: "/brands/the-xray-group/tile-logo.png",
     rexImageUrl: "/brands/the-xray-group/rex.png",
     welcomeShowsRex: false, // the welcome logo already contains Rex
     icon192Url: "/brands/the-xray-group/icon-192.png",

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
 import Rex from "~/components/Rex";
 import RexSpeechBubble from "~/components/RexSpeechBubble";
+import brand from "~/lib/brand";
 import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
 import { decorativeDuration, prefersReducedMotion } from "~/lib/reducedMotion";
@@ -1611,10 +1612,13 @@ export default function BoneBuster() {
                 );
               })}
             </div>
-            {/* Rex flying image */}
+            {/* Rex flying image — the brand's mascot (`brand.rexImageUrl`), the
+                same file Rex.tsx draws everywhere, so the fly-by follows the
+                instance. Only the artwork source is per brand; the flight path,
+                timing, size and glow below are unchanged. */}
             <div style={rexBurstStyle}>
               <img
-                src="/rex-super-burst.png"
+                src={brand.rexImageUrl}
                 alt="Rex Super Burst"
                 width={80}
                 height={80}

@@ -601,13 +601,13 @@ export default function ScanRush() {
       {/* ── Start panel ── */}
       {phase === "idle" && (
         <div className="card mb-3 text-center">
-          <h2 className="text-lg font-extrabold text-primary mb-1">⚡ Scan Rush</h2>
+          <h2 className="text-lg font-extrabold text-primary mb-1">⚡ Scan Quest</h2>
           <p className="text-sm text-mutedText mb-3">
             Tap the lit bays to score fast! Chain taps for combos. Don't tap
             the red ⚠ bays!
           </p>
           <button className="btn-primary w-full text-lg" onClick={startGame}>
-            Start Rush
+            Start Quest
           </button>
         </div>
       )}

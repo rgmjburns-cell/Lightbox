@@ -16,7 +16,7 @@ export const Route = createFileRoute("/")({
 const playExperiences = [
   {
     id: "scan-rush",
-    title: "Scan Rush",
+    title: "Scan Quest",
     subtitle: "Tap the lit bay fast!",
     icon: "/icons/icon-scan-rush.png",
     color: "from-secondary to-primary/60",

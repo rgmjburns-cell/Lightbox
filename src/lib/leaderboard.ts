@@ -62,7 +62,7 @@ export type LeaderboardFilter = "all" | LeaderboardGame;
 
 /** All games on the shared board: id (as submitted), display label, emoji. */
 export const GAME_META: { id: LeaderboardGame; label: string; emoji: string }[] = [
-  { id: "scan-rush", label: "Scan Rush", emoji: "⚡" },
+  { id: "scan-rush", label: "Scan Quest", emoji: "⚡" },
   { id: "bone-buster", label: "Bone Buster", emoji: "🦴" },
   { id: "scan-search", label: "Scan Search", emoji: "🔍" },
   { id: "memory-scan", label: "Memory Scan", emoji: "🧠" },
