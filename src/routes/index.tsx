@@ -115,17 +115,29 @@ function Home() {
 
   return (
     <div className="page-container">
-      {/* ── Header with Rex ── */}
+      {/* ── Header with Rex and the brand mark ── */}
+      {/* The mark sits in the empty space opposite the greeting, right-aligned
+          and vertically centred on the 64px Rex + text column. One fixed height
+          for every brand (no per-brand sizing): only the artwork differs. The
+          text column is `min-w-0` with a truncating headline, so a long nickname
+          ("Hi, Alexandra!") ellipsises instead of pushing the mark off-screen —
+          at 320 CSS px this row has room for Rex, the mark and a clipped name. */}
       <div className="mb-6 mt-2 flex items-center gap-4">
         <Rex className="w-16 h-16 shrink-0" mood="happy" />
-        <div>
-          <h1 className="text-xl font-bold text-white">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-white truncate whitespace-nowrap">
             {playerName ? `Hi, ${playerName}!` : brand.productName}
           </h1>
-          <p className="text-sm text-white/70">
+          <p className="text-sm text-white/70 truncate whitespace-nowrap">
             {playerName ? "Ready to play?" : brand.welcomeMessage}
           </p>
         </div>
+        <img
+          src={brand.homeLogoUrl}
+          alt={brand.logoAlt}
+          className="ml-auto h-10 w-auto shrink-0"
+          draggable={false}
+        />
       </div>
 
       {/* ── Score Bar ── */}
