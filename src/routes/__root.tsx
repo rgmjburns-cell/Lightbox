@@ -36,7 +36,9 @@ export const Route = createRootRoute({
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.json?v=3" },
       { rel: "icon", href: "/favicon.ico?v=4" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png?v=3" },
+      // iOS takes the home-screen icon from here, not from the manifest, so the
+      // brand's own icon is set alongside the manifest's icons.
+      { rel: "apple-touch-icon", href: brand.appleTouchIconUrl },
     ],
   }),
   notFoundComponent: () => (

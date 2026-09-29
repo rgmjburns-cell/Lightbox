@@ -110,11 +110,14 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           className="flex flex-col items-center"
           style={{ gap: "0px" }}
         >
-          {/* The Rad Games mark, in the spot the product logo has always
-              occupied on this screen: the owner's artwork replaced the styled
-              text that stood in for it while the mark was a pending asset. It is
-              a wide lockup (about 2.1:1) on a transparent background, so it is
-              sized by width, the same as the logo it replaces. */}
+          {/* The welcome mark, in the spot the product logo has always occupied
+              on this screen, drawn from `brand.welcomeLogoUrl`: the shared Rad
+              Games mark on the neutral master, and each pilot brand's own
+              artwork (a Rad Games lockup carrying that brand's Rex) on its
+              instance. This is the ONE screen that does not use `brand.logoUrl`,
+              which stays the shared mark in the header on every brand (owner
+              direction, 29 Sep). Every mark is a wide lockup on a transparent
+              background, so it is sized by width. */}
           <h1
             className="text-center"
             style={{
@@ -124,8 +127,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             }}
           >
             <img
-              src={brand.logoUrl}
-              alt={brand.productName}
+              src={brand.welcomeLogoUrl}
+              alt={brand.logoAlt}
               style={{
                 width: "clamp(200px, 30vw, 250px)",
                 height: "auto",
@@ -136,26 +139,26 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             />
           </h1>
 
-          {/* Rex, between the product mark and the brand's own mark. He comes
-              from the shared component, so this screen gets the instance's cape
-              colour the same way every game screen does. The artwork is square,
-              so width follows the same clamp as the height (the wrapper has to
-              be sized explicitly; the image just fills it). */}
-          <Rex
-            style={{
-              height: "clamp(90px, 20vw, 268px)",
-              width: "clamp(90px, 20vw, 268px)",
-              marginTop: "0px",
-              filter: "drop-shadow(0 12px 34px rgba(0,140,149,0.28))",
-            }}
-          />
-
-          {/* Where a brand's OWN mark sits once its artwork lands (it was the
-              corporate placeholder here). It is deliberately not drawn today:
-              `brand.logoUrl` is the same shared Rad Games mark as the hero
-              above, so rendering it here would show the product mark twice, and
-              the 84px slot this placeholder used is far too small for a wide
-              lockup. The brand is named by `brand.tagline` on the line below. */}
+          {/* The mascot, drawn only where the mark above does NOT already show
+              him: the master's shared Rad Games mark has no Rex in it, so the
+              master keeps him here exactly as it always has, while the two pilot
+              brands' welcome logos contain their own Rex and would otherwise
+              show him twice (owner direction: "as they have Rex in them we don't
+              need Rex as well on the logo in page"). Wherever he IS drawn he
+              comes from the shared component, so he is the instance's own Rex.
+              The artwork is square, so width follows the same clamp as the
+              height (the wrapper has to be sized explicitly; the image just
+              fills it). */}
+          {brand.welcomeShowsRex && (
+            <Rex
+              style={{
+                height: "clamp(90px, 20vw, 268px)",
+                width: "clamp(90px, 20vw, 268px)",
+                marginTop: "0px",
+                filter: "drop-shadow(0 12px 34px rgba(0,140,149,0.28))",
+              }}
+            />
+          )}
         </div>
 
         {/* ══════════════════════════════════════════════

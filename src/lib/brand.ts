@@ -29,35 +29,43 @@
  * VITE_BRAND_ID: one image per brand. Unset or unknown ids fall back to
  * DEFAULT_BRAND_ID.
  *
- * Swapping logos
- * --------------
- * `logoUrl` is a path under `public/`. All three instances currently point at
- * the shared Rad Games master mark (`public/rad-games-logo.png`, the wide RAD
- * GAMES lockup with a transparent background) because the per-brand marks have
- * not been supplied yet: the product mark is what a player sees, and the brand's
- * own name is carried by `brandName`/`tagline` copy and the title bar until its
- * artwork lands. To use a brand's own mark when it arrives: drop the file in (for
- * example `public/brands/imaging-queensland.png`) and change that one field. The
- * header and the welcome screen draw the logo on a dark background, so it must
- * read on dark. `logoAlt` is the accessible name next to it.
+ * Per-brand artwork
+ * -----------------
+ * The owner supplied the pilot brands' artwork on 2026-09-29, and it is the only
+ * thing that differs visually between the three instances (the `colors` block
+ * below stays unified — see "Browser and PWA chrome"):
  *
- * Rex's cape
- * ----------
- * `rexCapeColor` is the ONE way an instance changes how Rex looks: a hex colour
- * for his cape, which is otherwise the navy baked into the master artwork
- * (`public/welcome-rex-opt.png`). Leave it unset and the artwork shows through
- * untouched (that is the neutral master). Set it and `RexCape`
- * (src/components/RexCape.tsx) paints that colour through the cape mask derived
- * from the same artwork (`public/rex-cape-mask.png`), so the cape, its folds and
- * the drop shadows follow, and nothing else on the character changes. The cape
- * colours below are PLACEHOLDERS the owner will finalise: changing one is a
- * one-line edit here, and nothing else in the codebase has to move.
+ *   - `logoUrl` is the shared Rad Games master mark, and it STAYS that in all
+ *     three entries: it is what the header draws on every instance (owner
+ *     direction: "make sure the rad games logo that you have already in place
+ *     stays like it is").
+ *   - `welcomeLogoUrl` is the mark the welcome/login screen draws, and THAT is
+ *     per brand: Imaging Queensland and The Xray Group show the owner's artwork
+ *     (a Rad Games lockup carrying that brand's Rex), while the master keeps the
+ *     shared mark. The header draws `logoUrl`, never this one.
+ *   - `rexImageUrl` is the mascot `Rex.tsx` draws everywhere in the app (games,
+ *     leaderboard, onboarding), so the instance's Rex follows the brand with no
+ *     per-screen work.
+ *   - `welcomeShowsRex` is false for the two pilot brands because their welcome
+ *     logos already contain Rex (owner direction: "as they have Rex in them we
+ *     don't need Rex as well on the logo in page"). The master draws the shared
+ *     mark and its navy Rex, exactly as it did before.
+ *   - `icon192Url`/`icon512Url`/`appleTouchIconUrl` are the installed app's
+ *     home-screen icons: the PWA manifest and the `apple-touch-icon` link read
+ *     them (iOS ignores the manifest, so both are set per brand).
  *
- * The PWA manifest (`name`, `short_name`, `theme_color`) is generated from this
- * module at build time by the `brand-manifest` plugin in `vite.config.ts`, so it
- * follows the brand automatically. Only the name follows the brand: every
- * instance ships the same `theme_color`, because the `colors` block below is one
- * unified palette (see "Browser and PWA chrome").
+ * Each of those is a path under `public/`, so a brand change is a config edit and
+ * a file drop. The per-brand files are produced from the owner's originals by
+ * `scripts/brand-artwork-assets.mjs` (its header explains the crop and scale
+ * conventions); the untouched exports stay in `public/_originals/brands/`.
+ * Every mark a player sees is drawn on the app's dark navy background, so each
+ * one must read on dark: they are transparent PNGs with no white fringe.
+ *
+ * The PWA manifest (`name`, `short_name`, `theme_color`, `icons`) is generated
+ * from this module at build time by the `brand-manifest` plugin in
+ * `vite.config.ts`, so it follows the brand automatically. The name, the
+ * description and the icon files are per brand; `theme_color` is not, because the
+ * `colors` block below is one unified palette (see "Browser and PWA chrome").
  *
  * Browser and PWA chrome
  * ----------------------
@@ -66,8 +74,7 @@
  * presentation choice stay the same across apps). It only colours the browser
  * and installed-app chrome (the `theme-color` meta tag in `src/routes/__root.tsx`
  * and the manifest's `theme_color`); the app UI is CSS-driven from
- * `src/styles/app.css` and is the same on every instance. Rex's cape
- * (`rexCapeColor`) is the ONE authorised per-brand visual difference.
+ * `src/styles/app.css` and is the same on every instance.
  *
  * What is deliberately NOT here
  * -----------------------------
@@ -105,36 +112,48 @@ export interface BrandConfig {
     /** Browser and PWA chrome colour (the `theme-color` meta tag). */
     themeColor: string;
   };
-  /** Path under public/ — the shared Rad Games mark until a brand mark lands. */
+  /**
+   * Path under public/ for the header's mark: the shared Rad Games mark in all
+   * three entries (owner direction, 29 Sep). The welcome screen draws
+   * `welcomeLogoUrl` instead.
+   */
   logoUrl: string;
+  /** The accessible name for the mark above (the brand's name). */
   logoAlt: string;
   /**
-   * Rex's cape, as a hex colour. OPTIONAL and set by only the branded
-   * instances: when it is absent the navy already in the mascot artwork is used
-   * as-is (the neutral master). See "Rex's cape" above.
+   * Path under public/ for the mark the welcome/login screen draws. Per brand:
+   * the two pilot brands show their own artwork there, which already contains
+   * Rex; the master shows the shared mark.
    */
-  rexCapeColor?: string;
+  welcomeLogoUrl: string;
+  /**
+   * Path under public/ for the mascot `Rex.tsx` draws everywhere: the master's
+   * navy Rex, or the pilot brand's own Rex. Swapping this one field changes Rex
+   * on every screen at once.
+   */
+  rexImageUrl: string;
+  /**
+   * Whether the welcome screen draws the mascot as well as the mark. False where
+   * the welcome logo already contains Rex, so he is not shown twice.
+   */
+  welcomeShowsRex: boolean;
+  /** The installed app's icons: the two PWA manifest sizes and iOS's touch icon. */
+  icon192Url: string;
+  icon512Url: string;
+  appleTouchIconUrl: string;
 }
 
 /** The game product's name, used by every brand. */
 export const PRODUCT_NAME = "Rad Games";
 
 /**
- * The cape colour already painted into `public/welcome-rex-opt.png` (the median
- * of the cape's pixels). No brand needs to name it: leaving `rexCapeColor` unset
- * shows the artwork as drawn. It exists so code and tests can talk about "the
- * default cape" without hardcoding a hex somewhere else.
- */
-export const DEFAULT_REX_CAPE_COLOR = "#204670";
-
-/**
  * The three instances, fully defined, so standing one up is one env var away.
- * `rad-games` is the neutral master (no owner network named on screen, no cape
- * override); the two pilot brands come from the owner's decisions
- * (Imaging Queensland is the confirmed QLD brand, The Xray Group the VIC one).
- * The `colors` palette and the logo are the same in all three entries (see
- * "Browser and PWA chrome"); only the cape colours differ, and they are
- * placeholders the owner will finalise.
+ * `rad-games` is the neutral master (no owner network named on screen: the
+ * shared mark, the navy Rex and the product's own app icons); the two pilot
+ * brands come from the owner's decisions (Imaging Queensland is the confirmed
+ * QLD brand, The Xray Group the VIC one) and carry their own welcome logo, Rex
+ * and home-screen icons. The `colors` palette and `logoUrl` are the same in all
+ * three entries (see "Browser and PWA chrome").
  */
 export const BRANDS: Record<BrandId, BrandConfig> = {
   "rad-games": {
@@ -155,7 +174,12 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     },
     logoUrl: "/rad-games-logo.png", // the master mark IS this brand's mark
     logoAlt: "Rad Games",
-    // No `rexCapeColor`: the master keeps the navy cape in the artwork.
+    welcomeLogoUrl: "/rad-games-logo.png", // the master's own mark
+    rexImageUrl: "/welcome-rex-opt.png", // the navy Rex, unchanged
+    welcomeShowsRex: true, // mark AND Rex: the look the master has always had
+    icon192Url: "/icon-192.png",
+    icon512Url: "/icon-512.png",
+    appleTouchIconUrl: "/apple-touch-icon.png?v=3",
   },
   "imaging-queensland": {
     brandId: "imaging-queensland",
@@ -171,13 +195,18 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
       secondary: "#008C95", // Teal accent
       themeColor: "#0A1628",
     },
-    // The shared Rad Games master mark. A per-brand mark overrides this field
-    // when the brand's own artwork arrives.
+    // The shared Rad Games master mark: the header looks the same on every
+    // instance (owner direction, 29 Sep).
     logoUrl: "/rad-games-logo.png",
     logoAlt: "Imaging Queensland",
-    // PLACEHOLDER cape colour (brand teal) pending the owner's final call.
-    // One-line change; nothing else in the codebase moves with it.
-    rexCapeColor: "#05B4C2",
+    // The brand's own welcome artwork (Rad Games lockup with Imaging
+    // Queensland's Rex), so this screen does not draw Rex separately.
+    welcomeLogoUrl: "/brands/imaging-queensland/welcome-logo.png",
+    rexImageUrl: "/brands/imaging-queensland/rex.png",
+    welcomeShowsRex: false, // the welcome logo already contains Rex
+    icon192Url: "/brands/imaging-queensland/icon-192.png",
+    icon512Url: "/brands/imaging-queensland/icon-512.png",
+    appleTouchIconUrl: "/brands/imaging-queensland/icon-180.png",
   },
   "the-xray-group": {
     brandId: "the-xray-group",
@@ -193,12 +222,18 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
       secondary: "#008C95", // Teal accent
       themeColor: "#0A1628",
     },
-    // The same shared Rad Games master mark; swap for the Xray Group mark when
-    // that artwork arrives.
+    // The shared Rad Games master mark: the header looks the same on every
+    // instance (owner direction, 29 Sep).
     logoUrl: "/rad-games-logo.png",
     logoAlt: "The Xray Group",
-    // PLACEHOLDER cape colour (crimson) pending the owner's final call.
-    rexCapeColor: "#E63946",
+    // The brand's own welcome artwork (Rad Games lockup with The Xray Group's
+    // Rex), so this screen does not draw Rex separately.
+    welcomeLogoUrl: "/brands/the-xray-group/welcome-logo.png",
+    rexImageUrl: "/brands/the-xray-group/rex.png",
+    welcomeShowsRex: false, // the welcome logo already contains Rex
+    icon192Url: "/brands/the-xray-group/icon-192.png",
+    icon512Url: "/brands/the-xray-group/icon-512.png",
+    appleTouchIconUrl: "/brands/the-xray-group/icon-180.png",
   },
 };
 
@@ -209,11 +244,6 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
  * misconfigured build, and it keeps the id that shipping code already assumes.
  */
 export const DEFAULT_BRAND_ID: BrandId = "imaging-queensland";
-
-/** The cape colour to paint Rex's cape, override first, baked-in navy second. */
-export function rexCapeColorFor(config: BrandConfig): string {
-  return config.rexCapeColor ?? DEFAULT_REX_CAPE_COLOR;
-}
 
 /** True when `value` names one of the configured brands. */
 export function isBrandId(value: unknown): value is BrandId {
@@ -277,9 +307,11 @@ export function manifestFor(config: BrandConfig = brand): {
     orientation: "portrait",
     theme_color: config.colors.primary,
     background_color: "#F5F5F5",
+    // The icon FILES follow the brand (the installed app shows that brand's
+    // artwork on the home screen); the manifest's chrome colour does not.
     icons: [
-      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { src: config.icon192Url, sizes: "192x192", type: "image/png" },
+      { src: config.icon512Url, sizes: "512x512", type: "image/png" },
     ],
   };
 }
