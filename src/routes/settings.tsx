@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { getPlayerName, setPlayerName } from "~/components/Onboarding";
 import { deletePlayerData, setPlayerId } from "~/lib/leaderboard";
 import brand from "~/lib/brand";
@@ -108,6 +108,13 @@ function Settings() {
         <p className="text-xs text-mutedText mt-2">
           Powered by {brand.brandName}
         </p>
+        {/* The terms are accepted on first run and readable at any time. */}
+        <Link
+          to="/terms"
+          className="inline-block text-sm text-secondary font-medium mt-3 hover:underline"
+        >
+          Terms of Use
+        </Link>
       </div>
 
       {/* Danger Zone */}
