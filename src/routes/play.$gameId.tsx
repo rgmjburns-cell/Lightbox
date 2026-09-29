@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { useGameRound } from "~/lib/metrics";
+import brand from "~/lib/brand";
 const BoneBuster = lazy(() => import("~/components/games/BoneBuster"));
 const ScanSearch = lazy(() => import("~/components/games/ScanSearch"));
 const MemoryScan = lazy(() => import("~/components/games/MemoryScan"));
@@ -34,16 +35,29 @@ function PlayGame() {
       >
         ← Back to games
       </Link>
+      {/* The title tile: the game's icon and name on the left, this brand's mark
+          right-aligned inside the tile. The mark is drawn at one fixed height
+          (`h-8`, 32 CSS px) with `w-auto`, so every brand's artwork sits on the
+          same baseline and scales by its own ratio, and it is capped by width so
+          a very wide lockup can never push the game name. The card's own `p-5`
+          keeps it clear of the tile edge; `ml-auto` pins it right whatever the
+          game name's width. */}
       <div className="card mb-6 flex items-center gap-4">
         {game.icon ? (
           <img src={game.icon} alt={game.title} draggable={false} className="w-14 h-14 rounded-xl object-contain select-none" />
         ) : (
           <span className="text-4xl">🎮</span>
         )}
-        <div>
-          <h1 className="text-xl font-bold text-primary">{game.title}</h1>
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-primary whitespace-nowrap">{game.title}</h1>
           <p className="text-sm text-mutedText">Game</p>
         </div>
+        <img
+          src={brand.tileLogoUrl}
+          alt={brand.brandName}
+          draggable={false}
+          className="ml-auto h-8 w-auto max-w-[34%] shrink-0 object-contain object-right select-none"
+        />
       </div>
       <Suspense
         fallback={

@@ -73,6 +73,7 @@ describe("brand config", () => {
       for (const url of [
         config.welcomeLogoUrl,
         config.rexImageUrl,
+        config.tileLogoUrl,
         config.icon192Url,
         config.icon512Url,
         config.appleTouchIconUrl,
@@ -309,6 +310,59 @@ describe("brand artwork files", () => {
       expect(widthShare).toBeLessThan(0.9);
       expect(heightShare).toBeGreaterThan(0.5); // a whole character
       expect(heightShare).toBeLessThan(0.9);
+    }
+  });
+  test("every brand has a mark for the game title tile", async () => {
+    // Owner request, 29 Sep: each game page's white title tile carries the
+    // brand's mark on its right. The master has no tile artwork of its own, so
+    // it draws the shared Rad Games mark rather than leaving its tile blank.
+    expect(BRANDS["rad-games"].tileLogoUrl).toBe("/rad-games-logo.png");
+    for (const id of BRAND_IDS) {
+      const url = BRANDS[id].tileLogoUrl;
+      expect(url.startsWith("/")).toBe(true);
+      expect(existsSync(publicFile(url))).toBe(true);
+    }
+    for (const id of ["imaging-queensland", "the-xray-group"] as const) {
+      expect(BRANDS[id].tileLogoUrl).toBe(`/brands/${id}/tile-logo.png`);
+    }
+    expect(BRANDS["imaging-queensland"].tileLogoUrl).not.toBe(
+      BRANDS["the-xray-group"].tileLogoUrl,
+    );
+  });
+  test("a tile logo is sized for the tile and reads on the white it sits on", async () => {
+    // The tile is white and the mark is drawn at `h-8` (32 CSS px). A mark with
+    // its own white background would vanish on it, and a near-white mark would
+    // only show on the app's dark navy: the pilot brands' artwork has its white
+    // background keyed out by scripts/brand-artwork-assets.mjs, and this pins
+    // both the keying and the contrast.
+    for (const id of BRAND_IDS) {
+      const file = publicFile(BRANDS[id].tileLogoUrl);
+      const meta = await sharp(file).metadata();
+      const width = meta.width ?? 0;
+      const height = meta.height ?? 0;
+      expect(meta.format).toBe("png");
+      expect(height).toBeGreaterThanOrEqual(96); // 32 CSS px on a 3x screen
+      expect(width / height).toBeGreaterThan(1.5); // a wide lockup, sized by height
+      expect(readFileSync(file).length).toBeLessThan(160 * 1024); // the master reuses the header mark
+
+      const { data } = await sharp(file)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      let visible = 0;
+      let cleared = 0;
+      let luminance = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] < 200) {
+          cleared++;
+          continue;
+        }
+        visible++;
+        luminance += 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+      }
+      expect(visible).toBeGreaterThan(0);
+      expect(luminance / visible).toBeLessThan(200); // darker than the tile behind it
+      if (id !== "rad-games") expect(cleared).toBeGreaterThan(0); // white keyed out
     }
   });
 });
