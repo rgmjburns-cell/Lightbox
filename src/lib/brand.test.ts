@@ -11,11 +11,12 @@
  * all three entries must share — it only colours browser/PWA chrome, and the app
  * UI is identical everywhere.
  *
- * Rex's cape is the one thing a brand may change about how the app looks, so it
- * is pinned here too: the two pilot brands carry a cape colour, the neutral
- * master does not, and the cape mask the colour is painted through really is a
- * cape (the mascot's face is not in it) and really does line up with the artwork
- * it overlays.
+ * The owner's per-brand artwork (29 Sep) is pinned here too: the shared Rad
+ * Games mark stays the HEADER on every instance, the welcome screen and the
+ * mascot follow the brand, the two pilot brands do not show Rex twice on the
+ * welcome screen, and every file a brand points at really exists in public/ with
+ * the shape the screen drawing it relies on. A missing or opaque asset is a
+ * blank hole or a black box in the UI, and nothing at runtime would catch it.
  */
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
@@ -25,7 +26,6 @@ import {
   BRANDS,
   BRAND_IDS,
   DEFAULT_BRAND_ID,
-  DEFAULT_REX_CAPE_COLOR,
   PRODUCT_NAME,
   brand,
   brandConfig,
@@ -33,14 +33,7 @@ import {
   isBrandId,
   manifestFor,
   resolveBrandId,
-  rexCapeColorFor,
 } from "./brand";
-import {
-  REX_ART_URL,
-  REX_CAPE_COLOR_VAR,
-  REX_CAPE_MASK_URL,
-  rexCapeStyle,
-} from "../components/RexCape";
 
 /** Every string a player can see from a brand config. */
 function visibleStrings(id: (typeof BRAND_IDS)[number]): string[] {
@@ -74,6 +67,20 @@ describe("brand config", () => {
       expect(config.colors.themeColor).toMatch(/^#[0-9A-F]{6}$/i);
       expect(config.logoUrl.startsWith("/")).toBe(true);
       expect(config.logoAlt).toBe(config.brandName);
+      // Every asset url a screen draws must be a public/ path, and the flag that
+      // decides whether the welcome screen draws Rex must be an explicit boolean
+      // (undefined would silently hide him).
+      for (const url of [
+        config.welcomeLogoUrl,
+        config.rexImageUrl,
+        config.icon192Url,
+        config.icon512Url,
+        config.appleTouchIconUrl,
+      ]) {
+        expect(url.startsWith("/")).toBe(true);
+      }
+      expect(typeof config.welcomeShowsRex).toBe("boolean");
+      expect(config.icon192Url).not.toBe(config.icon512Url);
     }
   });
 
@@ -128,64 +135,78 @@ describe("brand config", () => {
   });
 });
 
-describe("Rex's cape", () => {
-  const pilotBrands = ["imaging-queensland", "the-xray-group"] as const;
+describe("per-brand artwork", () => {
+  const pilots = ["imaging-queensland", "the-xray-group"] as const;
+  /** The public/ path for a brand asset url, with any cache-buster dropped. */
+  const assetPath = (url: string) => publicFile(url.split("?")[0]);
 
-  test("the neutral master keeps the cape drawn in the artwork", () => {
-    // No override means no overlay is drawn at all, which is what makes the
-    // master instance look exactly as it did before brands existed.
-    expect(BRANDS["rad-games"].rexCapeColor).toBeUndefined();
-    expect(rexCapeColorFor(BRANDS["rad-games"])).toBe(DEFAULT_REX_CAPE_COLOR);
-    expect(rexCapeStyle(BRANDS["rad-games"])).toBeNull();
-  });
-
-  test("the two pilot brands carry a placeholder cape colour", () => {
-    for (const id of pilotBrands) {
-      const cape = BRANDS[id].rexCapeColor;
-      expect(cape).toMatch(/^#[0-9A-F]{6}$/i);
-      expect(rexCapeColorFor(BRANDS[id])).toBe(cape);
+  test("the header keeps the shared Rad Games mark on every instance", () => {
+    // Owner direction, 29 Sep: the mark already in place stays where it is.
+    // Only the welcome screen draws anything else.
+    for (const id of BRAND_IDS) {
+      expect(BRANDS[id].logoUrl).toBe("/rad-games-logo.png");
+      expect(existsSync(assetPath(BRANDS[id].logoUrl))).toBe(true);
     }
-    // Two brands, two capes, or nothing is telling the instances apart.
-    expect(BRANDS["imaging-queensland"].rexCapeColor).not.toBe(
-      BRANDS["the-xray-group"].rexCapeColor,
+  });
+
+  test("the welcome mark follows the brand, and the master keeps the shared one", () => {
+    expect(BRANDS["rad-games"].welcomeLogoUrl).toBe("/rad-games-logo.png");
+    for (const id of pilots) {
+      const config = BRANDS[id];
+      expect(config.welcomeLogoUrl).toContain(`/brands/${id}/`);
+      expect(config.welcomeLogoUrl).not.toBe(config.logoUrl);
+      expect(existsSync(assetPath(config.welcomeLogoUrl))).toBe(true);
+    }
+    // Two brands, two marks, or the welcome screen would not tell them apart.
+    expect(BRANDS["imaging-queensland"].welcomeLogoUrl).not.toBe(
+      BRANDS["the-xray-group"].welcomeLogoUrl,
     );
-    // And nobody else acquires one by accident.
-    expect(BRAND_IDS.filter((id) => BRANDS[id].rexCapeColor)).toEqual([...pilotBrands]);
   });
 
-  test("the overlay hands the brand colour to the cape rule", () => {
-    const style = rexCapeStyle(BRANDS["the-xray-group"]);
-    expect(style?.[REX_CAPE_COLOR_VAR]).toBe(BRANDS["the-xray-group"].rexCapeColor);
-    // A colour and nothing else: recolouring Rex with a filter would repaint the
-    // whole character, bones and all.
-    expect(Object.keys(style ?? {})).toEqual([REX_CAPE_COLOR_VAR]);
-    expect(Object.keys(style ?? {})).not.toContain("filter");
-  });
-
-  test("the cape rule masks the colour, and is gated on mask support", () => {
-    // The mask, the colour and the `@supports` guard all live in the stylesheet:
-    // if the gate were dropped, a browser without CSS masks would paint a solid
-    // brand-coloured square over Rex instead of leaving his navy cape alone.
-    const css = readFileSync(
-      fileURLToPath(new URL("../styles/app.css", import.meta.url)),
-      "utf8",
+  test("the mascot follows the brand, and the master keeps the navy Rex", () => {
+    expect(BRANDS["rad-games"].rexImageUrl).toBe("/welcome-rex-opt.png");
+    for (const id of pilots) {
+      const config = BRANDS[id];
+      expect(config.rexImageUrl).toContain(`/brands/${id}/`);
+      expect(config.rexImageUrl).not.toBe(BRANDS["rad-games"].rexImageUrl);
+      expect(existsSync(assetPath(config.rexImageUrl))).toBe(true);
+    }
+    expect(BRANDS["imaging-queensland"].rexImageUrl).not.toBe(
+      BRANDS["the-xray-group"].rexImageUrl,
     );
-    const gate = css.indexOf("@supports (mask-image: url(\"\")) or (-webkit-mask-image: url(\"\"))");
-    expect(gate).toBeGreaterThan(-1);
-    const block = css.slice(gate, css.indexOf("}", gate));
-    expect(block).toContain(".rex-cape");
-    expect(block).toContain(`mask-image: url("${REX_CAPE_MASK_URL}")`);
-    expect(block).toContain(`-webkit-mask-image: url("${REX_CAPE_MASK_URL}")`); // iOS Safari
-    expect(block).toContain("background-color: var(--rex-cape-color");
-    // `contain` + `center` is what lands the cape on the shoulders of an image
-    // drawn the same way, whatever size the caller gives Rex.
-    expect(block).toContain("mask-size: contain");
-    expect(block).toContain("mask-position: center");
-    expect(block).toContain("mask-repeat: no-repeat");
   });
 
-  test("the running brand's cape follows its config", () => {
-    expect(rexCapeStyle()?.[REX_CAPE_COLOR_VAR] ?? null).toBe(brand.rexCapeColor ?? null);
+  test("the welcome screen draws Rex only where the mark has none", () => {
+    // The pilot brands' welcome artwork contains Rex, so drawing the component
+    // as well would show him twice (owner direction, 29 Sep).
+    expect(BRANDS["rad-games"].welcomeShowsRex).toBe(true);
+    for (const id of pilots) expect(BRANDS[id].welcomeShowsRex).toBe(false);
+    expect(BRAND_IDS.filter((id) => BRANDS[id].welcomeShowsRex)).toEqual(["rad-games"]);
+  });
+
+  test("every brand's home-screen icons exist at both PWA sizes, plus iOS", async () => {
+    for (const id of BRAND_IDS) {
+      const config = BRANDS[id];
+      const expected: [string, number][] = [
+        [config.icon192Url, 192],
+        [config.icon512Url, 512],
+        [config.appleTouchIconUrl, 180], // what iOS asks for
+      ];
+      for (const [url, size] of expected) {
+        const file = assetPath(url);
+        expect(existsSync(file)).toBe(true);
+        const meta = await sharp(file).metadata();
+        expect(meta.format).toBe("png");
+        expect([meta.width, meta.height]).toEqual([size, size]);
+      }
+    }
+  });
+
+  test("the master's icons are the same files it has always shipped", () => {
+    const master = BRANDS["rad-games"];
+    expect(master.icon192Url).toBe("/icon-192.png");
+    expect(master.icon512Url).toBe("/icon-512.png");
+    expect(master.appleTouchIconUrl).toBe("/apple-touch-icon.png?v=3");
   });
 });
 
@@ -216,50 +237,123 @@ describe("brand logo asset", () => {
   });
 });
 
-describe("cape mask asset", () => {
-  test("it is a transparent PNG the same size as the mascot artwork", async () => {
-    // The overlay is drawn straight over the mascot with `contain`, so the mask
-    // has to be the artwork's size (and square) or the cape would sit off the
-    // shoulders. Derived from the artwork by scripts/rex-cape-assets.mjs.
-    const maskFile = publicFile(REX_CAPE_MASK_URL);
-    const artFile = publicFile(REX_ART_URL);
-    expect(existsSync(maskFile)).toBe(true);
-    expect(existsSync(artFile)).toBe(true);
-    const [mask, art] = await Promise.all([
-      sharp(maskFile).metadata(),
-      sharp(artFile).metadata(),
+describe("brand artwork files", () => {
+  /** The per-brand files a screen draws, in the order they matter. */
+  const artwork = () =>
+    BRAND_IDS.flatMap((id) => [
+      { id, kind: "welcome logo", url: BRANDS[id].welcomeLogoUrl },
+      { id, kind: "mascot", url: BRANDS[id].rexImageUrl },
     ]);
-    expect(mask.format).toBe("png");
-    expect(mask.hasAlpha).toBe(true);
-    expect([mask.width, mask.height]).toEqual([art.width, art.height]);
-    expect(readFileSync(maskFile).length).toBeLessThan(100 * 1024);
+
+  test("the marks and the mascots are transparent PNGs, not opaque rectangles", async () => {
+    // Every one of them is drawn straight onto the app's dark navy background, so
+    // an opaque file would show as a solid block and a pale fringe would glow
+    // against the theme.
+    for (const asset of artwork()) {
+      const meta = await sharp(publicFile(asset.url)).metadata();
+      expect(meta.format).toBe("png");
+      expect(meta.hasAlpha).toBe(true);
+    }
   });
 
-  test("it covers the cape, keeps the folds and leaves Rex's face alone", async () => {
-    const { data, info } = await sharp(publicFile(REX_CAPE_MASK_URL))
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    let covered = 0;
-    let facePixels = 0;
-    const alphas = new Set<number>();
-    for (let y = 0; y < info.height; y++) {
-      for (let x = 0; x < info.width; x++) {
-        const alpha = data[(y * info.width + x) * 4 + 3];
-        if (alpha > 0) {
-          covered++;
-          alphas.add(alpha);
-        }
-        // Rex's irises are the same navy family as his cape, so the mask has to
-        // be built to exclude them: painting the face with the brand colour is
-        // exactly the kind of character change this feature must not make.
-        if (x >= 215 && x <= 315 && y >= 100 && y <= 155 && alpha > 40) facePixels++;
-      }
+  test("welcome logos are wide, sharp on a 3x phone and small enough to load", async () => {
+    for (const id of BRAND_IDS) {
+      const file = publicFile(BRANDS[id].welcomeLogoUrl);
+      const meta = await sharp(file).metadata();
+      const width = meta.width ?? 0;
+      const height = meta.height ?? 0;
+      expect(width).toBeGreaterThanOrEqual(600); // 250 CSS px on a 3x screen
+      expect(width / height).toBeGreaterThan(1.2); // a wide lockup, sized by width
+      expect(readFileSync(file).length).toBeLessThan(250 * 1024);
     }
-    const share = covered / (info.width * info.height);
-    expect(share).toBeGreaterThan(0.04); // the cape really is in there
-    expect(share).toBeLessThan(0.15); // and it is the cape, not the character
-    expect(alphas.size).toBeGreaterThan(20); // folds survive: not a flat cut-out
-    expect(facePixels).toBeLessThan(20); // the face is not painted
+  });
+
+  test("the mascot art is square, so `contain` in a square slot keeps him whole", async () => {
+    for (const id of BRAND_IDS) {
+      const file = publicFile(BRANDS[id].rexImageUrl);
+      const meta = await sharp(file).metadata();
+      expect(meta.format).toBe("png");
+      expect(meta.width).toBe(meta.height);
+      expect(meta.width ?? 0).toBeGreaterThanOrEqual(384);
+      expect(readFileSync(file).length).toBeLessThan(250 * 1024);
+    }
+  });
+
+  test("a pilot brand's mascot is a fitted character, not a wide frame with margins", async () => {
+    // The owner's exports are 3:2 canvases with empty margins. Drawn with
+    // `contain` in a square slot, an uncropped one would render Rex much smaller
+    // than the master's; `scripts/brand-artwork-assets.mjs` crops to the visible
+    // pixels and pads to a square so the character fills the same share of the
+    // frame the master artwork does (85% of the width).
+    for (const id of ["imaging-queensland", "the-xray-group"] as const) {
+      const { data, info } = await sharp(publicFile(BRANDS[id].rexImageUrl))
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      let x0 = info.width;
+      let x1 = -1;
+      let y0 = info.height;
+      let y1 = -1;
+      for (let y = 0; y < info.height; y++) {
+        for (let x = 0; x < info.width; x++) {
+          if (data[(y * info.width + x) * 4 + 3] < 8) continue;
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+        }
+      }
+      const widthShare = (x1 - x0 + 1) / info.width;
+      const heightShare = (y1 - y0 + 1) / info.height;
+      expect(widthShare).toBeGreaterThan(0.8);
+      expect(widthShare).toBeLessThan(0.9);
+      expect(heightShare).toBeGreaterThan(0.5); // a whole character
+      expect(heightShare).toBeLessThan(0.9);
+    }
+  });
+});
+
+describe("the cape machinery is gone", () => {
+  // The per-brand cape colour painted through a mask over the master artwork was
+  // an interim mechanism, and the owner's per-brand Rex artwork supersedes it.
+  // These assertions exist so it cannot come back half-removed: a leftover
+  // overlay, a dangling import, or a second way to recolour Rex would each break
+  // one of them.
+  const read = (rel: string) =>
+    readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+  const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
+
+  test("no brand offers a cape colour", () => {
+    for (const id of BRAND_IDS) {
+      expect(BRANDS[id]).not.toHaveProperty("rexCapeColor");
+    }
+  });
+
+  test("the mascot component draws the brand's file, with no overlay", () => {
+    const rex = read("../components/Rex.tsx");
+    expect(rex).toContain("brand.rexImageUrl");
+    expect(rex).not.toContain("RexCape");
+    expect(rex).not.toContain("rex-cape-mask");
+  });
+
+  test("the removal is complete on disk", () => {
+    expect(existsSync(here("../components/RexCape.tsx"))).toBe(false);
+    expect(existsSync(publicFile("/rex-cape-mask.png"))).toBe(false);
+    expect(existsSync(here("../../scripts/rex-cape-assets.mjs"))).toBe(false);
+  });
+
+  test("no stylesheet rule masks a cape colour over the mascot", () => {
+    const css = read("../styles/app.css");
+    expect(css).not.toContain("rex-cape-mask");
+    expect(css).not.toContain("--rex-cape-color");
+    expect(css).not.toContain("@supports (mask-image");
+  });
+
+  test("the welcome screen draws the brand's mark and gates Rex on the flag", () => {
+    const onboarding = read("../components/Onboarding.tsx");
+    expect(onboarding).toContain("brand.welcomeLogoUrl");
+    expect(onboarding).toContain("brand.welcomeShowsRex");
+    expect(onboarding).not.toContain("src={brand.logoUrl}");
   });
 });
 describe("resolveBrandId", () => {
@@ -299,6 +393,25 @@ describe("manifestFor", () => {
     expect(manifest.start_url).toBe("/");
     expect(manifest.display).toBe("standalone");
     expect(manifest.icons.map((icon) => icon.sizes)).toEqual(["192x192", "512x512"]);
+  });
+
+  test("the installed app's icons follow the brand, and the master's are unchanged", () => {
+    for (const id of BRAND_IDS) {
+      expect(manifestFor(BRANDS[id]).icons.map((icon) => icon.src)).toEqual([
+        BRANDS[id].icon192Url,
+        BRANDS[id].icon512Url,
+      ]);
+    }
+    // An installed master app keeps the icon it already had: a brand's icon
+    // reaching the master's manifest would change a live app's home screen.
+    expect(manifestFor(BRANDS["rad-games"]).icons.map((icon) => icon.src)).toEqual([
+      "/icon-192.png",
+      "/icon-512.png",
+    ]);
+    expect(manifestFor(BRANDS["imaging-queensland"]).icons.map((icon) => icon.src)).toEqual([
+      "/brands/imaging-queensland/icon-192.png",
+      "/brands/imaging-queensland/icon-512.png",
+    ]);
   });
 
   test("every brand's manifest carries the same unified theme colour", () => {

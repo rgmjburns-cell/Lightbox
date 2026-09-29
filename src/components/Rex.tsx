@@ -1,20 +1,24 @@
 /**
  * Rex the Skeleton Mascot
  *
- * Uses the PNG mascot image, with SVG fallback if image fails to load.
+ * Uses the brand's mascot PNG (`brand.rexImageUrl`: the master's navy Rex, or
+ * the pilot brand's own Rex), with an SVG fallback if the image fails to load.
  * Size controlled via className on the wrapping element.
+ *
+ * Because every screen draws Rex through this one component, changing which
+ * file the brand points at changes the mascot in the games, the leaderboard, the
+ * welcome screen and every modal at once: no screen names the artwork itself.
  *
  * The wrapper is `<span class="relative block ...">` so the caller's sizing and
  * spacing classes land exactly where they always have (Tailwind's reset makes an
  * `<img>` a block box, so the wrapper is a block box too), and it carries the
- * float/cape animation classes: the whole figure, image and cape together, moves
- * as one. `RexCape` then paints the instance's cape colour over the drawing, so
- * every game, modal and screen that shows Rex picks up the brand's cape from
- * this one place. A brand with no cape colour draws no overlay and looks
- * exactly as before.
+ * float/sway animation classes: the whole figure moves as one. The artwork is
+ * square with the character centred, and the image is drawn with `contain`, so
+ * any square slot the caller gives Rex shows him whole and the same size
+ * relative to the slot on every brand.
  */
 import { useState, type CSSProperties } from "react";
-import RexCape, { REX_ART_URL } from "~/components/RexCape";
+import brand from "~/lib/brand";
 
 interface RexProps {
   className?: string;
@@ -37,13 +41,12 @@ export default function Rex({
         style={style}
       >
         <img
-          src={REX_ART_URL}
+          src={brand.rexImageUrl}
           alt="Rex the skeleton mascot"
           className="h-full w-full"
           onError={() => setImgError(true)}
           style={{ objectFit: "contain" }}
         />
-        <RexCape />
       </span>
     );
   }

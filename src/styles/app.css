@@ -456,37 +456,16 @@ body::after {
   animation: welcomeRexFloat 3s ease-in-out infinite;
 }
 
+/* The figure's gentle sway, layered on the float above: it turns the whole
+   mascot, whichever brand's artwork `Rex.tsx` is drawing. (Named for the cape it
+   was first written for; the per-brand cape colour it used to accompany is gone,
+   because the brand artwork now carries its own Rex.) */
 @keyframes welcomeRexCape {
   0%, 100% { transform: rotate(-2deg); }
   50% { transform: rotate(2deg); }
 }
 .welcome-rex-cape {
   animation: welcomeRexCape 4s ease-in-out infinite;
-}
-/* ── Rex's cape, in the instance's brand colour ────────────────────────────
-   The mascot artwork (`public/welcome-rex-opt.png`) has the cape painted in
-   navy, so a brand changes it by painting its colour through a cape-shaped mask
-   derived from that same artwork (`public/rex-cape-mask.png`, built by
-   `scripts/rex-cape-assets.mjs`). The colour arrives from the brand config as
-   `--rex-cape-color` (see `RexCape.tsx` and `src/lib/brand.ts`); everything else
-   about Rex comes from the drawing, so nothing else about him changes.
-
-   The `@supports` gate is deliberate: a browser that cannot mask would paint a
-   solid brand-coloured square over Rex. Without mask support this rule does not
-   apply at all, the overlay is not drawn, and the navy cape in the artwork
-   shows, which is exactly how the neutral master instance looks. */
-@supports (mask-image: url("")) or (-webkit-mask-image: url("")) {
-  .rex-cape {
-    background-color: var(--rex-cape-color, transparent);
-    mask-image: url("/rex-cape-mask.png");
-    -webkit-mask-image: url("/rex-cape-mask.png");
-    mask-size: contain;
-    -webkit-mask-size: contain;
-    mask-repeat: no-repeat;
-    -webkit-mask-repeat: no-repeat;
-    mask-position: center;
-    -webkit-mask-position: center;
-  }
 }
 
 /* ── Page Transitions ── */
