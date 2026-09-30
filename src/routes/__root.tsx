@@ -113,17 +113,37 @@ function RootComponent() {
         <header className="sticky top-0 z-30 bg-white/5 backdrop-blur-md safe-area-top">
           <div className="max-w-lg mx-auto flex items-center justify-between h-14 px-4">
             <div className="flex items-center gap-2">
-              {/* The brand's own mark, from the brand config. */}
+              {/* The shared Rad Games mark, from the brand config. */}
               <img
                 src={brand.logoUrl}
                 alt={brand.logoAlt}
                 className="h-12 w-auto"
               />
             </div>
-            {playerName && (
-              <span className="text-sm font-medium text-white/80 bg-white/10 backdrop-blur-sm rounded-full px-3 py-1">
-                Hi, {playerName}
-              </span>
+            {/*
+              The right-hand slot. A brand whose OWN mark differs from the shared
+              one above (`logoUrl`) draws it here — pilot instances sign their top
+              bar with their own logo (owner direction, 30 Sep). The neutral master
+              keeps `homeLogoUrl === logoUrl`, so its shared mark is already on the
+              left and this slot stays the "Hi, <nickname>" chip it has always been
+              rather than showing the same mark twice. Only the artwork differs: one
+              fixed slot height (`h-9`, 36 CSS px on a 56 CSS px bar), the same on
+              every instance, and a width cap plus `object-contain` so a very wide
+              lockup shrinks instead of overflowing at 320 CSS px.
+            */}
+            {brand.homeLogoUrl !== brand.logoUrl ? (
+              <img
+                src={brand.homeLogoUrl}
+                alt={brand.logoAlt}
+                draggable={false}
+                className="h-9 w-auto max-w-[45%] shrink-0 object-contain object-right select-none"
+              />
+            ) : (
+              playerName && (
+                <span className="text-sm font-medium text-white/80 bg-white/10 backdrop-blur-sm rounded-full px-3 py-1">
+                  Hi, {playerName}
+                </span>
+              )
             )}
           </div>
         </header>
