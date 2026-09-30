@@ -76,7 +76,6 @@ describe("brand config", () => {
       for (const url of [
         config.welcomeLogoUrl,
         config.rexImageUrl,
-        config.tileLogoUrl,
         config.homeLogoUrl,
         config.icon192Url,
         config.icon512Url,
@@ -316,42 +315,43 @@ describe("brand artwork files", () => {
       expect(heightShare).toBeLessThan(0.9);
     }
   });
-  test("every brand has a home-header mark, and it is the brand's own", async () => {
-    // Owner request, 29 Sep: the games home header carries the brand's mark in
-    // the empty space opposite the greeting. This is the ONE header mark that is
-    // per brand rather than the shared Rad Games one: that screen greets the
-    // brand's own patient.
-    expect(BRANDS["rad-games"].homeLogoUrl).toBe("/rad-games-logo.png");
+  test("the top bar's right-hand slot is per brand, and the master keeps its chip", () => {
+    // Owner direction, 30 Sep: the app's top bar (`src/routes/__root.tsx`) draws a
+    // pilot instance's OWN mark in the slot the "Hi, <nickname>" chip used to
+    // fill. The rule the bar reads is the inequality below, never a brand id: a
+    // brand whose own mark is not the shared Rad Games one signs the bar with it,
+    // while the master leaves the two EQUAL — its shared mark is already on the
+    // left of that same bar, so the chip stays on the right rather than the same
+    // mark appearing twice.
+    expect(BRANDS["rad-games"].homeLogoUrl).toBe(BRANDS["rad-games"].logoUrl);
     expect(BRANDS["imaging-queensland"].homeLogoUrl).toBe(
       "/brands/imaging-queensland/home-logo.png",
     );
-    // The Xray Group's welcome logo is a Rad Games lockup carrying Rex (busy at
-    // 40 CSS px), so its header draws the brand's own wide wordmark export, which
-    // the owner supplied on 29 Sep: the same ~3:1 shape as the other two marks.
     expect(BRANDS["the-xray-group"].homeLogoUrl).toBe("/brands/the-xray-group/home-logo.png");
     for (const id of BRAND_IDS) {
       const url = BRANDS[id].homeLogoUrl;
       expect(url.startsWith("/")).toBe(true);
       expect(existsSync(publicFile(url))).toBe(true);
     }
-    // Two pilot brands, two marks: one shared mark on both headers would not
-    // tell the instances apart.
+    // Both pilot instances must actually differ from the shared mark, or the bar
+    // would fall back to the greeting chip and the slot would do nothing.
+    for (const id of ["imaging-queensland", "the-xray-group"] as const) {
+      expect(BRANDS[id].homeLogoUrl).not.toBe(BRANDS[id].logoUrl);
+      expect(BRANDS[id].homeLogoUrl).not.toBe(BRANDS["rad-games"].homeLogoUrl);
+    }
     expect(BRANDS["imaging-queensland"].homeLogoUrl).not.toBe(
       BRANDS["the-xray-group"].homeLogoUrl,
     );
-    expect(BRANDS["imaging-queensland"].homeLogoUrl).not.toBe(
-      BRANDS["rad-games"].homeLogoUrl,
-    );
   });
 
-  test("a home-header mark is a transparent PNG that reads on the navy header", async () => {
-    // The home screen is the app's dark navy, and the mark sits at `h-10`
-    // (40 CSS px). The master's mark was designed for that field, and the pilot
-    // brands' marks had to survive it: an opaque file would be a solid block, and
-    // a mark too close to the navy would disappear into it. Contrast is measured
-    // the way WCAG does (per-pixel, against #0A1628, averaged over the visible
-    // pixels); a mark's own dark outline may sit at 1:1, so the pin is the mean
-    // rather than every pixel.
+  test("a top-bar mark is a transparent PNG that reads on the navy bar", async () => {
+    // The bar is the app's dark navy behind a `bg-white/5` glass, and the mark is
+    // drawn at `h-9` (36 CSS px). The master's mark was designed for that field,
+    // and the pilot brands' marks had to survive it: an opaque file would be a
+    // solid block, and a mark too close to the navy would disappear into it.
+    // Contrast is measured the way WCAG does (per-pixel, against #0A1628, averaged
+    // over the visible pixels); a mark's own dark outline may sit at 1:1, so the
+    // pin is the mean rather than every pixel.
     const navy = { r: 0x0a, g: 0x16, b: 0x28 };
     const linear = (channel: number) => {
       const value = channel / 255;
@@ -370,11 +370,12 @@ describe("brand artwork files", () => {
       const meta = await sharp(file).metadata();
       expect(meta.format).toBe("png");
       expect(meta.hasAlpha).toBe(true);
-      // The mark is sized by HEIGHT on screen (`h-10` = 40 CSS px), so the 3x-DPR
-      // slot is ~120 device px tall. All three marks clear that: the master's is
-      // 420 px and the two owner-supplied exports are 362 and 118. This floor
-      // catches a header pointed at a thumbnail-sized or pre-scaled file.
-      expect(meta.height ?? 0).toBeGreaterThanOrEqual(96);
+      // The mark is sized by HEIGHT on screen (`h-9` = 36 CSS px), so the 3x-DPR
+      // slot is 108 device px tall. All three marks clear that: the master's is
+      // 420 px, the owner's revised Imaging Queensland export 144 px and The Xray
+      // Group's 118 px. This floor catches a bar pointed at a thumbnail-sized or
+      // pre-scaled file.
+      expect(meta.height ?? 0).toBeGreaterThanOrEqual(108);
       expect(readFileSync(file).length).toBeLessThan(150 * 1024);
 
       const { data, info } = await sharp(file)
@@ -393,18 +394,19 @@ describe("brand artwork files", () => {
     }
   });
 
-  test("the Imaging Queensland header mark is the owner's export, scaled down whole", async () => {
-    // The owner supplied this one (29 Sep) already cut out, as a 2172x724 export
-    // with true transparency and small, even margins. Nothing is keyed or
-    // cropped: it is scaled whole to 1086 wide (a straight half-scale that is
-    // still 3x the ~120 CSS px the header can draw), which keeps its aspect at
-    // exactly 3.00 and its corners fully transparent. The file has to stay small
-    // enough for a waiting-room phone connection, and this pins all four.
+  test("the Imaging Queensland top-bar mark is the owner's revised export", async () => {
+    // The owner replaced this one on 30 Sep with the brand's own landscape logo
+    // (the red Imaging Queensland lockup), supplied as a 583x174 export with true
+    // transparency and small, even margins. Nothing is keyed or cropped: it is
+    // scaled whole to 144 device px tall — 4x the 36 CSS px slot, crisp with
+    // headroom — which lands at 482x144 and 16 kB, and it is never upscaled, so
+    // the file stays small enough for a waiting-room phone connection. This pins
+    // the size, the aspect, the corners' transparency and the transfer budget.
     const file = publicFile(BRANDS["imaging-queensland"].homeLogoUrl);
     const meta = await sharp(file).metadata();
-    expect(meta.width).toBe(1086);
-    expect(meta.height).toBe(362);
-    expect(Math.abs((meta.width ?? 0) / (meta.height ?? 1) - 3)).toBeLessThan(0.02);
+    expect(meta.width).toBe(482);
+    expect(meta.height).toBe(144);
+    expect(Math.abs((meta.width ?? 0) / (meta.height ?? 1) - 3.35)).toBeLessThan(0.02);
     expect(readFileSync(file).length).toBeLessThan(150 * 1024);
 
     const { data, info } = await sharp(file)
@@ -418,14 +420,14 @@ describe("brand artwork files", () => {
     expect(alphaAt(info.width - 1, info.height - 1)).toBe(0);
   });
 
-  test("the Xray Group header mark is the owner's export, drawn near 1:1", async () => {
+  test("the Xray Group top-bar mark is the owner's export, drawn near 1:1", async () => {
     // The second owner-supplied mark (29 Sep) is small and tightly cut: 351x118
     // with true transparency and ink edge to edge, so there is no margin to trim
-    // and no reason to resample it. At `h-10` (40 CSS px) its 2.97 aspect draws
-    // ~119 CSS px wide, which is within ~2% of the 3x-DPR slot and well above 2x
-    // — sharper per device pixel than any other header mark, and 6.6 kB on the
-    // wire. This pins the file, not the slot (the slot is shared and pinned
-    // separately), so re-cropping or downscaling the artwork fails here.
+    // and no reason to resample it. At `h-9` (36 CSS px) its 2.97 aspect draws
+    // ~107 CSS px wide, which is within ~10% of the 3x-DPR slot's 108 px and well
+    // above 2x — sharper per device pixel than any other mark in the slot, and
+    // 6.6 kB on the wire. This pins the file, not the slot (the slot is shared and
+    // pinned separately), so re-cropping or downscaling the artwork fails here.
     const file = publicFile(BRANDS["the-xray-group"].homeLogoUrl);
     const meta = await sharp(file).metadata();
     expect(meta.width).toBe(351);
@@ -461,74 +463,95 @@ describe("brand artwork files", () => {
     expect((y1 - y0 + 1) / info.height).toBeGreaterThan(0.95);
   });
 
-  test("the games home header draws the brand's mark at one shared size", () => {
-    // Owner request, 29 Sep: the mark sits right-aligned in the empty space
-    // opposite the greeting. Only the artwork is per brand — the size, the slot
-    // and the theme are identical on all three instances, so the class is a
-    // literal, never a brand-conditional value.
+  test("the top bar draws that mark where the greeting chip used to be", () => {
+    // Owner direction, 30 Sep. One shared slot and one shared height for every
+    // instance (`h-9` = 36 CSS px on a 56 CSS px bar), so the class is a literal,
+    // never a brand-conditional value, and the condition is the mark comparison —
+    // not a brand id. The chip is the master's fallback, so it must still be
+    // rendered for a player whose name is known.
+    const root = srcFile("../routes/__root.tsx");
+    expect(root).toContain("brand.homeLogoUrl !== brand.logoUrl");
+    expect(root).toMatch(/src=\{brand\.homeLogoUrl\}/);
+    expect(root).toContain("alt={brand.logoAlt}");
+    expect(root).toMatch(
+      /className="h-9 w-auto max-w-\[45%\] shrink-0 object-contain object-right select-none"/,
+    );
+    expect(root).toContain("Hi, {playerName}");
+    // The shared Rad Games mark stays on the left of the same bar.
+    expect(root).toMatch(/src=\{brand\.logoUrl\}/);
+  });
+
+  test("the games home header greets the player and draws no brand mark", () => {
+    // Owner direction, 30 Sep: the greeting next to Rex stays exactly as it was,
+    // and the brand mark that briefly sat opposite it is gone — a pilot
+    // instance's mark now lives in the top bar's right-hand slot instead.
     const home = srcFile("../routes/index.tsx");
-    expect(home).toContain("src={brand.homeLogoUrl}");
-    expect(home).toContain("alt={brand.logoAlt}");
-    expect(home).toMatch(/<img\s+src=\{brand\.homeLogoUrl\}/);
-    expect(home).toMatch(/className="ml-auto h-10 w-auto shrink-0"/);
-    expect(home).not.toMatch(/brand\.brandId/); // no per-brand sizing or slot
-    // A long nickname must not push the mark out: the text column can shrink
-    // (`min-w-0`) and the headline ellipsises.
+    expect(home).toContain("`Hi, ${playerName}!`");
+    expect(home).not.toContain("homeLogoUrl");
+    expect(home).not.toContain("tileLogoUrl");
+    expect(home).not.toMatch(/ml-auto h-10 w-auto shrink-0/);
+    // A long nickname must still ellipsise rather than overflow the row, so the
+    // text column keeps `min-w-0` and the headline keeps truncating.
     expect(home).toMatch(/<div className="min-w-0">/);
     expect(home).toMatch(/text-xl font-bold text-white truncate whitespace-nowrap/);
   });
 
-  test("every brand has a mark for the game title tile", async () => {
-    // Owner request, 29 Sep: each game page's white title tile carries the
-    // brand's mark on its right. The master has no tile artwork of its own, so
-    // it draws the shared Rad Games mark rather than leaving its tile blank.
-    expect(BRANDS["rad-games"].tileLogoUrl).toBe("/rad-games-logo.png");
+  test("a game page's title tile is the game icon and name only", () => {
+    // The brand mark on the white title tile (29 Sep) was revoked on 30 Sep: the
+    // tile is back to the pre-#75 state, and the field that fed its artwork is
+    // gone from the brand config, so nothing can point at a tile logo any more.
+    const page = srcFile("../routes/play.$gameId.tsx");
+    expect(page).not.toContain("tileLogoUrl");
+    expect(page).not.toContain("homeLogoUrl");
+    expect(page).toContain("game.title");
     for (const id of BRAND_IDS) {
-      const url = BRANDS[id].tileLogoUrl;
-      expect(url.startsWith("/")).toBe(true);
-      expect(existsSync(publicFile(url))).toBe(true);
+      expect(BRANDS[id]).not.toHaveProperty("tileLogoUrl");
     }
-    for (const id of ["imaging-queensland", "the-xray-group"] as const) {
-      expect(BRANDS[id].tileLogoUrl).toBe(`/brands/${id}/tile-logo.png`);
-    }
-    expect(BRANDS["imaging-queensland"].tileLogoUrl).not.toBe(
-      BRANDS["the-xray-group"].tileLogoUrl,
-    );
   });
-  test("a tile logo is sized for the tile and reads on the white it sits on", async () => {
-    // The tile is white and the mark is drawn at `h-8` (32 CSS px). A mark with
-    // its own white background would vanish on it, and a near-white mark would
-    // only show on the app's dark navy: the pilot brands' artwork has its white
-    // background keyed out by scripts/brand-artwork-assets.mjs, and this pins
-    // both the keying and the contrast.
-    for (const id of BRAND_IDS) {
-      const file = publicFile(BRANDS[id].tileLogoUrl);
-      const meta = await sharp(file).metadata();
-      const width = meta.width ?? 0;
-      const height = meta.height ?? 0;
-      expect(meta.format).toBe("png");
-      expect(height).toBeGreaterThanOrEqual(96); // 32 CSS px on a 3x screen
-      expect(width / height).toBeGreaterThan(1.5); // a wide lockup, sized by height
-      expect(readFileSync(file).length).toBeLessThan(160 * 1024); // the master reuses the header mark
 
-      const { data } = await sharp(file)
+  test("The Xray Group's installed app icon is the owner's revised artwork", async () => {
+    // Owner report (30 Sep): the old icon's mark ran right to the edges, so the
+    // installed app "looked too big" on the home screen. The replacement is the
+    // same Rex-X mark with real margins around it, scaled faithfully from the
+    // owner's 1024x1024 export — never re-cropped and never re-margined — so the
+    // padding the owner drew is what installs. The pin is the subject's share of
+    // the canvas: 0.62 here, against 0.93 in the artwork it replaced.
+    const icons = [
+      [512, BRANDS["the-xray-group"].icon512Url],
+      [192, BRANDS["the-xray-group"].icon192Url],
+      [180, BRANDS["the-xray-group"].appleTouchIconUrl],
+    ] as const;
+    for (const [size, url] of icons) {
+      const file = publicFile(url);
+      const meta = await sharp(file).metadata();
+      expect([meta.width, meta.height]).toEqual([size, size]);
+      expect(meta.hasAlpha).toBe(false); // an app icon is opaque, as supplied
+
+      const { data, info } = await sharp(file)
         .ensureAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true });
-      let visible = 0;
-      let cleared = 0;
-      let luminance = 0;
-      for (let i = 0; i < data.length; i += 4) {
-        if (data[i + 3] < 200) {
-          cleared++;
-          continue;
+      let x0 = info.width;
+      let x1 = -1;
+      let y0 = info.height;
+      let y1 = -1;
+      for (let y = 0; y < info.height; y++) {
+        for (let x = 0; x < info.width; x++) {
+          const i = (y * info.width + x) * 4;
+          // The artwork sits on white; anything darker is the mark itself.
+          if (data[i] > 242 && data[i + 1] > 242 && data[i + 2] > 242) continue;
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
         }
-        visible++;
-        luminance += 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
       }
-      expect(visible).toBeGreaterThan(0);
-      expect(luminance / visible).toBeLessThan(200); // darker than the tile behind it
-      if (id !== "rad-games") expect(cleared).toBeGreaterThan(0); // white keyed out
+      const widthShare = (x1 - x0 + 1) / info.width;
+      const heightShare = (y1 - y0 + 1) / info.height;
+      expect(widthShare).toBeGreaterThan(0.5); // a whole, readable mark
+      expect(widthShare).toBeLessThan(0.75); // with the margin the owner wanted
+      expect(heightShare).toBeGreaterThan(0.5);
+      expect(heightShare).toBeLessThan(0.75);
     }
   });
 });

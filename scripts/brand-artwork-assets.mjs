@@ -10,8 +10,7 @@
  * something predictable:
  *
  *   public/brands/<brand>/welcome-logo.png   the brand mark on the welcome screen
- *   public/brands/<brand>/tile-logo.png      the mark on a game page's title tile
- *   public/brands/<brand>/home-logo.png      the brand mark on the games home header
+ *   public/brands/<brand>/home-logo.png      the brand mark in the top bar's right-hand slot
  *   public/brands/<brand>/rex.png            the mascot, drawn everywhere by Rex.tsx
  *   public/brands/<brand>/icon-512.png       PWA / home-screen icon
  *   public/brands/<brand>/icon-192.png       PWA / home-screen icon
@@ -28,30 +27,33 @@
  *     share of that canvas the master artwork does (85.3% of the width), which
  *     is what keeps Rex the same size across the app.
  *
- * The title-tile logo (owner's artwork, 29 Sep) follows the second convention
- * instead: a game page draws it at one fixed HEIGHT (`h-8` in
- * `src/routes/play.$gameId.tsx`), so these are sized by height and cropped tight,
- * and their flat white background is keyed out to transparency — the tile behind
- * them is white today, and a transparent mark stays correct if that ever moves.
- * Keying only touches near-pure white, so the anti-aliased edge of a coloured
- * letter keeps its blend and the mark looks exactly as the owner supplied it.
+ * The top-bar mark (owner direction, 30 Sep — it replaced the "Hi, <nickname>"
+ * chip in a pilot instance's top bar, see `src/routes/__root.tsx`) follows
+ * neither of those conventions: that bar draws the mark at one fixed HEIGHT
+ * (`h-9`, 36 CSS px), and the export arrives already cut out, with true
+ * transparency and even margins, so it is scaled whole — no keying, no cropping
+ * — down to `HOME_LOGO_HEIGHT` device px, and never up: artwork smaller than the
+ * slot is left at its own size, because interpolating it upward only makes it
+ * soft and larger. A game page's white title tile carries no mark at all any
+ * more (the owner revoked the title-tile logo on 30 Sep), so that pipeline —
+ * and its white-keying pass — is gone with it.
  *
  * Cropping uses an alpha threshold (>8/255): the exports carry a faint
  * near-invisible glow out to the canvas edge, and cropping to that would leave
- * a lopsided margin that pulls the artwork off centre. The one exception is the
- * home-header mark (owner request, 29 Sep): that export already arrives with
- * true transparency and small, even margins, so it is scaled whole — which also
- * keeps its aspect at exactly 3.00, the same wide-lockup shape the header slot
- * draws for the other brand.
+ * a lopsided margin that pulls the artwork off centre.
  *
  * The supplied home-screen icons are opaque (a white background behind Rex), and
  * they are kept that way: an app icon is drawn on the phone's own home screen,
- * not on the app's navy theme, and iOS paints transparency black.
+ * not on the app's navy theme, and iOS paints transparency black. The Xray
+ * Group's icons were replaced with the owner's revised artwork on 30 Sep (the
+ * same Rex-X mark with the margins the owner wanted around it); the resizing
+ * below is deliberately faithful — the supplied square is scaled to each install
+ * size, never re-cropped or re-margined, so what the owner drew is what installs.
  *
  * Run from the repo root:  node scripts/brand-artwork-assets.mjs
  * Originals live in public/_originals/brands/ and are never modified.
  */
-import { mkdirSync, readdirSync, statSync } from "node:fs";
+import { mkdirSync, readdirSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 
@@ -59,19 +61,17 @@ const SRC = "public/_originals/brands";
 const OUT = "public/brands";
 
 /** The supplied original for each derived file, per brand. Only the pilot brand
- * that the owner sent separate home-header artwork for carries `homeLogo`; the
- * other two reuse the files above (`brand.ts` says which). */
+ * that the owner sent separate top-bar artwork for carries `homeLogo`; the other
+ * two reuse the files above (`brand.ts` says which). */
 const BRANDS = {
   "imaging-queensland": {
     logo: "iq-logo.png",
-    tile: "iq-tile-logo.png",
     homeLogo: "iq-home-logo.png",
     rex: "iq-rex.png",
     icon: "iq-app-icon.png",
   },
   "the-xray-group": {
     logo: "txg-logo.png",
-    tile: "txg-tile-logo.png",
     rex: "txg-rex.png",
     icon: "txg-app-icon.png",
   },
@@ -83,24 +83,13 @@ const ALPHA_CUTOFF = 8;
 /** Welcome logo width in device pixels: 250 CSS px on a 3x screen. */
 const LOGO_WIDTH = 750;
 
-/** Title-tile logo height in device pixels: 32 CSS px on a 3x screen. */
-const TILE_LOGO_HEIGHT = 96;
 /**
- * Home-header logo width in device pixels. The games home header draws the mark
- * at `h-10` (40 CSS px) so a 3:1 lockup is ~120 CSS px wide, i.e. 360 device px
- * on a 3x screen; 1086 is 3x that again, which leaves the mark crisp on a 3x
- * phone if the slot ever grows to `h-12`. The owner's export is 2172x724, so
- * this is a straight half-scale (584 kB -> ~65 kB) with its alpha kept.
+ * Top-bar mark height in device pixels. The app's top bar draws the mark at
+ * `h-9` (36 CSS px), so a 3x phone wants 108 device px; 144 is 4x that — crisp
+ * with headroom and still far under the transfer budget. Artwork smaller than
+ * this is left alone (see the note in the header): upscaling buys nothing.
  */
-const HOME_LOGO_WIDTH = 1086;
-
-/**
- * A pixel at least this light on every channel is the tile logo's flat white
- * background. The threshold sits just below pure white on purpose: it clears the
- * background completely while leaving the anti-aliased edge of a coloured letter
- * (a blend, never 250+ on all three channels) untouched.
- */
-const WHITE_CUTOFF = 250;
+const HOME_LOGO_HEIGHT = 144;
 
 /** Mascot canvas in device pixels (the master artwork is 400; more headroom here). */
 const REX_CANVAS = 512;
@@ -205,64 +194,24 @@ async function writeRex(file, dest) {
 }
 
 /**
- * The tile logo's flat white background as transparency, ready to crop: sharp
- * resizes after it composites, so keying and cropping are two passes on purpose.
- */
-async function keyOutWhite(file) {
-  const { data, info } = await sharp(file)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  for (let i = 0; i < data.length; i += 4) {
-    if (
-      data[i] >= WHITE_CUTOFF &&
-      data[i + 1] >= WHITE_CUTOFF &&
-      data[i + 2] >= WHITE_CUTOFF
-    ) {
-      data[i + 3] = 0;
-    }
-  }
-  return sharp(data, {
-    raw: { width: info.width, height: info.height, channels: 4 },
-  });
-}
-
-/** Key the white background out, crop to the mark, scale it to TILE_LOGO_HEIGHT. */
-async function writeTileLogo(file, dest) {
-  const keyed = await keyOutWhite(file);
-  const box = await visibleBoxOf(keyed, file);
-  const width = Math.round((TILE_LOGO_HEIGHT * box.width) / box.height);
-  const info = await keyed
-    .extract({ left: box.x0, top: box.y0, width: box.width, height: box.height })
-    .resize({ width, height: TILE_LOGO_HEIGHT, fit: "fill", kernel: "lanczos3" })
-    .png(PNG)
-    .toFile(dest);
-  const meta = await sharp(dest).metadata();
-  return {
-    dest,
-    width: meta.width,
-    height: meta.height,
-    bytes: statSync(dest).size,
-    src: `${box.width}x${box.height}`,
-  };
-}
-
-/**
- * Scale the games home header's mark to HOME_LOGO_WIDTH, whole.
+ * Scale the top bar's mark down to `HOME_LOGO_HEIGHT`, whole.
  *
- * The other two brands' header marks are reused files (the master's shared mark
- * and the pilot's tile lockup), and this is the one brand whose header artwork
- * the owner supplied separately. It arrives with true transparency and even
- * margins, so it is neither keyed nor cropped: the supplied canvas is scaled as
- * it is, keeping its 3.00 aspect and every anti-aliased edge exactly as drawn.
+ * The export arrives already cut out with true transparency and even margins, so
+ * it is neither keyed nor cropped: the supplied canvas is scaled as it is,
+ * keeping its aspect and every anti-aliased edge exactly as drawn. Artwork that
+ * is already at or below the target height is written as it stands — upscaling a
+ * small export would only soften it and make the file bigger.
  */
 async function writeHomeLogo(file, dest) {
   const meta = await sharp(file).metadata();
-  const height = Math.round((HOME_LOGO_WIDTH * meta.height) / meta.width);
-  const info = await sharp(file)
-    .resize({ width: HOME_LOGO_WIDTH, height, fit: "fill", kernel: "lanczos3" })
-    .png(PNG)
-    .toFile(dest);
+  const scale = meta.height > HOME_LOGO_HEIGHT ? HOME_LOGO_HEIGHT / meta.height : 1;
+  const height = Math.round(meta.height * scale);
+  const width = Math.round(meta.width * scale);
+  const pipeline =
+    scale < 1
+      ? sharp(file).resize({ width, height, fit: "fill", kernel: "lanczos3" })
+      : sharp(file);
+  const info = await pipeline.png(PNG).toFile(dest);
   return {
     dest,
     width: info.width,
@@ -270,6 +219,7 @@ async function writeHomeLogo(file, dest) {
     bytes: info.size,
     src: `${meta.width}x${meta.height}`,
     hasAlpha: meta.hasAlpha,
+    resampled: scale < 1,
   };
 }
 
@@ -292,7 +242,7 @@ const originals = readdirSync(SRC);
 for (const [brand, files] of Object.entries(BRANDS)) {
   const dir = path.join(OUT, brand);
   mkdirSync(dir, { recursive: true });
-  for (const key of ["logo", "tile", "rex", "icon"]) {
+  for (const key of ["logo", "rex", "icon"]) {
     if (!originals.includes(files[key])) throw new Error(`missing original ${SRC}/${files[key]}`);
   }
   if (files.homeLogo && !originals.includes(files.homeLogo)) {
@@ -301,7 +251,6 @@ for (const [brand, files] of Object.entries(BRANDS)) {
   report.push({
     brand,
     logo: await writeLogo(path.join(SRC, files.logo), path.join(dir, "welcome-logo.png")),
-    tile: await writeTileLogo(path.join(SRC, files.tile), path.join(dir, "tile-logo.png")),
     home: files.homeLogo
       ? await writeHomeLogo(path.join(SRC, files.homeLogo), path.join(dir, "home-logo.png"))
       : null,
@@ -314,9 +263,10 @@ const kB = (bytes) => `${(bytes / 1024).toFixed(0)} kB`;
 for (const row of report) {
   console.log(row.brand);
   console.log(`  welcome-logo.png  ${row.logo.width}x${row.logo.height}  ${kB(row.logo.bytes)}  (cropped from ${row.logo.src})`);
-  console.log(`  tile-logo.png     ${row.tile.width}x${row.tile.height}  ${kB(row.tile.bytes)}  (cropped from ${row.tile.src}, white keyed out)`);
   if (row.home) {
-    console.log(`  home-logo.png     ${row.home.width}x${row.home.height}  ${kB(row.home.bytes)}  (scaled from ${row.home.src}, alpha kept)`);
+    console.log(
+      `  home-logo.png     ${row.home.width}x${row.home.height}  ${kB(row.home.bytes)}  (${row.home.resampled ? "scaled" : "kept"} from ${row.home.src}, alpha kept)`,
+    );
   }
   console.log(`  rex.png           ${row.rex.width}x${row.rex.height}  ${kB(row.rex.bytes)}  (cropped from ${row.rex.src}, width fill ${row.rex.fill})`);
   for (const icon of row.icons) {

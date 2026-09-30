@@ -115,13 +115,13 @@ function Home() {
 
   return (
     <div className="page-container">
-      {/* ── Header with Rex and the brand mark ── */}
-      {/* The mark sits in the empty space opposite the greeting, right-aligned
-          and vertically centred on the 64px Rex + text column. One fixed height
-          for every brand (no per-brand sizing): only the artwork differs. The
-          text column is `min-w-0` with a truncating headline, so a long nickname
-          ("Hi, Alexandra!") ellipsises instead of pushing the mark off-screen —
-          at 320 CSS px this row has room for Rex, the mark and a clipped name. */}
+      {/* ── Header: Rex and the greeting ── */}
+      {/* Rex plus the greeting, and nothing else: the brand mark that briefly sat
+          in the empty space opposite the greeting was revoked (owner direction,
+          30 Sep — a pilot instance's mark now lives in the top bar's right-hand
+          slot, see `__root.tsx`). The text column stays `min-w-0` with a
+          truncating headline, so a long nickname ("Hi, Alexandra!") ellipsises at
+          320 CSS px instead of overflowing the row. */}
       <div className="mb-6 mt-2 flex items-center gap-4">
         <Rex className="w-16 h-16 shrink-0" mood="happy" />
         <div className="min-w-0">
@@ -132,12 +132,6 @@ function Home() {
             {playerName ? "Ready to play?" : brand.welcomeMessage}
           </p>
         </div>
-        <img
-          src={brand.homeLogoUrl}
-          alt={brand.logoAlt}
-          className="ml-auto h-10 w-auto shrink-0"
-          draggable={false}
-        />
       </div>
 
       {/* ── Score Bar ── */}
