@@ -138,7 +138,7 @@ function Home() {
       {playerName && (
         <div className="card mb-4 flex items-center justify-between">
           <div>
-            <p className="text-xs text-mutedText uppercase tracking-wide">Total Score</p>
+            <p className="text-xs text-mutedText uppercase tracking-wide">Total Monthly Score</p>
             {monthlyScore === null ? (
               <span
                 className="mt-1 block h-7 w-16 rounded bg-lightTeal/60"
@@ -149,9 +149,6 @@ function Home() {
                 {monthlyScore.toLocaleString()}
               </p>
             )}
-            <p className="text-[10px] text-mutedText mt-0.5">
-              This month, on the board
-            </p>
           </div>
           <div className="text-right min-w-0">
             <p className="text-xs text-mutedText uppercase tracking-wide">
@@ -171,7 +168,7 @@ function Home() {
               </div>
             ) : (
               <p className="text-sm font-medium text-mutedText">
-                Play a game to earn your first badge.
+                Play a game to win your first badge.
               </p>
             )}
           </div>
@@ -189,7 +186,7 @@ function Home() {
           />
           <div className="flex-1">
             <p className="text-sm font-semibold text-primary">Monthly Leaderboard</p>
-            <p className="text-xs text-mutedText">Ranked by total points earned this month.</p>
+            <p className="text-xs text-mutedText">Ranked by total points earned.</p>
           </div>
           <span className="text-secondary text-sm font-medium">View →</span>
         </Link>

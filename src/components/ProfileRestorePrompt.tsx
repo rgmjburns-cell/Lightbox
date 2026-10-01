@@ -40,7 +40,7 @@ export default function ProfileRestorePrompt({
       >
         A player using the nickname{" "}
         <span className="font-semibold text-white">{profile.name}</span> already
-        has {profile.monthlyTotal.toLocaleString()} points this month
+        has {profile.monthlyTotal.toLocaleString()} points
         {badgeCount > 0 ? ` and ${badgeCount.toLocaleString()} badge${badgeCount === 1 ? "" : "s"}` : ""}.
         Is that you?
       </p>

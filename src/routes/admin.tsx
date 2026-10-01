@@ -660,7 +660,7 @@ function Admin() {
                   {stats.board.games.length === 0 && (
                     <tr>
                       <td className="py-2 text-mutedText" colSpan={3}>
-                        No scores on the board this month.
+                        No scores on the board yet.
                       </td>
                     </tr>
                   )}

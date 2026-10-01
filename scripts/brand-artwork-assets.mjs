@@ -70,14 +70,16 @@ const OUT = "public/brands";
 const BRANDS = {
   "imaging-queensland": {
     logo: "iq-logo.png",
-    homeLogo: "iq-home-logo-2026-10-01-owner.png",
+    homeLogo: "iq-home-logo-2026-10-01-owner-rounded.png",
     // Owner direction, 1 Oct: the supplied canvas IS the shipped file, so it is
     // copied through byte for byte rather than resampled and the instance draws
-    // the owner's own artwork (see `keepHomeLogo`). This is the owner's SECOND
-    // supply that day — the 583x174 landscape export first installed turned out
-    // to be the OLD mark, and the replacement is the 300x210 export archived
-    // here as `iq-home-logo-2026-10-01-owner.png`. Note it is opaque (RGB, white
-    // field, no alpha), where the mark it retires was a transparent cut-out.
+    // the owner's own artwork (see `keepHomeLogo`). This is the owner's THIRD
+    // supply that day — the 583x174 landscape export installed first turned out
+    // to be the OLD mark, the 300x210 export that replaced it drew as an opaque
+    // white tile the owner rejected, and this 2170x725 RGBA export is the current
+    // mark with the rounded corners drawn into the artwork itself. It is archived
+    // here as `iq-home-logo-2026-10-01-owner-rounded.png`; the white-field export
+    // it retires is kept beside it as `iq-home-logo-2026-10-01-whitefield.png`.
     homeLogoKeep: true,
     rex: "iq-rex.png",
     icon: "iq-app-icon.png",
@@ -240,11 +242,12 @@ async function writeHomeLogo(file, dest) {
  * `public/_originals/brands/`. A keep-through mark must still be this exact
  * file: a later re-supply that is dropped in under the same name without being
  * archived and recorded here fails the run instead of silently reaching
- * patients (the 1 Oct Imaging Queensland swap is exactly why this exists — the
- * first file that day, 583x174 md5 5bd49aae…, was the OLD mark).
+ * patients (the 1 Oct Imaging Queensland swaps are exactly why this exists — the
+ * first file that day, 583x174 md5 5bd49aae…, was the OLD mark, and the second,
+ * 300x210 md5 eb0196b6…, drew as a white tile the owner rejected).
  */
 const HOME_LOGO_MD5 = {
-  "imaging-queensland": "eb0196b66b3e1bb7c8843a242c6a4696",
+  "imaging-queensland": "c16f680faac96392bcc84a4b0ff69f9c",
 };
 
 /**
@@ -253,10 +256,10 @@ const HOME_LOGO_MD5 = {
  * Owner direction, 1 Oct: the file the owner supplied IS what the app draws —
  * "put this imaging Queensland logo on instead" — so it is never resampled, and
  * the shipped file's md5 matches the original's. This is stronger than the
- * convention the other artwork follows: 210 px tall artwork would otherwise be
- * scaled down to `HOME_LOGO_HEIGHT` (144), and even a pixel-identical re-encode
- * through sharp would break the byte-for-byte promise the artwork is pinned by
- * in `src/lib/brand.test.ts`.
+ * convention the other artwork follows: 725 px tall artwork would otherwise be
+ * scaled down to `HOME_LOGO_HEIGHT` (144) — losing the resolution the owner
+ * supplied — and even a pixel-identical re-encode through sharp would break the
+ * byte-for-byte promise the artwork is pinned by in `src/lib/brand.test.ts`.
  */
 async function keepHomeLogo(file, dest, expectedMd5) {
   const md5 = createHash("md5").update(readFileSync(file)).digest("hex");
