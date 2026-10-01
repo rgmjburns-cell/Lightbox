@@ -247,13 +247,17 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // The brand's own welcome artwork (Rad Games lockup with Imaging
     // Queensland's Rex), so this screen does not draw Rex separately.
     welcomeLogoUrl: "/brands/imaging-queensland/welcome-logo.png",
-    // The owner replaced this mark on 30 Sep with the brand's landscape logo
-    // (the red Imaging Queensland lockup), and on 1 Oct sent the source file
-    // again: "put this imaging Queensland logo on instead". The supplied canvas —
-    // 583x174, RGBA with transparent corners — is now what ships here, byte for
-    // byte, so the instance draws the owner's own export rather than a 482x144
-    // scaled copy of it (that copy is archived in public/_originals/brands/).
-    // True-transparency PNG, so it sits on the bar with no white box behind it.
+    // The brand's red lockup, for the top bar's right-hand slot. The owner has
+    // now supplied it three times: a 482x144 scaled copy (30 Sep), then the
+    // 583x174 landscape export itself ("put this imaging Queensland logo on
+    // instead", 1 Oct) which turned out to be the OLD mark, and finally the
+    // current 300x210 export (1 Oct, https://ibb.co/8gKcz7YX). The owner's file
+    // is what ships here, byte for byte — md5 eb0196b6… — so the instance draws
+    // their own artwork; the two retired files are archived in
+    // public/_originals/brands/. This one is an opaque RGB PNG with a white
+    // field (the earlier two were transparent cut-outs), so it draws as a white
+    // rounded tile on the bar; the `rounded-2xl` the owner asked for is the
+    // bar element's clip in src/routes/__root.tsx, never an edit to the file.
     homeLogoUrl: "/brands/imaging-queensland/home-logo.png",
     rexImageUrl: "/brands/imaging-queensland/rex.png",
     welcomeShowsRex: false, // the welcome logo already contains Rex
