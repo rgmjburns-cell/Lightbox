@@ -31,10 +31,20 @@
  *
  * Per-brand artwork
  * -----------------
- * The owner supplied the pilot brands' artwork on 2026-09-29 (and revised the
- * Imaging Queensland top-bar mark and The Xray Group's app icons on 30 Sep), and
- * it is the only thing that differs visually between the three instances (the
- * `colors` block below stays unified — see "Browser and PWA chrome"):
+ * The owner supplied the pilot brands' artwork on 2026-09-29 and revised the
+ * Imaging Queensland top-bar mark and The Xray Group's app icons on 30 Sep.
+ *
+ * On 1 Oct the owner re-supplied all three of the marks this app draws (links,
+ * per-file dimensions, alpha and md5s: `public/_originals/README.md`). Two of
+ * them — Imaging Queensland's landscape lockup and The Xray Group's — are
+ * byte-identical to the artwork already installed, so nothing changed for those
+ * brands. The Rad Games mark came back as a higher-resolution export of the same
+ * lockup (1536x1024 with transparent padding, against the 900x420 tight crop
+ * shipped on 29 Sep), and that master is what `public/rad-games-logo.png` is now
+ * derived from; the superseded file is kept beside it in `public/_originals/brands/`.
+ * The marks are per-brand artwork, and it is the only thing that differs visually
+ * between the three instances (the `colors` block below stays unified — see
+ * "Browser and PWA chrome"):
  *
  *   - `logoUrl` is the shared Rad Games master mark, and it STAYS that in all
  *     three entries: it is what the app header (`src/routes/__root.tsx`) draws on
@@ -56,8 +66,10 @@
  *     rule the top bar reads: a brand whose own mark differs from the shared one
  *     draws it on the right, while the master's shared mark already sits on the
  *     left of the same bar, so the master keeps the greeting chip rather than
- *     showing the same mark twice. The bar is the app's transparent-glass navy,
- *     so every file here must read on navy.
+ *     showing the same mark twice. Since 1 Oct a pilot instance's bar is the
+ *     app's white frosted band (`bg-white/90 backdrop-blur-md`), while the master
+ *     keeps its transparent-glass navy, so a file here has to read on the pilot
+ *     bar — how each one measures there is pinned in `src/lib/brand.test.ts`.
  *   - `welcomeShowsRex` is false for the two pilot brands because their welcome
  *     logos already contain Rex (owner direction: "as they have Rex in them we
  *     don't need Rex as well on the logo in page"). The master draws the shared
@@ -70,8 +82,10 @@
  * a file drop. The per-brand files are produced from the owner's originals by
  * `scripts/brand-artwork-assets.mjs` (its header explains the crop and scale
  * conventions); the untouched exports stay in `public/_originals/brands/`.
- * Every mark a player sees is drawn on the app's dark navy background, so each
- * one must read on dark: they are transparent PNGs with no white fringe.
+ * Every mark a player sees is a transparent PNG with no white fringe, because it
+ * is composited straight onto whatever field its screen draws — the dark navy
+ * theme on every page, and the white frosted bar for the two pilot brands' own
+ * marks.
  *
  * The PWA manifest (`name`, `short_name`, `theme_color`, `icons`) is generated
  * from this module at build time by the `brand-manifest` plugin in
@@ -233,8 +247,9 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     welcomeLogoUrl: "/brands/imaging-queensland/welcome-logo.png",
     // The owner replaced this mark on 30 Sep with the brand's landscape logo
     // (the red Imaging Queensland lockup), which is what the top bar's
-    // right-hand slot now draws on this instance. True-transparency PNG, so it
-    // sits on the navy glass bar with no white box behind it.
+    // right-hand slot now draws on this instance; the owner re-supplied the same
+    // file on 1 Oct and it is byte-identical, so the artwork here is unchanged.
+    // True-transparency PNG, so it sits on the bar with no white box behind it.
     homeLogoUrl: "/brands/imaging-queensland/home-logo.png",
     rexImageUrl: "/brands/imaging-queensland/rex.png",
     welcomeShowsRex: false, // the welcome logo already contains Rex
@@ -264,7 +279,8 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // Rex), so this screen does not draw Rex separately.
     welcomeLogoUrl: "/brands/the-xray-group/welcome-logo.png",
     // The brand's mark for the top bar's right-hand slot, supplied by the owner
-    // (29 Sep) as a small true-transparency export used here and nowhere else.
+    // (29 Sep) as a small true-transparency export used here and nowhere else,
+    // and re-supplied byte-identical on 1 Oct, so the artwork is unchanged.
     // It is not the welcome logo (a Rad Games lockup carrying Rex, unreadable at
     // this size) and no longer anything on a game page: 351x118 with ink edge to
     // edge is the same wide ~3:1 wordmark shape the other brands' marks have, and
