@@ -116,9 +116,9 @@ function RootComponent() {
           below), and that mark needs a lighter field than the master's faint glass
           to sit on (owner direction, 30 Sep): `bg-white/5` is all but invisible over
           the navy gradient, so the bar reads as if the mark were floating. A pilot
-          instance therefore gets a whiter translucent wash — white at 15%, which
-          lifts the bar's measured tint over the home background from about #142033
-          to about #2C3748 (2.6x the current wash) while staying a dark bar.
+          instance therefore gets a whiter translucent wash — white at 25%
+          (owner direction, 1 Oct; raised from 15% after review), a clearly
+          lighter band over the navy so the logo pops.
 
           The rule is the same mark comparison the right-hand slot uses — never a
           brand id, and never a per-brand colour: the neutral master keeps
@@ -127,7 +127,7 @@ function RootComponent() {
         <header
           className={
             brand.homeLogoUrl !== brand.logoUrl
-              ? "sticky top-0 z-30 bg-white/[0.15] backdrop-blur-md safe-area-top"
+              ? "sticky top-0 z-30 bg-white/[0.25] backdrop-blur-md safe-area-top"
               : "sticky top-0 z-30 bg-white/5 backdrop-blur-md safe-area-top"
           }
         >
