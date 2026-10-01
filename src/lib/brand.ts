@@ -66,10 +66,11 @@
  *     rule the top bar reads: a brand whose own mark differs from the shared one
  *     draws it on the right, while the master's shared mark already sits on the
  *     left of the same bar, so the master keeps the greeting chip rather than
- *     showing the same mark twice. Since 1 Oct a pilot instance's bar is the
- *     app's white frosted band (`bg-white/90 backdrop-blur-md`), while the master
- *     keeps its transparent-glass navy, so a file here has to read on the pilot
- *     bar — how each one measures there is pinned in `src/lib/brand.test.ts`.
+ *     showing the same mark twice. Since 1 Oct (owner direction) every instance's
+ *     bar is the ORIGINAL faint glass (`bg-white/5 backdrop-blur-md`), and the
+ *     pilot mark is clipped round on the element with `rounded-2xl` to match the
+ *     app's tiles, so a file here has to read on that glass — how each one
+ *     measures there is pinned in `src/lib/brand.test.ts`.
  *   - `welcomeShowsRex` is false for the two pilot brands because their welcome
  *     logos already contain Rex (owner direction: "as they have Rex in them we
  *     don't need Rex as well on the logo in page"). The master draws the shared
@@ -167,7 +168,8 @@ export interface BrandConfig {
    * mark is not the shared Rad Games one. The master leaves it EQUAL to
    * `logoUrl` on purpose: its shared mark is already on the left of the same
    * bar, so it keeps the greeting chip instead (see the module header). Drawn on
-   * the app's transparent-glass navy bar, so every file here must read on navy.
+   * the app's original faint-glass bar, and clipped round with `rounded-2xl` (the
+   * app's tile radius), so every file here must read on that glass.
    */
   homeLogoUrl: string;
   /**
@@ -246,9 +248,11 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // Queensland's Rex), so this screen does not draw Rex separately.
     welcomeLogoUrl: "/brands/imaging-queensland/welcome-logo.png",
     // The owner replaced this mark on 30 Sep with the brand's landscape logo
-    // (the red Imaging Queensland lockup), which is what the top bar's
-    // right-hand slot now draws on this instance; the owner re-supplied the same
-    // file on 1 Oct and it is byte-identical, so the artwork here is unchanged.
+    // (the red Imaging Queensland lockup), and on 1 Oct sent the source file
+    // again: "put this imaging Queensland logo on instead". The supplied canvas —
+    // 583x174, RGBA with transparent corners — is now what ships here, byte for
+    // byte, so the instance draws the owner's own export rather than a 482x144
+    // scaled copy of it (that copy is archived in public/_originals/brands/).
     // True-transparency PNG, so it sits on the bar with no white box behind it.
     homeLogoUrl: "/brands/imaging-queensland/home-logo.png",
     rexImageUrl: "/brands/imaging-queensland/rex.png",

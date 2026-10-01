@@ -372,10 +372,10 @@ describe("brand artwork files", () => {
   test("a top-bar mark is a transparent PNG with ink of its own", async () => {
     // The mark is drawn at `h-9` (36 CSS px) and every file here has to carry real
     // ink: an opaque one would be a solid block on the app's theme, and one that is
-    // all-but-invisible would disappear into whichever bar draws it. (Since 1 Oct a
-    // pilot instance's bar is a mostly-white frosted band and the master's is the
-    // navy glass, so this pins the artwork itself — transparency, size and its own
-    // ink — while the per-bar rendering check lives in the white-bar test below.)
+    // all-but-invisible would disappear into the bar it is drawn on. (Since 1 Oct,
+    // final, every instance's bar is the original faint glass, so this pins the
+    // artwork itself — transparency, size and its own ink — while the per-bar
+    // rendering check lives in the rendered-bar test below.)
     // Contrast is measured the way WCAG does (per-pixel against the theme navy
     // #0A1628, averaged over the visible pixels); a mark's own dark outline may sit
     // at 1:1 against it, so the pin is the mean rather than every pixel.
@@ -399,9 +399,9 @@ describe("brand artwork files", () => {
       expect(meta.hasAlpha).toBe(true);
       // The mark is sized by HEIGHT on screen (`h-9` = 36 CSS px), so the 3x-DPR
       // slot is 108 device px tall. All three marks clear that: the master's is
-      // 420 px, the owner's revised Imaging Queensland export 144 px and The Xray
-      // Group's 118 px. This floor catches a bar pointed at a thumbnail-sized or
-      // pre-scaled file.
+      // 420 px, the owner's own Imaging Queensland export 174 px (the supplied
+      // 583x174 file, installed as it came) and The Xray Group's 118 px. This floor
+      // catches a bar pointed at a thumbnail-sized or pre-scaled file.
       expect(meta.height ?? 0).toBeGreaterThanOrEqual(108);
       expect(readFileSync(file).length).toBeLessThan(150 * 1024);
 
@@ -421,18 +421,25 @@ describe("brand artwork files", () => {
     }
   });
 
-  test("the Imaging Queensland top-bar mark is the owner's revised export", async () => {
-    // The owner replaced this one on 30 Sep with the brand's own landscape logo
-    // (the red Imaging Queensland lockup), supplied as a 583x174 export with true
-    // transparency and small, even margins. Nothing is keyed or cropped: it is
-    // scaled whole to 144 device px tall — 4x the 36 CSS px slot, crisp with
-    // headroom — which lands at 482x144 and 16 kB, and it is never upscaled, so
-    // the file stays small enough for a waiting-room phone connection. This pins
-    // the size, the aspect, the corners' transparency and the transfer budget.
+  test("the Imaging Queensland top-bar mark is the owner's own export, installed as supplied", async () => {
+    // Owner direction, 1 Oct: "put this imaging Queensland logo on instead". The
+    // file the owner supplied — the 583x174 landscape export, RGBA with fully
+    // transparent corners — IS what this instance ships, and it ships byte for
+    // byte: the file here and the untouched original in public/_originals/brands/
+    // are the same bytes. The 482x144 scaled copy that used to sit in this slot is
+    // archived beside it as `iq-home-logo-2026-09-30.png`. This pins the size, the
+    // aspect, the corners' transparency, the byte-identity and the transfer
+    // budget, and it re-measures the mark's own ink on the bar it is drawn on.
     const file = publicFile(BRANDS["imaging-queensland"].homeLogoUrl);
+    const original = fileURLToPath(
+      new URL("../../public/_originals/brands/iq-home-logo.png", import.meta.url),
+    );
+    expect(readFileSync(file).equals(readFileSync(original))).toBe(true);
+
     const meta = await sharp(file).metadata();
-    expect(meta.width).toBe(482);
-    expect(meta.height).toBe(144);
+    expect(meta.width).toBe(583);
+    expect(meta.height).toBe(174);
+    expect(meta.hasAlpha).toBe(true);
     expect(Math.abs((meta.width ?? 0) / (meta.height ?? 1) - 3.35)).toBeLessThan(0.02);
     expect(readFileSync(file).length).toBeLessThan(150 * 1024);
 
@@ -445,6 +452,39 @@ describe("brand artwork files", () => {
     expect(alphaAt(info.width - 1, 0)).toBe(0);
     expect(alphaAt(0, info.height - 1)).toBe(0);
     expect(alphaAt(info.width - 1, info.height - 1)).toBe(0);
+
+    // The mark's own ink on the bar it is drawn on, measured the way the other
+    // pins in this file measure it: per-pixel WCAG contrast against the field,
+    // averaged over the visible pixels. The field is the bar itself — the
+    // original faint glass, `bg-white/5` over the body gradient's navy #0A1628,
+    // which blends to rgb(22,34,51), luminance 0.0153 — and the ink is composited
+    // onto it, never compared to the bare token. The 583x174 export carries more
+    // ink than the 482x144 copy it replaces (11,238 solid pixels against 7,235),
+    // and its mean contrast is 3.38:1 on that field (3.81:1 against bare navy),
+    // against the archived copy's 3.42:1 — a resample, not a redraw.
+    const linear = (c: number) => {
+      const v = c / 255;
+      return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = (r: number, g: number, b: number) =>
+      0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+    const glass = (a: number, channel: number) => a * 255 + (1 - a) * channel;
+    const barLum = luminance(glass(0.05, 0x0a), glass(0.05, 0x16), glass(0.05, 0x28));
+    let ink = 0;
+    let contrast = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 200) continue; // the mark's solid ink, not its soft edge
+      const a = data[i + 3] / 255;
+      const L = luminance(
+        a * data[i] + (1 - a) * glass(0.05, 0x0a),
+        a * data[i + 1] + (1 - a) * glass(0.05, 0x16),
+        a * data[i + 2] + (1 - a) * glass(0.05, 0x28),
+      );
+      ink++;
+      contrast += (Math.max(L, barLum) + 0.05) / (Math.min(L, barLum) + 0.05);
+    }
+    expect(ink).toBeGreaterThan(7000); // real ink, not a blank canvas
+    expect(contrast / ink).toBeGreaterThan(3); // 3.38:1 measured on the faint glass
   });
 
   test("the Xray Group top-bar mark is the owner's export, drawn near 1:1", async () => {
@@ -500,11 +540,11 @@ describe("brand artwork files", () => {
     expect(root).toContain("brand.homeLogoUrl !== brand.logoUrl");
     expect(root).toMatch(/src=\{brand\.homeLogoUrl\}/);
     expect(root).toContain("alt={brand.logoAlt}");
-    // The slot carries no filter and no brand-conditional class of its own: since
-    // 1 Oct every bar mark is drawn as its own artwork (owner direction, in the
-    // white-bar test below).
+    // The slot carries no filter of its own: since 1 Oct every bar mark is drawn
+    // as its own artwork (owner direction, in the single-bar test below). Its one
+    // extra utility is the tile radius, pinned in the rounded-corner test below.
     expect(root).toMatch(
-      /className="h-9 w-auto max-w-\[45%\] shrink-0 object-contain object-right select-none"/,
+      /className="h-9 w-auto max-w-\[45%\] shrink-0 rounded-2xl object-contain object-right select-none"/,
     );
     expect(root).not.toContain("brightness-0");
     expect(root).toContain("Hi, {playerName}");
@@ -512,89 +552,113 @@ describe("brand artwork files", () => {
     expect(root).toMatch(/src=\{brand\.logoUrl\}/);
   });
 
-  test("a pilot instance's top bar is white but slightly transparent, and its marks keep their artwork", async () => {
-    // Owner direction, 1 Oct (fourth iteration): "I think we should make the bar
-    // white but slightly transparent." The opaque field of the previous pass is
-    // gone — it was a flat white with no blur, because blur does nothing behind an
-    // opaque fill — and a pilot instance's bar is now a mostly-white frosted band,
-    // `bg-white/90` over the `backdrop-blur-md` the bar has always had. 90 is the
-    // measured pick of the three levels rendered for the owner (70/80/90): every
-    // mark on the bar reads better the whiter the field is, because every mark's
-    // ink is darker than the bar (per-file numbers in /home/team/shared/topbar-real/
-    // MEASUREMENTS.md and in the rendered block at the end of this test). It is the
-    // SAME rule as the mark slot — the mark comparison, never a brand id — and the
-    // master's class string must survive untouched.
+  test("the top bar is the original faint glass everywhere, with no filter on any mark", () => {
+    // Owner direction, 1 Oct (final, and the last word): "It actually looks
+    // better how we originally had it." The white/25 and white/90 bands this bar
+    // tried in between are gone, and the bar is the ORIGINAL faint glass —
+    // `bg-white/5 backdrop-blur-md`, the string the neutral master never stopped
+    // using — as ONE unconditional class on the element. There is no
+    // brand-conditional bar left to drift, and no instance can be whiter than
+    // another.
     const root = srcFile("../routes/__root.tsx");
-    const MASTER = "sticky top-0 z-30 bg-white/5 backdrop-blur-md safe-area-top";
-    const BRANDED = "sticky top-0 z-30 bg-white/90 backdrop-blur-md safe-area-top";
-    // Every top-bar class literal in the file, in source order.
+    const ORIGINAL = "sticky top-0 z-30 bg-white/5 backdrop-blur-md safe-area-top";
+    // Every top-bar class literal in the file, in source order. Exactly one.
     const barClasses = [...root.matchAll(/"(sticky top-0 z-30 [^"]*safe-area-top)"/g)].map(
       (m) => m[1],
     );
-    expect(barClasses).toHaveLength(2);
-    expect(barClasses).toContain(MASTER);
-    expect(barClasses).toContain(BRANDED);
-    const branded = barClasses.find((c) => c !== MASTER)!;
-    expect(branded).toBe(BRANDED);
-    // A white field with some navy showing through, and a blur, so it is a frosted
-    // band and not a flat fill; the alpha is one of the three levels that were
-    // rendered and measured for the owner.
-    expect(branded).toMatch(/bg-white\/\d+/);
-    expect(branded).toContain("backdrop-blur-md");
-    const alpha = Number(branded.match(/bg-white\/(\d+)/)![1]);
-    expect([70, 80, 90]).toContain(alpha);
-    expect(alpha).toBeLessThan(100); // still translucent; a full `bg-white` is not
-    // Only the field differs: put the master's faint glass back where the mostly
-    // white band is and the two classes are the same bar again.
-    expect(branded.replace(/bg-white\/\d+ backdrop-blur-md/, "bg-white/5 backdrop-blur-md")).toBe(
-      MASTER,
-    );
-    // The comparison picks the branded class and the master keeps the other branch,
-    // pinned in order so the two branches cannot be swapped.
-    const flat = root.replace(/\s+/g, " ");
-    expect(flat).toContain(`brand.homeLogoUrl !== brand.logoUrl ? "${BRANDED}" : "${MASTER}"`);
+    expect(barClasses).toHaveLength(1);
+    expect(barClasses[0]).toBe(ORIGINAL);
+    // It is a literal on the element, not a ternary that picks it: the bar is not
+    // per-brand at all any more.
+    expect(root).toContain(`<header className="${ORIGINAL}">`);
+    // The faint glass the owner liked is kept — a translucent field with a blur,
+    // not a flat fill, and nothing whiter than it anywhere in the file.
+    expect(ORIGINAL).toContain("backdrop-blur-md");
+    expect(ORIGINAL).toMatch(/bg-white\/5\b/);
+    for (const whiter of ["bg-white/25", "bg-white/70", "bg-white/80", "bg-white/90"]) {
+      expect(root).not.toContain(whiter);
+    }
+    // The comparison the right-hand slot reads is still the mark comparison, never
+    // a brand id — only the BAR stopped being conditional, the slot did not.
+    expect(root).toContain("brand.homeLogoUrl !== brand.logoUrl");
 
     // No silhouette filter, anywhere, on either mark. The owner rejected the
     // treatment this bar briefly carried — "The logos weren't supposed to change I
-    // just wanted the background to be whiter" — and re-supplied the real artwork on
-    // 1 Oct, so both bar marks are drawn exactly as their files are.
+    // just wanted the background to be whiter" — and re-supplied the real artwork
+    // on 1 Oct, so both bar marks are drawn exactly as their files are.
     expect(root).not.toContain("brightness-0");
     expect(root).not.toMatch(/"h-12 w-auto [^"]*"/); // the shared mark: one plain class
     expect(root).toMatch(
       /<img src=\{brand\.logoUrl\} alt=\{brand\.logoAlt\} className="h-12 w-auto" \/>/,
     );
-    expect(root).toMatch(
-      /className="h-9 w-auto max-w-\[45%\] shrink-0 object-contain object-right select-none"/,
-    );
     // No CSS filter utility survives on either bar mark (none of Tailwind's
     // brightness/contrast/grayscale/invert/saturate utilities).
     expect(root).not.toMatch(/"[^"]*\b(brightness|contrast|grayscale|invert|saturate)-[^"]*"/);
+  });
 
-    // Rendered, not just declared: composite each mark over the field its own bar
-    // draws — the mostly-white frosted band on a pilot instance, the master's
-    // white/5 glass over the body gradient's navy (#0A1628) — and read the field
-    // and the mark off those pixels. A translucent bar IS its own alpha blended
-    // with what passes underneath, so white/90 over that navy is rgb(231,232,234)
-    // and not white: these checks use the blend, never the token.
+  test("the pilot mark's corners are rounded with the radius the app's tiles use", () => {
+    // Owner direction, 1 Oct: "make the imaging Queensland logo have round corners
+    // the same as the whole app does on its tiles" / "clip its corners round". The
+    // app's tiles are the home screen's game grid, and every one of them is
+    // `rounded-2xl` (`src/routes/index.tsx`: `overflow-hidden rounded-2xl
+    // bg-gradient-to-br`), which is Tailwind's 1rem = 16px. So the top bar's
+    // branded <img> carries the SAME token, and this test pins that token in both
+    // places: a mark rounded to anything else, or a tile grid that moved to
+    // another radius, fails here.
+    //
+    // The rounding is a DISPLAY treatment on the element, never an edit to the
+    // artwork: the PNG the owner supplied is installed byte for byte (pinned in
+    // the test above) and is not cropped, keyed or masked. `rounded-2xl` clips the
+    // <img> box exactly the way a tile's corners are drawn over its own
+    // background.
+    const TILE_RADIUS = "rounded-2xl";
+    const root = srcFile("../routes/__root.tsx");
+    expect(root).toMatch(
+      new RegExp(
+        `className="h-9 w-auto max-w-\\[45%\\] shrink-0 ${TILE_RADIUS} object-contain object-right select-none"`,
+      ),
+    );
+    // Exactly one element in the bar carries it — the branded slot. The shared
+    // Rad Games mark on the left is untouched, and the master's greeting chip
+    // (which fills that same slot on the neutral instance) is not rounded by it.
+    const barClassAttrs = [...root.matchAll(/className="([^"]*)"/g)].map((m) => m[1]);
+    const roundedInBar = barClassAttrs.filter((c) => c.split(/\s+/).includes(TILE_RADIUS));
+    expect(roundedInBar).toHaveLength(1);
+    expect(roundedInBar[0]).toContain("h-9 w-auto");
+    // The tiles use it, and this is the tile the owner meant: the game grid's
+    // cards.
+    const home = srcFile("../routes/index.tsx");
+    expect(home).toMatch(
+      new RegExp(`overflow-hidden ${TILE_RADIUS} bg-gradient-to-br`),
+    );
+    expect(home).toContain("grid grid-cols-2 gap-3"); // the games grid those tiles sit in
+  });
+
+  test("every instance's bar renders the same faint glass, and each mark keeps its artwork on it", async () => {
+    // Owner direction, 1 Oct (final): the bar is the ORIGINAL faint glass on all
+    // three instances, pinned as source in the test above. This is the rendered
+    // half of that pin: composite each mark over the field the bar actually draws
+    // and read the field and the ink off those pixels. A translucent bar IS its own
+    // alpha blended with what passes underneath, so `bg-white/5` over the body
+    // gradient's navy (#0A1628) is rgb(22,34,51) and not white — these checks use
+    // the blend, never the token.
     const linear = (c: number) => {
       const v = c / 255;
       return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
     };
     const luminance = (r: number, g: number, b: number) =>
       0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
-    type Rgb = { r: number; g: number; b: number };
     const glass = (a: number, channel: number) => a * 255 + (1 - a) * channel;
-    /** The bar a pilot instance draws at one white level, over the body's navy. */
-    const pilotField = (level: number): Rgb => ({
-      r: glass(level, 0x0a),
-      g: glass(level, 0x16),
-      b: glass(level, 0x28),
-    });
-    const MASTER_FIELD: Rgb = pilotField(0.05);
+    /** The one field every instance's bar draws: `bg-white/5` over the body's navy. */
+    const FIELD = { r: glass(0.05, 0x0a), g: glass(0.05, 0x16), b: glass(0.05, 0x28) };
+    const BAR_LUM = luminance(FIELD.r, FIELD.g, FIELD.b);
+    // A faint glass, in pixels: above the bare navy (0.0079) and nowhere near the
+    // 0.7+ a white band reaches — 0.0153 as rendered.
+    expect(BAR_LUM).toBeGreaterThan(0.0079);
+    expect(BAR_LUM).toBeLessThan(0.05);
 
-    /** The bar behind a mark, and the mark's own ink on it (luminance, contrast). */
-    const render = async (url: string, field: Rgb) => {
-      const barLum = luminance(field.r, field.g, field.b);
+    /** The mark's own ink on that field (mean luminance and WCAG contrast). */
+    const render = async (url: string) => {
       const { data } = await sharp(publicFile(url))
         .ensureAlpha()
         .raw()
@@ -606,50 +670,42 @@ describe("brand artwork files", () => {
         if (data[i + 3] < 200) continue; // the mark's solid ink, not its soft edge
         const a = data[i + 3] / 255;
         const L = luminance(
-          a * data[i] + (1 - a) * field.r,
-          a * data[i + 1] + (1 - a) * field.g,
-          a * data[i + 2] + (1 - a) * field.b,
+          a * data[i] + (1 - a) * FIELD.r,
+          a * data[i + 1] + (1 - a) * FIELD.g,
+          a * data[i + 2] + (1 - a) * FIELD.b,
         );
         ink++;
         inkLum += L;
-        contrast += (Math.max(L, barLum) + 0.05) / (Math.min(L, barLum) + 0.05);
+        contrast += (Math.max(L, BAR_LUM) + 0.05) / (Math.min(L, BAR_LUM) + 0.05);
       }
-      return { bar: barLum, ink: inkLum / ink, contrast: contrast / ink };
+      return { bar: BAR_LUM, ink: inkLum / ink, contrast: contrast / ink };
     };
 
     for (const id of BRAND_IDS) {
+      // A pilot instance's bar carries two marks (the shared one left, its own
+      // right); the master carries only the shared one — the chip fills its
+      // right-hand slot.
       const pilot = BRANDS[id].homeLogoUrl !== BRANDS[id].logoUrl;
-      // A pilot instance's bar carries two marks (the shared one left, its own right);
-      // the master carries only the shared one, the chip fills its right-hand slot.
       const marks = pilot
         ? [BRANDS[id].logoUrl, BRANDS[id].homeLogoUrl]
         : [BRANDS[id].logoUrl];
       for (const url of marks) {
-        if (pilot) {
-          const shipped = await render(url, pilotField(alpha / 100));
-          expect(shipped.bar).toBeGreaterThan(0.7); // a white bar with navy through it
-          expect(shipped.ink).toBeLessThan(0.7); // the mark's ink is darker than it
-          // Every mark clears 2:1 on the shipped level: Rad Games reaches 4.96:1,
-          // Imaging Queensland 3.59:1 and The Xray Group 2.22:1. The last one is the
-          // palest artwork in the bar and its low number is a property of the artwork
-          // on ANY light field (it reads 1.41:1 even at white/70), not of this level.
-          expect(shipped.contrast).toBeGreaterThan(2);
-          // Load-bearing, not decoration — this is why the level is 90 and not 70 or
-          // 80: every mark on the bar reads better the whiter the field is, because
-          // every one of them is darker than the field. A future change that makes a
-          // paler field win, or a mark that only reads dark, fails right here.
-          const pale = await render(url, pilotField(0.7));
-          const mid = await render(url, pilotField(0.8));
-          expect(mid.contrast).toBeGreaterThan(pale.contrast);
-          expect(shipped.contrast).toBeGreaterThan(mid.contrast);
-        } else {
-          const drawn = await render(url, MASTER_FIELD);
-          expect(drawn.bar).toBeLessThan(0.1); // the master's faint glass over navy
-          expect(drawn.ink).toBeGreaterThan(0.3); // its own light artwork, untouched
-        }
+        const drawn = await render(url);
+        // One bar, one field, on every instance: no instance is whiter than
+        // another any more.
+        expect(drawn.bar).toBeCloseTo(0.0153, 3);
+        // Every mark reads on that faint glass, each in its own artwork — Rad Games
+        // 7.41:1, Imaging Queensland 3.38:1, The Xray Group 6.11:1 — so the
+        // original glass is not a field a mark disappears into.
+        expect(drawn.contrast).toBeGreaterThan(3);
+        // And each one is its own artwork rather than a silhouette: the mean ink
+        // luminance is 0.431 for the shared mark, 0.171 for Imaging Queensland's
+        // red lockup and 0.349 for The Xray Group's.
+        expect(drawn.ink).toBeGreaterThan(0.15);
       }
     }
   });
+
   test("the games home header greets the player and draws no brand mark", () => {
     // Owner direction, 30 Sep: the greeting next to Rex stays exactly as it was,
     // and the brand mark that briefly sat opposite it is gone — a pilot

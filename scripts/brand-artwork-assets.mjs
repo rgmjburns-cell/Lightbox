@@ -53,7 +53,7 @@
  * Run from the repo root:  node scripts/brand-artwork-assets.mjs
  * Originals live in public/_originals/brands/ and are never modified.
  */
-import { mkdirSync, readdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 
@@ -67,6 +67,11 @@ const BRANDS = {
   "imaging-queensland": {
     logo: "iq-logo.png",
     homeLogo: "iq-home-logo.png",
+    // Owner direction, 1 Oct: the supplied canvas IS the shipped file. The
+    // 583x174 landscape export is copied through byte for byte rather than
+    // resampled, so the instance draws the owner's own artwork (see
+    // `keepHomeLogo`).
+    homeLogoKeep: true,
     rex: "iq-rex.png",
     icon: "iq-app-icon.png",
   },
@@ -223,6 +228,28 @@ async function writeHomeLogo(file, dest) {
   };
 }
 
+/**
+ * Copy the supplied top-bar mark through unchanged, byte for byte.
+ *
+ * Owner direction, 1 Oct: Imaging Queensland's 583x174 landscape export IS what
+ * the app draws — "put this imaging Queensland logo on instead" — so it is never
+ * resampled, and the shipped file's md5 matches the original's. Re-encoding
+ * through sharp would keep the pixels but break that byte-for-byte promise.
+ */
+async function keepHomeLogo(file, dest) {
+  copyFileSync(file, dest);
+  const meta = await sharp(file).metadata();
+  return {
+    dest,
+    width: meta.width,
+    height: meta.height,
+    bytes: statSync(dest).size,
+    src: `${meta.width}x${meta.height}`,
+    hasAlpha: meta.hasAlpha,
+    resampled: false,
+  };
+}
+
 /** Resize the supplied square icon to each size the app installs at. */
 async function writeIcons(file, dir) {
   const meta = await sharp(file).metadata();
@@ -252,7 +279,9 @@ for (const [brand, files] of Object.entries(BRANDS)) {
     brand,
     logo: await writeLogo(path.join(SRC, files.logo), path.join(dir, "welcome-logo.png")),
     home: files.homeLogo
-      ? await writeHomeLogo(path.join(SRC, files.homeLogo), path.join(dir, "home-logo.png"))
+      ? files.homeLogoKeep
+        ? await keepHomeLogo(path.join(SRC, files.homeLogo), path.join(dir, "home-logo.png"))
+        : await writeHomeLogo(path.join(SRC, files.homeLogo), path.join(dir, "home-logo.png"))
       : null,
     rex: await writeRex(path.join(SRC, files.rex), path.join(dir, "rex.png")),
     icons: await writeIcons(path.join(SRC, files.icon), dir),

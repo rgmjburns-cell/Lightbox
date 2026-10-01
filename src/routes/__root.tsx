@@ -112,55 +112,47 @@ function RootComponent() {
         {/*
           ── Top Bar ──
 
-          Owner direction, 1 Oct (fourth iteration): a pilot instance's bar is
-          WHITE BUT SLIGHTLY TRANSPARENT — "I think we should make the bar white
-          but slightly transparent." So it is a mostly-white frosted band,
-          `bg-white/90` over the same `backdrop-blur-md` the bar has always had:
-          the field reads as white (rgb(231,232,234) over the body gradient's navy
-          #0A1628) with the blur keeping a hint of what passes underneath.
+          Owner direction, 1 Oct (final): "It actually looks better how we
+          originally had it." The bar is back to the one it has always had —
+          `bg-white/5 backdrop-blur-md`, the ORIGINAL faint glass — as ONE
+          unconditional class string, the same string the neutral master never
+          stopped using. The whiter bands tried in between (white/25, then
+          white/90) did not pop the way the owner hoped, so both pilot instances
+          wear the original glass again and the master is byte-for-byte unchanged.
 
-          90% is the measured pick of the three levels rendered for the owner
-          (70/80/90). Every mark on the bar reads better the whiter the field is,
-          because each one's ink is darker than the bar: per-pixel contrast
-          against the field, averaged over The Xray Group's own lockup, is 1.41:1
-          at white/70, 1.78:1 at white/80 and 2.22:1 at white/90, and Imaging
-          Queensland's red lockup crosses WCAG's 3:1 at white/90 alone (2.28 /
-          2.89 / 3.59 on the same measure). The one thing a whiter field costs is
-          the Rad Games mark's own white lettering, which only ever sits inside
-          that mark's navy outline (1.78:1 against the bar at white/70, 1.39 at
-          /80, 1.13 at /90) — the outline is what draws those letterforms, and it
-          measures 8.2 / 10.4 / 13.0 against the same field. The owner's earlier
-          "just make it full white" is honoured too: 90% is "slightly
-          transparent", not a wash. (Full evidence: /home/team/shared/topbar-real/.)
-
-          BOTH bar marks are drawn as their OWN ARTWORK. The owner supplied the
-          real logos on 1 Oct and rejected the black-silhouette treatment this bar
-          briefly used ("The logos weren't supposed to change I just wanted the
-          background to be whiter"), so no filter is applied to either mark: the
+          BOTH bar marks are drawn as their OWN ARTWORK, unfiltered — no
+          brightness/contrast/grayscale/invert/saturate utility anywhere on this
+          bar. The owner supplied the real logos on 1 Oct and rejected the
+          black-silhouette treatment this bar briefly used ("The logos weren't
+          supposed to change I just wanted the background to be whiter"): the
           shared Rad Games mark keeps its teal/navy artwork on every instance, and
           a pilot instance's own mark keeps its brand colours.
 
-          The rule is the same mark comparison the right-hand slot uses — never a
-          brand id, and never a per-brand colour — so both pilot instances get the
-          identical treatment. The neutral master keeps `bg-white/5
-          backdrop-blur-md` and every other utility of the bar exactly as it was:
-          its bar stays dark navy glass.
+          The right-hand slot is per brand, and reads the mark comparison below —
+          never a brand id and never a per-brand colour, so both pilot instances
+          get the identical treatment. A brand whose own mark differs from the
+          shared one on the left draws it here; the master leaves the two EQUAL,
+          so its shared mark sits on the left only and the "Hi, <name>" chip keeps
+          the right-hand slot.
+
+          The pilot mark's corners are CLIPPED ROUND on the element itself with
+          `rounded-2xl` — the same radius the app's own tiles use (the home screen
+          game grid in `src/routes/index.tsx` draws every tile `rounded-2xl`,
+          Tailwind's 1rem = 16px). The artwork file is NOT cropped or masked:
+          only the <img> is rounded, exactly the way a tile's corners are drawn
+          over its own background. Owner asked for it: "make the Imaging
+          Queensland logo have round corners the same as the whole app does on
+          its tiles."
         */}
-        <header
-          className={
-            brand.homeLogoUrl !== brand.logoUrl
-              ? "sticky top-0 z-30 bg-white/90 backdrop-blur-md safe-area-top"
-              : "sticky top-0 z-30 bg-white/5 backdrop-blur-md safe-area-top"
-          }
-        >
+        <header className="sticky top-0 z-30 bg-white/5 backdrop-blur-md safe-area-top">
           <div className="max-w-lg mx-auto flex items-center justify-between h-14 px-4">
             <div className="flex items-center gap-2">
               {/*
                 The shared Rad Games mark, from the brand config, drawn as its own
                 artwork on every instance: one file and one class, the same mark on
-                the master's navy glass and on a pilot instance's white frosted
-                bar. (The owner's 1 Oct artwork is the teal/navy lockup; the black
-                silhouette this bar briefly applied to it is gone.)
+                the master's navy glass and on a pilot instance's glass. (The
+                owner's 1 Oct artwork is the teal/navy lockup; the black silhouette
+                this bar briefly applied to it is gone.)
               */}
               <img src={brand.logoUrl} alt={brand.logoAlt} className="h-12 w-auto" />
             </div>
@@ -177,14 +169,18 @@ function RootComponent() {
 
               The mark is drawn as supplied, with no filter, exactly like the
               shared mark on the left: the owner's artwork carries its own brand
-              colours on the white frosted field.
+              colours on the original glass bar. On 1 Oct the owner asked for its
+              corners to be rounded "the same as the whole app does on its tiles",
+              so the element carries `rounded-2xl` — the radius the home screen's
+              game tiles use (`src/routes/index.tsx`). It clips the <img> only; the
+              PNG itself is untouched.
             */}
             {brand.homeLogoUrl !== brand.logoUrl ? (
               <img
                 src={brand.homeLogoUrl}
                 alt={brand.logoAlt}
                 draggable={false}
-                className="h-9 w-auto max-w-[45%] shrink-0 object-contain object-right select-none"
+                className="h-9 w-auto max-w-[45%] shrink-0 rounded-2xl object-contain object-right select-none"
               />
             ) : (
               playerName && (

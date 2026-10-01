@@ -28,9 +28,19 @@ What that meant for the app:
   9, effort: 10})`, which lands at 900x416 and 129 KB, the same width and size
   class as the file it replaces. The replaced file is kept here as
   `brands/rad-games-logo-2026-09-29.png`.
-- **Imaging Queensland** — byte-identical to `brands/iq-home-logo.png`, the
-  original the shipped `brands/imaging-queensland/home-logo.png` (482x144) is
-  scaled from. No change.
+- **Imaging Queensland** — byte-identical to `brands/iq-home-logo.png`. Until
+  1 Oct it was only the source the shipped `brands/imaging-queensland/home-logo.png`
+  (482x144) was scaled from; on 1 Oct the owner asked for the supplied file itself
+  ("put this imaging Queensland logo on instead"), so the shipped file is now a
+  byte for byte copy of this original — 583x174, md5
+  `5bd49aaee87b636956732809e3c870ae`, identical to the file here. The 482x144
+  scaled export it replaced is kept beside it as
+  `brands/iq-home-logo-2026-09-30.png` (md5 `757318fc60e48026fb60091f3e8c4d99`),
+  and `scripts/brand-artwork-assets.mjs` now copies this original through instead
+  of resampling it (`homeLogoKeep`). The round corners the owner asked for on the
+  same day are a DISPLAY treatment on the element in `src/routes/__root.tsx`
+  (`rounded-2xl`, the radius the app's game tiles use) — the artwork is never
+  cropped, keyed or masked.
 - **The Xray Group** — byte-identical to `brands/txg-tile-logo.png`, which is
   itself byte-identical to the shipped
   `brands/the-xray-group/home-logo.png`. No change.
