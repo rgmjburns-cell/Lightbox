@@ -481,6 +481,47 @@ describe("brand artwork files", () => {
     expect(root).toMatch(/src=\{brand\.logoUrl\}/);
   });
 
+  test("a pilot instance's top bar is a whiter glass than the master's", () => {
+    // Owner direction, 30 Sep: the master's `bg-white/5` wash is too faint over the
+    // navy gradient for a pilot instance's own mark (the bar's right-hand slot), so a
+    // branded bar is whiter. It is the SAME rule as that slot — the mark comparison,
+    // never a brand id — and the master's class string must survive untouched. The
+    // tint is bound on both sides: whiter than the master, still a dark bar rather
+    // than a light slab, and every other utility of the bar identical everywhere.
+    const root = srcFile("../routes/__root.tsx");
+    const MASTER = "sticky top-0 z-30 bg-white/5 backdrop-blur-md safe-area-top";
+    // Every top-bar class literal in the file, in source order.
+    const barClasses = [...root.matchAll(/"(sticky top-0 z-30 [^"]*safe-area-top)"/g)].map(
+      (m) => m[1],
+    );
+    expect(barClasses).toHaveLength(2);
+    expect(barClasses).toContain(MASTER);
+    const branded = barClasses.find((c) => c !== MASTER)!;
+    const alpha = Number(branded.match(/bg-white\/\[(\d?\.\d+)\]/)?.[1]);
+    expect(Number.isFinite(alpha)).toBe(true);
+    // Only the wash differs: strip it and the two classes are the same bar.
+    expect(branded.replace(/bg-white\/\[[\d.]+\]/, "bg-white/5")).toBe(MASTER);
+    expect(alpha).toBeGreaterThan(0.05); // measurably whiter than the master
+    expect(alpha).toBeLessThanOrEqual(0.2); // still a dark bar, not a light slab
+    // The comparison picks the branded class and the master keeps the other branch,
+    // pinned in order so the two branches cannot be swapped.
+    const flat = root.replace(/\s+/g, " ");
+    expect(flat).toContain(`brand.homeLogoUrl !== brand.logoUrl ? "${branded}" : "${MASTER}"`);
+    // Quantitatively, over the body gradient's navy (#0A1628): the branded wash is
+    // more than twice the master's luminance, and still dark (white would be 1).
+    const linear = (c: number) => {
+      const v = c / 255;
+      return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    const lumOverNavy = (a: number) => {
+      const over = (channel: number) => a * 255 + (1 - a) * channel;
+      return (
+        0.2126 * linear(over(0x0a)) + 0.7152 * linear(over(0x16)) + 0.0722 * linear(over(0x28))
+      );
+    };
+    expect(lumOverNavy(alpha)).toBeGreaterThan(lumOverNavy(0.05) * 2);
+    expect(lumOverNavy(alpha)).toBeLessThan(0.08);
+  });
   test("the games home header greets the player and draws no brand mark", () => {
     // Owner direction, 30 Sep: the greeting next to Rex stays exactly as it was,
     // and the brand mark that briefly sat opposite it is gone — a pilot
