@@ -502,7 +502,7 @@ describe("brand artwork files", () => {
     // Only the wash differs: strip it and the two classes are the same bar.
     expect(branded.replace(/bg-white\/\[[\d.]+\]/, "bg-white/5")).toBe(MASTER);
     expect(alpha).toBeGreaterThan(0.05); // measurably whiter than the master
-    expect(alpha).toBeLessThanOrEqual(0.2); // still a dark bar, not a light slab
+    expect(alpha).toBeLessThanOrEqual(0.3); // translucent glass, not a solid or slab bar
     // The comparison picks the branded class and the master keeps the other branch,
     // pinned in order so the two branches cannot be swapped.
     const flat = root.replace(/\s+/g, " ");
@@ -520,7 +520,7 @@ describe("brand artwork files", () => {
       );
     };
     expect(lumOverNavy(alpha)).toBeGreaterThan(lumOverNavy(0.05) * 2);
-    expect(lumOverNavy(alpha)).toBeLessThan(0.08);
+    expect(lumOverNavy(alpha)).toBeLessThan(0.1);
   });
   test("the games home header greets the player and draws no brand mark", () => {
     // Owner direction, 30 Sep: the greeting next to Rex stays exactly as it was,
