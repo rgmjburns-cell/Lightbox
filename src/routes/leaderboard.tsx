@@ -237,7 +237,7 @@ function Leaderboard() {
       {/* Rex intro */}
       <div className="mb-6 mt-2">
         <RexSpeechBubble
-          message="The board is live! Beat the top score and take the crown this month."
+          message="The board is live! Beat the top score and take the crown."
           mood="excited"
         />
       </div>
@@ -305,7 +305,7 @@ function Leaderboard() {
 
       {/* ── Board ── */}
       <div className="flex items-baseline justify-between mb-4">
-        <h2 className="text-lg font-bold text-white">This Month's Leaders</h2>
+        <h2 className="text-lg font-bold text-white">Leaders</h2>
         {monthLabel && (
           <span className="text-sm text-mutedText">{monthLabel}</span>
         )}
@@ -396,7 +396,9 @@ function Leaderboard() {
         </p>
       )}
 
-      <p className="text-xs text-mutedText text-center mt-6">
+      {/* Lighter than the muted token: the owner found this too hard to read on
+          the navy theme (1 Oct). The wording is unchanged. */}
+      <p className="text-xs text-slate-300 text-center mt-6">
         Every completed game adds to your monthly total. Scores reset on the 1st
         of each month, and your badges and personal bests stay with you.
       </p>

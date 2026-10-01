@@ -380,16 +380,23 @@ describe("brand artwork files", () => {
     // supplied — while the per-bar rendering check lives in the rendered-bar test
     // below.)
     // Alpha is pinned PER BRAND rather than assumed, because the supplies are not
-    // the same kind of file: the shared Rad Games mark and The Xray Group's arrive
-    // cut out, with true transparency, while Imaging Queensland's 1 Oct re-supply
-    // is an opaque RGB export on a white field — the owner's own file, installed
-    // byte for byte (pinned in full in its own test below). Recording which is
-    // which keeps a future file that silently gains or loses its alpha failing
-    // here.
+    // the same kind of file: all three arrive cut out with true transparency. That
+    // is a CHANGE for Imaging Queensland — the 300x210 white-field export the owner
+    // sent on 1 Oct morning had no alpha at all and drew as a white tile, and the
+    // owner replaced it that evening with a 2170x725 RGBA export whose rounded
+    // corners are drawn into the artwork itself (pinned in full in its own test
+    // below). Recording which is which keeps a future file that silently gains or
+    // loses its alpha failing here.
     const expectAlpha: Record<(typeof BRAND_IDS)[number], boolean> = {
       "rad-games": true,
-      "imaging-queensland": false,
+      "imaging-queensland": true,
       "the-xray-group": true,
+    };
+    /** The wire budget per mark (see the transfer note in the loop below). */
+    const HOME_LOGO_BUDGET: Record<(typeof BRAND_IDS)[number], number> = {
+      "rad-games": 150 * 1024,
+      "imaging-queensland": 1_800_000, // the owner's full-resolution export (1,772,328 bytes)
+      "the-xray-group": 150 * 1024,
     };
     // Contrast is measured the way WCAG does (per-pixel against the theme navy
     // #0A1628, averaged over the visible pixels); a mark's own dark outline may sit
@@ -414,12 +421,17 @@ describe("brand artwork files", () => {
       expect(meta.hasAlpha).toBe(expectAlpha[id]);
       // The mark is sized by HEIGHT on screen (`h-9` = 36 CSS px), so the 3x-DPR
       // slot is 108 device px tall. All three marks clear that: the master's is
-      // 420 px, the owner's own Imaging Queensland export 210 px (the 300x210 file
-      // the owner sent on 1 Oct, installed as it came) and The Xray Group's
+      // 420 px, the owner's own Imaging Queensland export 725 px (the 2170x725 file
+      // the owner sent on 1 Oct evening, installed as it came) and The Xray Group's
       // 118 px. This floor catches a bar pointed at a thumbnail-sized or
       // pre-scaled file.
       expect(meta.height ?? 0).toBeGreaterThanOrEqual(108);
-      expect(readFileSync(file).length).toBeLessThan(150 * 1024);
+      // Transfer budget, per brand. The two derived marks stay under 150 kB; Imaging
+      // Queensland's is the owner's own export at full resolution (1.69 MiB), which
+      // the owner chose to ship as supplied rather than have it resampled — so the
+      // budget there pins the byte count the owner's file actually has, which still
+      // catches any silent re-encode or re-supply.
+      expect(readFileSync(file).length).toBeLessThan(HOME_LOGO_BUDGET[id]);
 
       const { data, info } = await sharp(file)
         .ensureAlpha()
@@ -438,43 +450,43 @@ describe("brand artwork files", () => {
   });
 
   test("the Imaging Queensland top-bar mark is the owner's current export, installed as supplied", async () => {
-    // Owner direction, 1 Oct: "put this imaging Queensland logo on instead" — and
-    // then, the same day, when that 583x174 landscape export turned out to be the
-    // OLD mark, the owner re-supplied the current one
-    // (https://ibb.co/8gKcz7YX → i.ibb.co/b5WJHKb7/IMG-1258.png). That re-supply IS
-    // what this instance ships, and it ships byte for byte: the file here and the
-    // untouched upload archived in public/_originals/brands/ are the same bytes,
-    // md5 eb0196b66b3e1bb7c8843a242c6a4696, 6,385 bytes. The retired 583x174 export
-    // is kept beside it as `iq-home-logo-2026-10-01.png` (md5
-    // 5bd49aaee87b636956732809e3c870ae) and the 482x144 scaled copy before that as
-    // `iq-home-logo-2026-09-30.png`.
-    //
-    // The re-supply is a different KIND of file from every other mark in the bar:
-    // an opaque RGB PNG — 300x210, no alpha channel, a solid white field (61.1% of
-    // its pixels) carrying the brand's red lockup (227,26,47, 34.5%) — where its
-    // predecessor was a transparent cut-out. That is the owner's own artwork, so it
-    // is what draws; the rounded corners the owner asked for on that same slot are
-    // the bar element's `rounded-2xl` clip (pinned in the rounded-corner test
-    // below), and the file itself is never cropped, keyed or masked. This pins the
-    // size, the aspect, the byte-identity, the opaque field and the transfer
-    // budget, and it re-measures the mark's own ink on the bar it is drawn on.
+    // Owner direction, 1 Oct: "put this imaging Queensland logo on instead" — which
+    // turned into three supplies in one day. The 583x174 landscape export installed
+    // that morning (https://ibb.co/TxDY9MwB, md5 5bd49aae…, kept as
+    // `iq-home-logo-2026-10-01.png`) was the OLD mark; the 300x210 export that
+    // replaced it (https://ibb.co/8gKcz7YX → i.ibb.co/b5WJHKb7/IMG-1258.png, md5
+    // eb0196b6…, kept as `iq-home-logo-2026-10-01-whitefield.png`) was REJECTED —
+    // it had no alpha, so it drew as an opaque white tile in the bar, much narrower
+    // than the mark it retired. The owner's third supply is the brand's current
+    // mark with the corners rounded in the artwork itself
+    // (https://ibb.co/wNRDDWr5 → i.ibb.co/xSDVVj8x/D771-F476-…-DE4-F.png), archived
+    // in public/_originals/brands/ as `iq-home-logo-2026-10-01-owner-rounded.png`.
+    // That re-supply IS what this instance ships, byte for byte, through
+    // `homeLogoKeep` in scripts/brand-artwork-assets.mjs.
     const file = publicFile(BRANDS["imaging-queensland"].homeLogoUrl);
     const original = fileURLToPath(
-      new URL("../../public/_originals/brands/iq-home-logo-2026-10-01-owner.png", import.meta.url),
+      new URL(
+        "../../public/_originals/brands/iq-home-logo-2026-10-01-owner-rounded.png",
+        import.meta.url,
+      ),
     );
     const bytes = readFileSync(file);
     expect(bytes.equals(readFileSync(original))).toBe(true);
     expect(createHash("md5").update(bytes).digest("hex")).toBe(
-      "eb0196b66b3e1bb7c8843a242c6a4696",
+      "c16f680faac96392bcc84a4b0ff69f9c",
     );
 
     const meta = await sharp(file).metadata();
-    expect(meta.width).toBe(300);
-    expect(meta.height).toBe(210);
-    expect(meta.hasAlpha).toBe(false); // an opaque RGB export, exactly as supplied
-    expect(meta.channels).toBe(3);
-    expect(Math.abs((meta.width ?? 0) / (meta.height ?? 1) - 1.43)).toBeLessThan(0.01);
-    expect(bytes.length).toBeLessThan(150 * 1024);
+    expect(meta.width).toBe(2170);
+    expect(meta.height).toBe(725);
+    expect(meta.hasAlpha).toBe(true); // RGBA: the corners the owner rounded are cuts
+    expect(meta.channels).toBe(4);
+    expect(Math.abs((meta.width ?? 0) / (meta.height ?? 1) - 2.993)).toBeLessThan(0.01);
+    // Shipped at the resolution the owner supplied: 1,772,328 bytes, ~1.69 MiB. That
+    // is 12x the retired 300x210 export and far past the other marks' 150 kB budget,
+    // and it is the owner's explicit choice — the artwork is never resampled, so this
+    // pins the file the owner sent rather than a size the app would prefer.
+    expect(bytes.length).toBe(1_772_328);
 
     const { data, info } = await sharp(file)
       .ensureAlpha()
@@ -484,24 +496,45 @@ describe("brand artwork files", () => {
       const i = (y * info.width + x) * 4;
       return [data[i], data[i + 1], data[i + 2], data[i + 3]];
     };
-    // Opaque to every corner. There is no transparent margin left for the bar to
-    // fall back on, which is exactly why the owner asked for the element's own
-    // `rounded-2xl` clip: the corners the app rounds are this file's white field
-    // being clipped, not artwork that arrived pre-rounded.
-    expect(px(0, 0)).toEqual([255, 255, 255, 255]);
-    expect(px(info.width - 1, 0)).toEqual([255, 255, 255, 255]);
-    expect(px(0, info.height - 1)).toEqual([255, 255, 255, 255]);
-    expect(px(info.width - 1, info.height - 1)).toEqual([255, 255, 255, 255]);
+    // Transparent to every canvas corner — the opposite of the white field this file
+    // replaced. The rounding the owner asked for is drawn IN the artwork, so the bar
+    // element's own `rounded-2xl` clip (pinned in the rounded-corner test below) just
+    // trims the element box and the file's corners show through it.
+    expect(px(0, 0)[3]).toBe(0);
+    expect(px(info.width - 1, 0)[3]).toBe(0);
+    expect(px(0, info.height - 1)[3]).toBe(0);
+    expect(px(info.width - 1, info.height - 1)[3]).toBe(0);
+    // The corner really is cut away, not merely a soft edge: at the shape's top row
+    // the first solid pixel sits ~87 px in from the left, where at mid height the
+    // solid field starts ~28 px in.
+    const solidAlpha = 200;
+    const firstSolidX = (y: number) => {
+      for (let x = 0; x < info.width; x++) {
+        if ((px(x, y)[3] ?? 0) >= solidAlpha) return x;
+      }
+      return -1;
+    };
+    const midY = Math.floor(info.height / 2);
+    let topRow = -1;
+    for (let y = 0; y < info.height; y++) {
+      if (firstSolidX(y) >= 0) {
+        topRow = y;
+        break;
+      }
+    }
+    expect(topRow).toBe(56); // a transparent margin, then the shape
+    expect(firstSolidX(midY)).toBeLessThan(40); // the field's own left edge at mid height
+    expect(firstSolidX(topRow) - firstSolidX(midY)).toBeGreaterThan(40); // one rounded corner
 
     // The mark's own ink on the bar it is drawn on, measured the way the other
     // pins in this file measure it: per-pixel WCAG contrast against the field,
     // averaged over the solid pixels. The field is the bar itself — the original
     // faint glass, `bg-white/5` over the body gradient's navy #0A1628, which
     // blends to rgb(22,34,51), luminance 0.0153 — and the ink is composited onto
-    // it, never compared to the bare token. Because most of this file is its own
-    // white field, the mark reads far brighter than the export it replaces: mean
-    // contrast 11.33:1 on the faint glass (12.78:1 against bare navy) against the
-    // retired 583x174 file's 3.38:1, at a mean luminance of 0.690 against 0.171.
+    // it, never compared to the bare token. This mark is a red field (223,28,43)
+    // carrying the lockup in white: mean contrast 4.89:1 on the faint glass at a
+    // mean luminance of 0.270, against the rejected white-field export's 11.33:1
+    // and the retired 583x174 cut-out's 3.38:1.
     const linear = (c: number) => {
       const v = c / 255;
       return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
@@ -511,10 +544,12 @@ describe("brand artwork files", () => {
     const glass = (a: number, channel: number) => a * 255 + (1 - a) * channel;
     const barLum = luminance(glass(0.05, 0x0a), glass(0.05, 0x16), glass(0.05, 0x28));
     let ink = 0;
+    let lum = 0;
     let contrast = 0;
     let red = 0;
+    let white = 0;
     for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3] < 200) continue; // the mark's solid pixels, not a soft edge
+      if (data[i + 3] < solidAlpha) continue; // the mark's solid pixels, not a soft edge
       const a = data[i + 3] / 255;
       const L = luminance(
         a * data[i] + (1 - a) * glass(0.05, 0x0a),
@@ -522,13 +557,17 @@ describe("brand artwork files", () => {
         a * data[i + 2] + (1 - a) * glass(0.05, 0x28),
       );
       ink++;
+      lum += L;
       contrast += (Math.max(L, barLum) + 0.05) / (Math.min(L, barLum) + 0.05);
-      // The brand's red lockup inside that field, not the field itself.
+      // The brand's red field, and the white lockup drawn on it.
       if (data[i] > 180 && data[i + 1] < 80 && data[i + 2] < 100) red++;
+      else if (data[i] > 240 && data[i + 1] > 240 && data[i + 2] > 240) white++;
     }
-    expect(ink).toBe(300 * 210); // opaque: every pixel of the export is solid
-    expect(red).toBeGreaterThan(15000); // the lockup is really in there
-    expect(contrast / ink).toBeGreaterThan(3); // 11.33:1 measured on the faint glass
+    expect(ink).toBe(1_289_654); // the solid field + the lockup, not the transparent margin
+    expect(red).toBeGreaterThan(1_000_000); // the red field is really in there
+    expect(white).toBeGreaterThan(100_000); // …with the lockup drawn on it in white
+    expect(lum / ink).toBeGreaterThan(0.15); // 0.270 measured
+    expect(contrast / ink).toBeGreaterThan(3); // 4.89:1 measured on the faint glass
   });
 
   test("the Xray Group top-bar mark is the owner's export, drawn near 1:1", async () => {
@@ -739,15 +778,17 @@ describe("brand artwork files", () => {
         // another any more.
         expect(drawn.bar).toBeCloseTo(0.0153, 3);
         // Every mark reads on that faint glass, each in its own artwork — Rad Games
-        // 7.41:1, Imaging Queensland 11.33:1, The Xray Group 6.11:1 — so the
+        // 7.41:1, Imaging Queensland 4.89:1, The Xray Group 6.11:1 — so the
         // original glass is not a field a mark disappears into. (Imaging
-        // Queensland's number rose from 3.38:1 when the owner replaced the old
-        // 583x174 cut-out with the current 300x210 export: that mark carries its
-        // own opaque white field, which is the brightest thing on the bar.)
+        // Queensland's number moved with the owner's 1 Oct re-supplies: 3.38:1 for
+        // the old 583x174 cut-out, 11.33:1 for the rejected white-field 300x210
+        // export, and 4.89:1 for the 2170x725 export that replaced it — a red
+        // field carrying the lockup in white, with the corners rounded in the
+        // artwork.)
         expect(drawn.contrast).toBeGreaterThan(3);
         // And each one is its own artwork rather than a silhouette: the mean ink
-        // luminance is 0.431 for the shared mark, 0.690 for Imaging Queensland's
-        // white field and red lockup and 0.349 for The Xray Group's.
+        // luminance is 0.431 for the shared mark, 0.270 for Imaging Queensland's
+        // red field and white lockup and 0.349 for The Xray Group's.
         expect(drawn.ink).toBeGreaterThan(0.15);
       }
     }
