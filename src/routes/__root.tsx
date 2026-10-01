@@ -112,52 +112,57 @@ function RootComponent() {
         {/*
           ── Top Bar ──
 
-          Owner direction, 1 Oct (third iteration): a pilot instance's bar is a
-          SOLID WHITE bar — "Ok it's still not popping let's just make it full
-          white." The whiter translucent washes of 30 Sep / 1 Oct (white at 15%,
-          then 25%) still read as a faint band over the navy gradient, so the field
-          is now plain `bg-white`: opaque, no alpha, and therefore no
-          `backdrop-blur-md`, which does nothing behind an opaque fill.
+          Owner direction, 1 Oct (fourth iteration): a pilot instance's bar is
+          WHITE BUT SLIGHTLY TRANSPARENT — "I think we should make the bar white
+          but slightly transparent." So it is a mostly-white frosted band,
+          `bg-white/90` over the same `backdrop-blur-md` the bar has always had:
+          the field reads as white (rgb(231,232,234) over the body gradient's navy
+          #0A1628) with the blur keeping a hint of what passes underneath.
 
-          A white field would swallow the two marks drawn on it — the shared Rad
-          Games mark on the left is white artwork (mean luminance 237/255) and The
-          Xray Group's own lockup is white too — so on a pilot instance BOTH bar
-          marks are drawn as DARK SILHOUETTES. `brightness-0` keeps each mark's
-          shape and alpha and paints the artwork black, which reads sharply on
-          white.
+          90% is the measured pick of the three levels rendered for the owner
+          (70/80/90). Every mark on the bar reads better the whiter the field is,
+          because each one's ink is darker than the bar: per-pixel contrast
+          against the field, averaged over The Xray Group's own lockup, is 1.41:1
+          at white/70, 1.78:1 at white/80 and 2.22:1 at white/90, and Imaging
+          Queensland's red lockup crosses WCAG's 3:1 at white/90 alone (2.28 /
+          2.89 / 3.59 on the same measure). The one thing a whiter field costs is
+          the Rad Games mark's own white lettering, which only ever sits inside
+          that mark's navy outline (1.78:1 against the bar at white/70, 1.39 at
+          /80, 1.13 at /90) — the outline is what draws those letterforms, and it
+          measures 8.2 / 10.4 / 13.0 against the same field. The owner's earlier
+          "just make it full white" is honoured too: 90% is "slightly
+          transparent", not a wash. (Full evidence: /home/team/shared/topbar-real/.)
+
+          BOTH bar marks are drawn as their OWN ARTWORK. The owner supplied the
+          real logos on 1 Oct and rejected the black-silhouette treatment this bar
+          briefly used ("The logos weren't supposed to change I just wanted the
+          background to be whiter"), so no filter is applied to either mark: the
+          shared Rad Games mark keeps its teal/navy artwork on every instance, and
+          a pilot instance's own mark keeps its brand colours.
 
           The rule is the same mark comparison the right-hand slot uses — never a
           brand id, and never a per-brand colour — so both pilot instances get the
           identical treatment. The neutral master keeps `bg-white/5
           backdrop-blur-md` and every other utility of the bar exactly as it was:
-          its bar stays dark navy glass, so its marks keep their own artwork and are
-          never filtered.
+          its bar stays dark navy glass.
         */}
         <header
           className={
             brand.homeLogoUrl !== brand.logoUrl
-              ? "sticky top-0 z-30 bg-white safe-area-top"
+              ? "sticky top-0 z-30 bg-white/90 backdrop-blur-md safe-area-top"
               : "sticky top-0 z-30 bg-white/5 backdrop-blur-md safe-area-top"
           }
         >
           <div className="max-w-lg mx-auto flex items-center justify-between h-14 px-4">
             <div className="flex items-center gap-2">
               {/*
-                The shared Rad Games mark, from the brand config. White artwork
-                (mean luminance 237/255), so on a pilot instance's solid white bar
-                it is drawn as a dark silhouette — same filter, same rule as the
-                slot on the right below. On the master it keeps its own artwork
-                over the dark glass.
+                The shared Rad Games mark, from the brand config, drawn as its own
+                artwork on every instance: one file and one class, the same mark on
+                the master's navy glass and on a pilot instance's white frosted
+                bar. (The owner's 1 Oct artwork is the teal/navy lockup; the black
+                silhouette this bar briefly applied to it is gone.)
               */}
-              <img
-                src={brand.logoUrl}
-                alt={brand.logoAlt}
-                className={
-                  brand.homeLogoUrl !== brand.logoUrl
-                    ? "h-12 w-auto brightness-0"
-                    : "h-12 w-auto"
-                }
-              />
+              <img src={brand.logoUrl} alt={brand.logoAlt} className="h-12 w-auto" />
             </div>
             {/*
               The right-hand slot. A brand whose OWN mark differs from the shared
@@ -170,18 +175,16 @@ function RootComponent() {
               every instance, and a width cap plus `object-contain` so a very wide
               lockup shrinks instead of overflowing at 320 CSS px.
 
-              `brightness-0` gives this mark the same dark-silhouette treatment as
-              the shared mark on the left. This slot only ever renders on a pilot
-              instance (`homeLogoUrl !== logoUrl` — its mark already sits on the
-              left otherwise), so the filter is inherently pilot-only here, and it
-              is the same literal token the left mark uses.
+              The mark is drawn as supplied, with no filter, exactly like the
+              shared mark on the left: the owner's artwork carries its own brand
+              colours on the white frosted field.
             */}
             {brand.homeLogoUrl !== brand.logoUrl ? (
               <img
                 src={brand.homeLogoUrl}
                 alt={brand.logoAlt}
                 draggable={false}
-                className="h-9 w-auto max-w-[45%] shrink-0 object-contain object-right select-none brightness-0"
+                className="h-9 w-auto max-w-[45%] shrink-0 object-contain object-right select-none"
               />
             ) : (
               playerName && (
