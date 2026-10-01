@@ -349,6 +349,9 @@ describe("brand artwork files", () => {
     // drawn at `h-9` (36 CSS px). The master's mark was designed for that field,
     // and the pilot brands' marks had to survive it: an opaque file would be a
     // solid block, and a mark too close to the navy would disappear into it.
+    // (A pilot instance now draws its bar solid white and silhouettes BOTH of its
+    // marks, so this pins the artwork itself — transparency, size and its own
+    // contrast — while the rendered-on-the-bar check lives in that test below.)
     // Contrast is measured the way WCAG does (per-pixel, against #0A1628, averaged
     // over the visible pixels); a mark's own dark outline may sit at 1:1, so the
     // pin is the mean rather than every pixel.
@@ -473,54 +476,139 @@ describe("brand artwork files", () => {
     expect(root).toContain("brand.homeLogoUrl !== brand.logoUrl");
     expect(root).toMatch(/src=\{brand\.homeLogoUrl\}/);
     expect(root).toContain("alt={brand.logoAlt}");
+    // The slot carries the same dark-silhouette token the shared mark on the left
+    // does (see the solid-white bar test below); this slot only renders on a pilot
+    // instance, so the filter needs no condition of its own.
     expect(root).toMatch(
-      /className="h-9 w-auto max-w-\[45%\] shrink-0 object-contain object-right select-none"/,
+      /className="h-9 w-auto max-w-\[45%\] shrink-0 object-contain object-right select-none brightness-0"/,
     );
     expect(root).toContain("Hi, {playerName}");
     // The shared Rad Games mark stays on the left of the same bar.
     expect(root).toMatch(/src=\{brand\.logoUrl\}/);
   });
 
-  test("a pilot instance's top bar is a whiter glass than the master's", () => {
-    // Owner direction, 30 Sep: the master's `bg-white/5` wash is too faint over the
-    // navy gradient for a pilot instance's own mark (the bar's right-hand slot), so a
-    // branded bar is whiter. It is the SAME rule as that slot — the mark comparison,
-    // never a brand id — and the master's class string must survive untouched. The
-    // tint is bound on both sides: whiter than the master, still a dark bar rather
-    // than a light slab, and every other utility of the bar identical everywhere.
+  test("a pilot instance's top bar is solid white and its marks are dark silhouettes", async () => {
+    // Owner direction, 1 Oct (third iteration): "Ok it's still not popping let's just
+    // make it full white." The whiter translucent washes of 30 Sep / 1 Oct (white at
+    // 15%, then 25%) still read as a faint band over the navy gradient, so a pilot
+    // instance's bar is now SOLID white — an opaque fill, with the wash's
+    // `backdrop-blur-md` gone too (blur does nothing behind an opaque fill). It is
+    // the SAME rule as the mark slot — the mark comparison, never a brand id — and
+    // the master's class string must survive untouched.
     const root = srcFile("../routes/__root.tsx");
     const MASTER = "sticky top-0 z-30 bg-white/5 backdrop-blur-md safe-area-top";
+    const BRANDED = "sticky top-0 z-30 bg-white safe-area-top";
     // Every top-bar class literal in the file, in source order.
     const barClasses = [...root.matchAll(/"(sticky top-0 z-30 [^"]*safe-area-top)"/g)].map(
       (m) => m[1],
     );
     expect(barClasses).toHaveLength(2);
     expect(barClasses).toContain(MASTER);
+    expect(barClasses).toContain(BRANDED);
     const branded = barClasses.find((c) => c !== MASTER)!;
-    const alpha = Number(branded.match(/bg-white\/\[(\d?\.\d+)\]/)?.[1]);
-    expect(Number.isFinite(alpha)).toBe(true);
-    // Only the wash differs: strip it and the two classes are the same bar.
-    expect(branded.replace(/bg-white\/\[[\d.]+\]/, "bg-white/5")).toBe(MASTER);
-    expect(alpha).toBeGreaterThan(0.05); // measurably whiter than the master
-    expect(alpha).toBeLessThanOrEqual(0.3); // translucent glass, not a solid or slab bar
+    expect(branded).toBe(BRANDED);
+    // Only the field differs: put the master's faint glass back where the solid
+    // white is and the two classes are the same bar again.
+    expect(branded.replace("bg-white", "bg-white/5 backdrop-blur-md")).toBe(MASTER);
+    expect(branded).not.toMatch(/bg-white\//); // an opaque fill, no alpha channel
+    expect(branded).not.toContain("backdrop-blur"); // nothing to blur behind white
     // The comparison picks the branded class and the master keeps the other branch,
     // pinned in order so the two branches cannot be swapped.
     const flat = root.replace(/\s+/g, " ");
-    expect(flat).toContain(`brand.homeLogoUrl !== brand.logoUrl ? "${branded}" : "${MASTER}"`);
-    // Quantitatively, over the body gradient's navy (#0A1628): the branded wash is
-    // more than twice the master's luminance, and still dark (white would be 1).
+    expect(flat).toContain(`brand.homeLogoUrl !== brand.logoUrl ? "${BRANDED}" : "${MASTER}"`);
+
+    // A white field swallows white artwork, so on a pilot instance BOTH bar marks are
+    // painted as dark silhouettes: `brightness-0` keeps a mark's shape and alpha and
+    // turns the artwork black. Exactly the two bar marks carry the filter — the
+    // shared mark only on a pilot instance, the right-hand slot (a pilot instance's
+    // own mark, which renders nowhere else) unconditionally, as the same token.
+    // (Class strings only — the comments above name the token too.)
+    expect([...root.matchAll(/"[-\w\s/\[\]%.]*\bbrightness-0\b[-\w\s/\[\]%.]*"/g)]).toHaveLength(
+      2,
+    );
+    expect(root).toMatch(
+      /brand\.homeLogoUrl !== brand\.logoUrl\s*\?\s*"h-12 w-auto brightness-0"\s*:\s*"h-12 w-auto"/,
+    );
+    expect(root).toMatch(
+      /className="h-9 w-auto max-w-\[45%\] shrink-0 object-contain object-right select-none brightness-0"/,
+    );
+
+    // Rendered, not just declared: composite each mark over the field its own bar
+    // draws — solid white on a pilot instance, the master's white/5 glass over the
+    // body gradient's navy (#0A1628) — and read the field and the mark off those
+    // pixels. The field must be ~white on a pilot instance (> 0.9) and every mark on
+    // it must read DARK (< 0.2). A mark that matches the field it sits on is exactly
+    // the "it's not popping" bug the owner has now reported three times.
     const linear = (c: number) => {
       const v = c / 255;
       return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
     };
-    const lumOverNavy = (a: number) => {
-      const over = (channel: number) => a * 255 + (1 - a) * channel;
-      return (
-        0.2126 * linear(over(0x0a)) + 0.7152 * linear(over(0x16)) + 0.0722 * linear(over(0x28))
-      );
+    const luminance = (r: number, g: number, b: number) =>
+      0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+    type Rgb = { r: number; g: number; b: number };
+    const WHITE_FIELD: Rgb = { r: 255, g: 255, b: 255 };
+    const glass = (a: number, channel: number) => a * 255 + (1 - a) * channel;
+    const MASTER_FIELD: Rgb = {
+      r: glass(0.05, 0x0a),
+      g: glass(0.05, 0x16),
+      b: glass(0.05, 0x28),
     };
-    expect(lumOverNavy(alpha)).toBeGreaterThan(lumOverNavy(0.05) * 2);
-    expect(lumOverNavy(alpha)).toBeLessThan(0.1);
+    /** Mean luminance of the bar behind a mark, and of the mark's own ink on it. */
+    const render = async (url: string, field: Rgb, silhouette: boolean) => {
+      const { data } = await sharp(publicFile(url))
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      let ink = 0;
+      let inkLum = 0;
+      let bar = 0;
+      let barLum = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const a = data[i + 3] / 255;
+        const r = silhouette ? 0 : data[i];
+        const g = silhouette ? 0 : data[i + 1];
+        const b = silhouette ? 0 : data[i + 2];
+        const L = luminance(
+          a * r + (1 - a) * field.r,
+          a * g + (1 - a) * field.g,
+          a * b + (1 - a) * field.b,
+        );
+        if (data[i + 3] >= 200) {
+          ink++;
+          inkLum += L;
+        } else if (data[i + 3] < 8) {
+          bar++;
+          barLum += L;
+        }
+      }
+      return { bar: barLum / bar, ink: inkLum / ink };
+    };
+
+    for (const id of BRAND_IDS) {
+      const pilot = BRANDS[id].homeLogoUrl !== BRANDS[id].logoUrl;
+      const field = pilot ? WHITE_FIELD : MASTER_FIELD;
+      // A pilot instance's bar carries two marks (the shared one left, its own right);
+      // the master carries only the shared one, the chip fills its right-hand slot.
+      const marks = pilot
+        ? [BRANDS[id].logoUrl, BRANDS[id].homeLogoUrl]
+        : [BRANDS[id].logoUrl];
+      for (const url of marks) {
+        const drawn = await render(url, field, pilot);
+        if (pilot) {
+          expect(drawn.bar).toBeGreaterThan(0.9); // a solid white bar
+          expect(drawn.ink).toBeLessThan(0.2); // and a dark mark on it
+          // Load-bearing, not decoration: the same mark un-filtered on that same
+          // white field is a near match for it — measured, the shared Rad Games mark
+          // reads 0.44 and The Xray Group's lockup 0.36 against the 0.001-0.004 the
+          // silhouette reads — i.e. the vanishing mark the owner reported.
+          const natural = await render(url, field, false);
+          expect(natural.ink).toBeGreaterThan(drawn.ink * 5);
+        } else {
+          expect(drawn.bar).toBeLessThan(0.1); // the master's faint glass over navy
+          expect(drawn.ink).toBeGreaterThan(0.3); // its own light artwork, untouched
+        }
+      }
+    }
   });
   test("the games home header greets the player and draws no brand mark", () => {
     // Owner direction, 30 Sep: the greeting next to Rex stays exactly as it was,

@@ -110,34 +110,53 @@ function RootComponent() {
         }}
       >
         {/*
-          ── Top Bar (translucent glass) ──
+          ── Top Bar ──
 
-          A pilot instance signs this bar with its OWN mark (the right-hand slot
-          below), and that mark needs a lighter field than the master's faint glass
-          to sit on (owner direction, 30 Sep): `bg-white/5` is all but invisible over
-          the navy gradient, so the bar reads as if the mark were floating. A pilot
-          instance therefore gets a whiter translucent wash — white at 25%
-          (owner direction, 1 Oct; raised from 15% after review), a clearly
-          lighter band over the navy so the logo pops.
+          Owner direction, 1 Oct (third iteration): a pilot instance's bar is a
+          SOLID WHITE bar — "Ok it's still not popping let's just make it full
+          white." The whiter translucent washes of 30 Sep / 1 Oct (white at 15%,
+          then 25%) still read as a faint band over the navy gradient, so the field
+          is now plain `bg-white`: opaque, no alpha, and therefore no
+          `backdrop-blur-md`, which does nothing behind an opaque fill.
+
+          A white field would swallow the two marks drawn on it — the shared Rad
+          Games mark on the left is white artwork (mean luminance 237/255) and The
+          Xray Group's own lockup is white too — so on a pilot instance BOTH bar
+          marks are drawn as DARK SILHOUETTES. `brightness-0` keeps each mark's
+          shape and alpha and paints the artwork black, which reads sharply on
+          white.
 
           The rule is the same mark comparison the right-hand slot uses — never a
-          brand id, and never a per-brand colour: the neutral master keeps
-          `bg-white/5` and every other utility of the bar exactly as it was.
+          brand id, and never a per-brand colour — so both pilot instances get the
+          identical treatment. The neutral master keeps `bg-white/5
+          backdrop-blur-md` and every other utility of the bar exactly as it was:
+          its bar stays dark navy glass, so its marks keep their own artwork and are
+          never filtered.
         */}
         <header
           className={
             brand.homeLogoUrl !== brand.logoUrl
-              ? "sticky top-0 z-30 bg-white/[0.25] backdrop-blur-md safe-area-top"
+              ? "sticky top-0 z-30 bg-white safe-area-top"
               : "sticky top-0 z-30 bg-white/5 backdrop-blur-md safe-area-top"
           }
         >
           <div className="max-w-lg mx-auto flex items-center justify-between h-14 px-4">
             <div className="flex items-center gap-2">
-              {/* The shared Rad Games mark, from the brand config. */}
+              {/*
+                The shared Rad Games mark, from the brand config. White artwork
+                (mean luminance 237/255), so on a pilot instance's solid white bar
+                it is drawn as a dark silhouette — same filter, same rule as the
+                slot on the right below. On the master it keeps its own artwork
+                over the dark glass.
+              */}
               <img
                 src={brand.logoUrl}
                 alt={brand.logoAlt}
-                className="h-12 w-auto"
+                className={
+                  brand.homeLogoUrl !== brand.logoUrl
+                    ? "h-12 w-auto brightness-0"
+                    : "h-12 w-auto"
+                }
               />
             </div>
             {/*
@@ -150,13 +169,19 @@ function RootComponent() {
               fixed slot height (`h-9`, 36 CSS px on a 56 CSS px bar), the same on
               every instance, and a width cap plus `object-contain` so a very wide
               lockup shrinks instead of overflowing at 320 CSS px.
+
+              `brightness-0` gives this mark the same dark-silhouette treatment as
+              the shared mark on the left. This slot only ever renders on a pilot
+              instance (`homeLogoUrl !== logoUrl` — its mark already sits on the
+              left otherwise), so the filter is inherently pilot-only here, and it
+              is the same literal token the left mark uses.
             */}
             {brand.homeLogoUrl !== brand.logoUrl ? (
               <img
                 src={brand.homeLogoUrl}
                 alt={brand.logoAlt}
                 draggable={false}
-                className="h-9 w-auto max-w-[45%] shrink-0 object-contain object-right select-none"
+                className="h-9 w-auto max-w-[45%] shrink-0 object-contain object-right select-none brightness-0"
               />
             ) : (
               playerName && (
