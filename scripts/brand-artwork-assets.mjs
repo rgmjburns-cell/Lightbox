@@ -34,7 +34,10 @@
  * transparency and even margins, so it is scaled whole — no keying, no cropping
  * — down to `HOME_LOGO_HEIGHT` device px, and never up: artwork smaller than the
  * slot is left at its own size, because interpolating it upward only makes it
- * soft and larger. A game page's white title tile carries no mark at all any
+ * soft and larger. A brand marked `homeLogoKeep` skips even that: its supplied
+ * file is the shipped file, byte for byte (checked against `HOME_LOGO_MD5`), so
+ * a re-run of this script can never re-encode or resample the artwork the owner
+ * installed. A game page's white title tile carries no mark at all any
  * more (the owner revoked the title-tile logo on 30 Sep), so that pipeline —
  * and its white-keying pass — is gone with it.
  *
@@ -53,7 +56,8 @@
  * Run from the repo root:  node scripts/brand-artwork-assets.mjs
  * Originals live in public/_originals/brands/ and are never modified.
  */
-import { copyFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 
@@ -66,11 +70,14 @@ const OUT = "public/brands";
 const BRANDS = {
   "imaging-queensland": {
     logo: "iq-logo.png",
-    homeLogo: "iq-home-logo.png",
-    // Owner direction, 1 Oct: the supplied canvas IS the shipped file. The
-    // 583x174 landscape export is copied through byte for byte rather than
-    // resampled, so the instance draws the owner's own artwork (see
-    // `keepHomeLogo`).
+    homeLogo: "iq-home-logo-2026-10-01-owner.png",
+    // Owner direction, 1 Oct: the supplied canvas IS the shipped file, so it is
+    // copied through byte for byte rather than resampled and the instance draws
+    // the owner's own artwork (see `keepHomeLogo`). This is the owner's SECOND
+    // supply that day — the 583x174 landscape export first installed turned out
+    // to be the OLD mark, and the replacement is the 300x210 export archived
+    // here as `iq-home-logo-2026-10-01-owner.png`. Note it is opaque (RGB, white
+    // field, no alpha), where the mark it retires was a transparent cut-out.
     homeLogoKeep: true,
     rex: "iq-rex.png",
     icon: "iq-app-icon.png",
@@ -229,14 +236,36 @@ async function writeHomeLogo(file, dest) {
 }
 
 /**
+ * The md5 of the owner's current top-bar export, per brand, as archived in
+ * `public/_originals/brands/`. A keep-through mark must still be this exact
+ * file: a later re-supply that is dropped in under the same name without being
+ * archived and recorded here fails the run instead of silently reaching
+ * patients (the 1 Oct Imaging Queensland swap is exactly why this exists — the
+ * first file that day, 583x174 md5 5bd49aae…, was the OLD mark).
+ */
+const HOME_LOGO_MD5 = {
+  "imaging-queensland": "eb0196b66b3e1bb7c8843a242c6a4696",
+};
+
+/**
  * Copy the supplied top-bar mark through unchanged, byte for byte.
  *
- * Owner direction, 1 Oct: Imaging Queensland's 583x174 landscape export IS what
- * the app draws — "put this imaging Queensland logo on instead" — so it is never
- * resampled, and the shipped file's md5 matches the original's. Re-encoding
- * through sharp would keep the pixels but break that byte-for-byte promise.
+ * Owner direction, 1 Oct: the file the owner supplied IS what the app draws —
+ * "put this imaging Queensland logo on instead" — so it is never resampled, and
+ * the shipped file's md5 matches the original's. This is stronger than the
+ * convention the other artwork follows: 210 px tall artwork would otherwise be
+ * scaled down to `HOME_LOGO_HEIGHT` (144), and even a pixel-identical re-encode
+ * through sharp would break the byte-for-byte promise the artwork is pinned by
+ * in `src/lib/brand.test.ts`.
  */
-async function keepHomeLogo(file, dest) {
+async function keepHomeLogo(file, dest, expectedMd5) {
+  const md5 = createHash("md5").update(readFileSync(file)).digest("hex");
+  if (md5 !== expectedMd5) {
+    throw new Error(
+      `${file}: md5 ${md5} is not the recorded owner export ${expectedMd5} — archive the new ` +
+        `supply in ${SRC} and record it before shipping it`,
+    );
+  }
   copyFileSync(file, dest);
   const meta = await sharp(file).metadata();
   return {
@@ -247,6 +276,7 @@ async function keepHomeLogo(file, dest) {
     src: `${meta.width}x${meta.height}`,
     hasAlpha: meta.hasAlpha,
     resampled: false,
+    md5,
   };
 }
 
@@ -280,7 +310,11 @@ for (const [brand, files] of Object.entries(BRANDS)) {
     logo: await writeLogo(path.join(SRC, files.logo), path.join(dir, "welcome-logo.png")),
     home: files.homeLogo
       ? files.homeLogoKeep
-        ? await keepHomeLogo(path.join(SRC, files.homeLogo), path.join(dir, "home-logo.png"))
+        ? await keepHomeLogo(
+            path.join(SRC, files.homeLogo),
+            path.join(dir, "home-logo.png"),
+            HOME_LOGO_MD5[brand],
+          )
         : await writeHomeLogo(path.join(SRC, files.homeLogo), path.join(dir, "home-logo.png"))
       : null,
     rex: await writeRex(path.join(SRC, files.rex), path.join(dir, "rex.png")),
@@ -294,7 +328,9 @@ for (const row of report) {
   console.log(`  welcome-logo.png  ${row.logo.width}x${row.logo.height}  ${kB(row.logo.bytes)}  (cropped from ${row.logo.src})`);
   if (row.home) {
     console.log(
-      `  home-logo.png     ${row.home.width}x${row.home.height}  ${kB(row.home.bytes)}  (${row.home.resampled ? "scaled" : "kept"} from ${row.home.src}, alpha kept)`,
+      `  home-logo.png     ${row.home.width}x${row.home.height}  ${kB(row.home.bytes)}  (${row.home.resampled ? "scaled" : "kept"} from ${row.home.src}, ${
+        row.home.hasAlpha ? "alpha kept" : "opaque as supplied"
+      }${row.home.md5 ? `, md5 ${row.home.md5}` : ""})`,
     );
   }
   console.log(`  rex.png           ${row.rex.width}x${row.rex.height}  ${kB(row.rex.bytes)}  (cropped from ${row.rex.src}, width fill ${row.rex.fill})`);
