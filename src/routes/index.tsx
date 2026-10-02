@@ -6,7 +6,7 @@ import InstallBanner from "~/components/InstallBanner";
 import { getPlayerName } from "~/components/Onboarding";
 import { getLastEarnedAchievement } from "~/lib/achievements";
 import { fetchLeaderboard } from "~/lib/leaderboard";
-import brand from "~/lib/brand";
+import brand, { colourGameTitle } from "~/lib/brand";
 import { useVisit } from "~/lib/metrics";
 
 export const Route = createFileRoute("/")({
@@ -56,7 +56,9 @@ const playExperiences = [
   },
   {
     id: "colour-rex",
-    title: "Colour Rex",
+    // The title carries the mascot's name, so it comes from the one helper the
+    // game page and the leaderboard read too (see `colourGameTitle`).
+    title: colourGameTitle(),
     subtitle: "Colour the mascot",
     icon: "/icons/icon-colour-rex.png",
     color: "from-secondary/80 to-primary/50",

@@ -1619,7 +1619,7 @@ export default function BoneBuster() {
             <div style={rexBurstStyle}>
               <img
                 src={brand.rexImageUrl}
-                alt="Rex Super Burst"
+                alt={`${brand.mascotName} Super Burst`}
                 width={80}
                 height={80}
                 className="object-contain drop-shadow-[0_0_20px_rgba(0,140,149,0.7)]"

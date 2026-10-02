@@ -110,7 +110,7 @@ const ANDROID_SAMSUNG_STEPS: Step[] = [
 ];
 
 const DONE_COPY =
-  `YOU'RE DONE! Look for Rex on your Home Screen. Tap him anytime to open ${brand.productName}.`;
+  `YOU'RE DONE! Look for ${brand.mascotName} on your Home Screen. Tap him anytime to open ${brand.productName}.`;
 
 function AddToPhonePage() {
   useVisit("/qr");
@@ -235,7 +235,7 @@ function AddToPhonePage() {
       <div className="card p-5 flex flex-col items-center text-center">
         <img
           src="/icon-512.png"
-          alt="Rex Home Screen icon"
+          alt={`${brand.mascotName} Home Screen icon`}
           className="w-20 h-20 rounded-2xl shadow-md mb-3"
         />
         <p className="text-darkText font-bold text-[15px] leading-snug">{DONE_COPY}</p>

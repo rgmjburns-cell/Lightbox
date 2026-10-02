@@ -8,6 +8,7 @@ import LeaderboardEntry from "~/components/LeaderboardEntry";
 import { TrophyIcon } from "~/components/RankBadge";
 import { Link } from "@tanstack/react-router";
 import { addPoints } from "~/lib/points";
+import brand from "~/lib/brand";
 import {
   checkAchievements,
   trackGameCompletion,
@@ -181,7 +182,7 @@ export default function ColourRex() {
   const playerName = typeof window !== "undefined" ? getPlayerName() : "Player";
 
   const [selectedColor, setSelectedColor] = useState(COLORS[0].hex);
-  const [rexMessage, setRexMessage] = useState("Choose a colour, then tap Rex to fill!");
+  const [rexMessage, setRexMessage] = useState(`Choose a colour, then tap ${brand.mascotName} to fill!`);
   const [rexMood, setRexMood] = useState<"happy" | "excited" | "encouraging">("happy");
   const [showComplete, setShowComplete] = useState(false);
   const [toastAchievement, setToastAchievement] = useState<Achievement | null>(null);
@@ -526,7 +527,7 @@ export default function ColourRex() {
     setRexMessage("Undo! Try a different colour.");
     setTimeout(() => {
       setRexMood("happy");
-      setRexMessage("Choose a colour, then tap Rex to fill!");
+      setRexMessage(`Choose a colour, then tap ${brand.mascotName} to fill!`);
     }, 2000);
   }, []);
 
@@ -552,7 +553,7 @@ export default function ColourRex() {
     setRexMood("encouraging");
     setTimeout(() => {
       setRexMood("happy");
-      setRexMessage("Choose a colour, then tap Rex to fill!");
+      setRexMessage(`Choose a colour, then tap ${brand.mascotName} to fill!`);
     }, 2000);
   }, []);
 
@@ -566,7 +567,7 @@ export default function ColourRex() {
     if (actualPct < minPct) {
       setRexMood("encouraging");
       setRexMessage(
-        `Colour at least ${minPct}% of Rex to finish! You've done ${actualPct}%.`,
+        `Colour at least ${minPct}% of ${brand.mascotName} to finish! You've done ${actualPct}%.`,
       );
       setTimeout(() => setRexMood("happy"), 3000);
       return;
@@ -755,7 +756,7 @@ export default function ColourRex() {
             <Rex className="w-20 h-20 mx-auto mb-4" mood="excited" />
             <h2 className="text-2xl font-extrabold text-primary mb-2">Masterpiece!</h2>
             <p className="text-lg text-mutedText mb-1">
-              You coloured {progressPct}% of Rex!
+              You coloured {progressPct}% of {brand.mascotName}!
             </p>
             <p className="text-2xl font-bold text-secondary mb-4">+500 pts</p>
             {500 >= bestScore && <p className="text-sm text-secondary font-bold mb-4 flex items-center justify-center gap-1.5"><TrophyIcon /> New Best!</p>}

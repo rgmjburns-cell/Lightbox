@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { useGameRound } from "~/lib/metrics";
+import { colourGameTitle } from "~/lib/brand";
 const BoneBuster = lazy(() => import("~/components/games/BoneBuster"));
 const ScanSearch = lazy(() => import("~/components/games/ScanSearch"));
 const MemoryScan = lazy(() => import("~/components/games/MemoryScan"));
@@ -18,7 +19,7 @@ const gameMeta: Record<string, { title: string; icon: string }> = {
   "memory-scan": { title: "Memory Scan", icon: "/icons/icon-memory-scan.png" },
   "mri-mixup": { title: "MRI Mix-Up", icon: "/icons/icon-mri-mixup.png" },
   "ecg-rhythm": { title: "Pulse Pop", icon: "/icons/icon-pulse-pop.png" },
-  "colour-rex": { title: "Colour Rex", icon: "/icons/icon-colour-rex.png" },
+  "colour-rex": { title: colourGameTitle(), icon: "/icons/icon-colour-rex.png" },
   "film-stack": { title: "Film Stack", icon: "/icons/icon-film-stack.png" },
   "scan-rush": { title: "Scan Quest", icon: "/icons/icon-scan-rush.png" },
 };

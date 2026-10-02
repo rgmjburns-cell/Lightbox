@@ -209,8 +209,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             <span style={{ color: HIGHLIGHT, fontWeight: 600 }}>challenge</span>{" "}
             and help the time pass. Whether you&rsquo;re feeling curious, excited
             or a little nervous,{" "}
-            <span style={{ color: HIGHLIGHT, fontWeight: 600 }}>Rex</span> is
-            here to keep you company while you wait.
+            <span style={{ color: HIGHLIGHT, fontWeight: 600 }}>
+              {brand.mascotName}
+            </span>{" "}
+            is here to keep you company while you wait.
           </p>
         </div>
 

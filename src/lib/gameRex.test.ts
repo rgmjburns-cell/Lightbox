@@ -100,7 +100,7 @@ describe("the cheer Rex under the board", () => {
     // that draws the brand's mascot PNG flying across the board. It is an <img>
     // reading `brand.rexImageUrl`, not a <Rex>, so it must still be here.
     const bb = srcFile("../components/games/BoneBuster.tsx");
-    expect(bb).toContain('alt="Rex Super Burst"');
+    expect(bb).toContain("alt={`${brand.mascotName} Super Burst`}");
     expect(bb).toMatch(/src=\{brand\.rexImageUrl\}/);
     expect(bb).toContain("rexBurst");
   });
