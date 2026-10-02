@@ -26,6 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import {
+  BAR_LOGO_VERSION,
   BRANDS,
   BRAND_IDS,
   DEFAULT_BRAND_ID,
@@ -51,9 +52,18 @@ function visibleStrings(id: (typeof BRAND_IDS)[number]): string[] {
   ];
 }
 
-/** A path under public/ for a brand asset url. */
+/**
+ * A path under public/ for a brand asset url. Any cache-buster is dropped: the
+ * url a screen draws is the FILE plus, on the two marks the top bar shows, a
+ * `?v=` version stamp (`BAR_LOGO_VERSION`), and that stamp is part of the request
+ * address only — the file it names is the unversioned path. Mapping the url to
+ * the file this way is what keeps the size/alpha/md5 pins below meaningful now
+ * that a bar mark's url carries a query.
+ */
 const publicFile = (url: string) =>
-  fileURLToPath(new URL(`../../public/${url.replace(/^\//, "")}`, import.meta.url));
+  fileURLToPath(
+    new URL(`../../public/${url.split("?")[0].replace(/^\//, "")}`, import.meta.url),
+  );
 
 /** The source of a file in src/, for the markup assertions below. */
 const srcFile = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -144,15 +154,42 @@ describe("brand config", () => {
 
 describe("per-brand artwork", () => {
   const pilots = ["imaging-queensland", "the-xray-group"] as const;
-  /** The public/ path for a brand asset url, with any cache-buster dropped. */
-  const assetPath = (url: string) => publicFile(url.split("?")[0]);
 
   test("the header keeps the shared Rad Games mark on every instance", () => {
     // Owner direction, 29 Sep: the mark already in place stays where it is.
-    // Only the welcome screen draws anything else.
+    // Only the welcome screen draws anything else. The url carries the current
+    // bar-logo version stamp (`BAR_LOGO_VERSION`, `?v=3` today — the shared mark
+    // was re-supplied on 1 Oct too, so its address is versioned like the pilots'
+    // bar marks), while the FILE it names is still the unversioned path.
     for (const id of BRAND_IDS) {
-      expect(BRANDS[id].logoUrl).toBe("/rad-games-logo.png");
-      expect(existsSync(assetPath(BRANDS[id].logoUrl))).toBe(true);
+      expect(BRANDS[id].logoUrl).toBe("/rad-games-logo.png?v=3");
+      expect(existsSync(publicFile(BRANDS[id].logoUrl))).toBe(true);
+    }
+  });
+
+  test("the two marks in the top bar are served from a version-stamped url", () => {
+    // Why the address is versioned at all: a brand's bar artwork is replaced by
+    // dropping new bytes over the same file name, and an INSTALLED app does not
+    // reliably revalidate that name — on 1 Oct the owner's own phone kept drawing
+    // the pre-deploy Imaging Queensland mark through two redeploys, out of the
+    // app/webview/OS disk cache, even though these files are served
+    // `cache-control: no-cache`. A new address is the one thing such a cache
+    // cannot answer from memory, so the stamp is pinned by VALUE here and every
+    // bar url is checked against it below: a bump has to be a deliberate edit in
+    // both files, never a drift.
+    expect(BAR_LOGO_VERSION).toBe("3");
+    expect(BRANDS["imaging-queensland"].homeLogoUrl).toBe(
+      "/brands/imaging-queensland/home-logo.png?v=3",
+    );
+    // The stamp is a query only, so it names the same file: the artwork pins above
+    // (and the static handler, which serves by pathname) still read one path.
+    expect(publicFile("/brands/the-xray-group/home-logo.png?v=3")).toBe(
+      publicFile("/brands/the-xray-group/home-logo.png"),
+    );
+    // And the query is the ONLY cache-buster on either bar mark: a version bolted
+    // on anywhere else (a second `?`, a `#`) would leave the file unreachable.
+    for (const id of BRAND_IDS) {
+      expect(BRANDS[id].logoUrl).toBe(`/rad-games-logo.png?v=${BAR_LOGO_VERSION}`);
     }
   });
 
@@ -162,7 +199,7 @@ describe("per-brand artwork", () => {
       const config = BRANDS[id];
       expect(config.welcomeLogoUrl).toContain(`/brands/${id}/`);
       expect(config.welcomeLogoUrl).not.toBe(config.logoUrl);
-      expect(existsSync(assetPath(config.welcomeLogoUrl))).toBe(true);
+      expect(existsSync(publicFile(config.welcomeLogoUrl))).toBe(true);
     }
     // Two brands, two marks, or the welcome screen would not tell them apart.
     expect(BRANDS["imaging-queensland"].welcomeLogoUrl).not.toBe(
@@ -176,7 +213,7 @@ describe("per-brand artwork", () => {
       const config = BRANDS[id];
       expect(config.rexImageUrl).toContain(`/brands/${id}/`);
       expect(config.rexImageUrl).not.toBe(BRANDS["rad-games"].rexImageUrl);
-      expect(existsSync(assetPath(config.rexImageUrl))).toBe(true);
+      expect(existsSync(publicFile(config.rexImageUrl))).toBe(true);
     }
     expect(BRANDS["imaging-queensland"].rexImageUrl).not.toBe(
       BRANDS["the-xray-group"].rexImageUrl,
@@ -200,7 +237,7 @@ describe("per-brand artwork", () => {
         [config.appleTouchIconUrl, 180], // what iOS asks for
       ];
       for (const [url, size] of expected) {
-        const file = assetPath(url);
+        const file = publicFile(url);
         expect(existsSync(file)).toBe(true);
         const meta = await sharp(file).metadata();
         expect(meta.format).toBe("png");
@@ -350,16 +387,31 @@ describe("brand artwork files", () => {
     // brand whose own mark is not the shared Rad Games one signs the bar with it,
     // while the master leaves the two EQUAL — its shared mark is already on the
     // left of that same bar, so the chip stays on the right rather than the same
-    // mark appearing twice.
+    // mark appearing twice. Both marks carry the SAME bar-logo version stamp, so
+    // the master's equality below holds on the address the device requests, not
+    // just on the file name (`src/lib/brand.ts` builds both from one constant).
     expect(BRANDS["rad-games"].homeLogoUrl).toBe(BRANDS["rad-games"].logoUrl);
     expect(BRANDS["imaging-queensland"].homeLogoUrl).toBe(
-      "/brands/imaging-queensland/home-logo.png",
+      "/brands/imaging-queensland/home-logo.png?v=3",
     );
-    expect(BRANDS["the-xray-group"].homeLogoUrl).toBe("/brands/the-xray-group/home-logo.png");
+    expect(BRANDS["the-xray-group"].homeLogoUrl).toBe(
+      "/brands/the-xray-group/home-logo.png?v=3",
+    );
     for (const id of BRAND_IDS) {
       const url = BRANDS[id].homeLogoUrl;
       expect(url.startsWith("/")).toBe(true);
+      // The stamp is a query on a real public/ file, not part of its name.
       expect(existsSync(publicFile(url))).toBe(true);
+    }
+    // Every mark the bar draws is version-stamped, on every brand, and nothing is
+    // left on a stale stamp: this is the cache-busting the version exists for, so
+    // a bump that missed a url (or a url that quietly lost its query) fails here.
+    const stamp = `?v=${BAR_LOGO_VERSION}`;
+    for (const id of BRAND_IDS) {
+      expect(BRANDS[id].homeLogoUrl.endsWith(stamp)).toBe(true);
+      expect(BRANDS[id].logoUrl.endsWith(stamp)).toBe(true);
+      expect(BRANDS[id].homeLogoUrl.split("?")).toHaveLength(2);
+      expect(BRANDS[id].logoUrl.split("?")).toHaveLength(2);
     }
     // Both pilot instances must actually differ from the shared mark, or the bar
     // would fall back to the greeting chip and the slot would do nothing.
