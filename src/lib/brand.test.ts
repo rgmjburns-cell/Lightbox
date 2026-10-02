@@ -549,9 +549,9 @@ describe("brand artwork files", () => {
       return [data[i], data[i + 1], data[i + 2], data[i + 3]];
     };
     // Transparent to every canvas corner — the opposite of the white field this file
-    // replaced. The rounding the owner asked for is drawn IN the artwork, so the bar
-    // element's own `rounded-2xl` clip (pinned in the rounded-corner test below) just
-    // trims the element box and the file's corners show through it.
+    // replaced. The rounding the owner asked for is drawn IN the artwork, so nothing
+    // on the bar element adds it: the `rounded-2xl` element clip that used to sit over
+    // this file was removed on 2 Oct and the file's own corners are what shows.
     expect(px(0, 0)[3]).toBe(0);
     expect(px(info.width - 1, 0)[3]).toBe(0);
     expect(px(0, info.height - 1)[3]).toBe(0);
@@ -675,11 +675,12 @@ describe("brand artwork files", () => {
     expect(root).toContain("brand.homeLogoUrl !== brand.logoUrl");
     expect(root).toMatch(/src=\{brand\.homeLogoUrl\}/);
     expect(root).toContain("alt={brand.logoAlt}");
-    // The slot carries no filter of its own: since 1 Oct every bar mark is drawn
-    // as its own artwork (owner direction, in the single-bar test below). Its one
-    // extra utility is the tile radius, pinned in the rounded-corner test below.
+    // The slot carries no filter of its own, and since 2 Oct no corner radius
+    // either: every bar mark is drawn as its own artwork (owner direction, in the
+    // single-bar test below) with the corners the file itself has. Both of those
+    // are pinned in the no-corner-clip test below.
     expect(root).toMatch(
-      /className="h-9 w-auto max-w-\[45%\] shrink-0 rounded-2xl object-contain object-right select-none"/,
+      /className="h-9 w-auto max-w-\[45%\] shrink-0 object-contain object-right select-none"/,
     );
     expect(root).not.toContain("brightness-0");
     expect(root).toContain("Hi, {playerName}");
@@ -731,41 +732,40 @@ describe("brand artwork files", () => {
     expect(root).not.toMatch(/"[^"]*\b(brightness|contrast|grayscale|invert|saturate)-[^"]*"/);
   });
 
-  test("the pilot mark's corners are rounded with the radius the app's tiles use", () => {
-    // Owner direction, 1 Oct: "make the imaging Queensland logo have round corners
-    // the same as the whole app does on its tiles" / "clip its corners round". The
-    // app's tiles are the home screen's game grid, and every one of them is
-    // `rounded-2xl` (`src/routes/index.tsx`: `overflow-hidden rounded-2xl
-    // bg-gradient-to-br`), which is Tailwind's 1rem = 16px. So the top bar's
-    // branded <img> carries the SAME token, and this test pins that token in both
-    // places: a mark rounded to anything else, or a tile grid that moved to
-    // another radius, fails here.
-    //
-    // The rounding is a DISPLAY treatment on the element, never an edit to the
-    // artwork: the PNG the owner supplied is installed byte for byte (pinned in
-    // the test above) and is not cropped, keyed or masked. `rounded-2xl` clips the
-    // <img> box exactly the way a tile's corners are drawn over its own
-    // background.
-    const TILE_RADIUS = "rounded-2xl";
+  test("the bar mark carries no corner clip, on any instance", () => {
+    // Owner direction, 2 Oct: the slot's `rounded-2xl` clip is GONE. It was added a
+    // day earlier ("make the imaging Queensland logo have round corners the same as
+    // the whole app does on its tiles") and removed the next day, when the owner's
+    // square-cornered The Xray Group logo arrived and the clip left it looking cut
+    // off / rounded. The clip was dropped for EVERY instance rather than made
+    // per-brand, because the Imaging Queensland artwork already has its rounded
+    // corners baked into the file — its look is unchanged without the clip — so one
+    // class list still describes all three instances.
     const root = srcFile("../routes/__root.tsx");
+    // The slot's class list, pinned in full: nothing was dropped but the radius.
     expect(root).toMatch(
-      new RegExp(
-        `className="h-9 w-auto max-w-\\[45%\\] shrink-0 ${TILE_RADIUS} object-contain object-right select-none"`,
-      ),
+      /className="h-9 w-auto max-w-\[45%\] shrink-0 object-contain object-right select-none"/,
     );
-    // Exactly one element in the bar carries it — the branded slot. The shared
-    // Rad Games mark on the left is untouched, and the master's greeting chip
-    // (which fills that same slot on the neutral instance) is not rounded by it.
+    // Pin the negative on the branded <img> itself, not just on the rest of the file:
+    // no corner-radius utility, and no overflow/mask either. The artwork's own corners
+    // are what the player sees.
+    const barImg = root.match(/<img\s+src=\{brand\.homeLogoUrl\}[\s\S]*?\/>/);
+    expect(barImg?.[0]).toBeDefined();
+    const barImgSrc = barImg?.[0] ?? "";
+    expect(barImgSrc).not.toMatch(/\brounded(-[a-z0-9]+)?\b/);
+    expect(barImgSrc).not.toMatch(/\b(overflow-hidden|mask|clip-path)\b/);
+    // Nothing on the bar is rounded by the tile radius any more, and the same holds
+    // for the shared Rad Games mark on the left of that bar.
     const barClassAttrs = [...root.matchAll(/className="([^"]*)"/g)].map((m) => m[1]);
-    const roundedInBar = barClassAttrs.filter((c) => c.split(/\s+/).includes(TILE_RADIUS));
-    expect(roundedInBar).toHaveLength(1);
-    expect(roundedInBar[0]).toContain("h-9 w-auto");
-    // The tiles use it, and this is the tile the owner meant: the game grid's
-    // cards.
-    const home = srcFile("../routes/index.tsx");
-    expect(home).toMatch(
-      new RegExp(`overflow-hidden ${TILE_RADIUS} bg-gradient-to-br`),
+    expect(barClassAttrs.filter((c) => c.split(/\s+/).includes("rounded-2xl"))).toHaveLength(0);
+    expect(root).toMatch(
+      /<img src=\{brand\.logoUrl\} alt=\{brand\.logoAlt\} className="h-12 w-auto" \/>/,
     );
+    // The radius the clip was matching is still the app's own tile radius — this test
+    // says the BAR no longer uses it, not that the token went away: the home screen's
+    // game grid still draws every tile `rounded-2xl` (`src/routes/index.tsx`).
+    const home = srcFile("../routes/index.tsx");
+    expect(home).toMatch(/overflow-hidden rounded-2xl bg-gradient-to-br/);
     expect(home).toContain("grid grid-cols-2 gap-3"); // the games grid those tiles sit in
   });
 

@@ -377,9 +377,6 @@ export default function FilmStack() {
           })}
         </div>
       </section>
-      <div className="flex justify-center mb-8">
-        <Rex className="w-10 h-10" mood={mood} />
-      </div>
       {(gameOver || win) && (
         <FilmStackModal>
           {gameOver ? (
