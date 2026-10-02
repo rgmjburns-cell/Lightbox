@@ -88,6 +88,21 @@
  * theme on every page, and the white frosted bar for the two pilot brands' own
  * marks.
  *
+ * Cache-busting the two bar marks
+ * -------------------------------
+ * The two marks the app's top bar draws (`logoUrl` — the shared Rad Games mark,
+ * on the left of every instance — and `homeLogoUrl` — a pilot brand's own mark,
+ * on the right) carry a version stamp in their url: `…?v=3` today, built from
+ * `BAR_LOGO_VERSION` just below. Artwork is replaced by dropping new bytes over
+ * the same file name, so without the stamp the address a device already holds
+ * stays "valid" and an installed app can keep drawing the old picture after a
+ * deploy: on 1 Oct the owner's own phone still showed the pre-deploy Imaging
+ * Queensland mark after TWO redeploys, out of the app/webview/OS disk cache,
+ * even though these files are served `cache-control: no-cache` and a normal
+ * browser revalidates them. Bumping the constant is the whole procedure for the
+ * next artwork change. The stamp is part of the request address only — the same
+ * bytes are fetched and nothing on screen changes.
+ *
  * The PWA manifest (`name`, `short_name`, `theme_color`, `icons`) is generated
  * from this module at build time by the `brand-manifest` plugin in
  * `vite.config.ts`, so it follows the brand automatically. The name, the
@@ -141,9 +156,11 @@ export interface BrandConfig {
   };
   /**
    * Path under public/ for the app header's mark (`src/routes/__root.tsx`): the
-   * shared Rad Games mark in all three entries (owner direction, 29 Sep). The
-   * welcome screen draws `welcomeLogoUrl` instead, and the games home screen its
-   * own `homeLogoUrl`.
+   * shared Rad Games mark in all three entries (owner direction, 29 Sep). Like
+   * `homeLogoUrl` it ends in the bar-logo version stamp `?v=3` — see
+   * `BAR_LOGO_VERSION` below for why the address, and not just the file, is
+   * versioned. The welcome screen draws `welcomeLogoUrl` instead, and the games
+   * home screen its own `homeLogoUrl`.
    */
   logoUrl: string;
   /** The accessible name for the mark above (the brand's name). */
@@ -169,7 +186,8 @@ export interface BrandConfig {
    * `logoUrl` on purpose: its shared mark is already on the left of the same
    * bar, so it keeps the greeting chip instead (see the module header). Drawn on
    * the app's original faint-glass bar, and clipped round with `rounded-2xl` (the
-   * app's tile radius), so every file here must read on that glass.
+   * app's tile radius), so every file here must read on that glass. The url ends
+   * in the bar-logo version stamp `?v=3` (see `BAR_LOGO_VERSION` below).
    */
   homeLogoUrl: string;
   /**
@@ -185,6 +203,37 @@ export interface BrandConfig {
 
 /** The game product's name, used by every brand. */
 export const PRODUCT_NAME = "Rad Games";
+
+/**
+ * The version stamp the url of every mark in the app's top bar ends in — the
+ * shared Rad Games mark (`logoUrl`, drawn on the left of every instance) and a
+ * pilot brand's own mark (`homeLogoUrl`, drawn on the right of the two pilot
+ * instances): `…/home-logo.png?v=3`.
+ *
+ * Why the ADDRESS is versioned, not just the file. A brand's bar artwork is
+ * replaced by dropping new bytes over the same file name, so the url used to stay
+ * identical while the picture changed. A normal browser is fine with that — these
+ * files are served `cache-control: no-cache`, so it revalidates — but an INSTALLED
+ * app is not: on 1 Oct the owner's own phone kept showing the pre-deploy Imaging
+ * Queensland mark through two redeploys, served out of the app/webview/OS disk
+ * cache, because the address it had already fetched was never requested again. A
+ * version in the address is the one thing a cached device cannot answer from
+ * memory.
+ *
+ * Bumping it IS the whole procedure for the next artwork change: put the new file
+ * in place, raise this to `"4"` (then `"5"`, …) and change the `?v=` in the urls
+ * below to match — the urls are written out as literals on purpose, so the built
+ * client and server bundles contain the exact versioned address a device requests
+ * (a `?v=` assembled by a helper at runtime is invisible to a grep of the build).
+ * `src/lib/brand.test.ts` pins this value AND every bar url against it, so a bump
+ * that misses one of the two edits fails the suite by name.
+ *
+ * The query is cosmetic: it is part of the request address only, so the same
+ * bytes are fetched under a versioned address and nothing a player sees changes.
+ * (The static handler serves these paths by pathname, so the query is ignored
+ * when the file is read.)
+ */
+export const BAR_LOGO_VERSION = "3";
 
 /**
  * The three instances, fully defined, so standing one up is one env var away.
@@ -212,14 +261,18 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
       secondary: "#008C95", // Teal accent
       themeColor: "#0A1628",
     },
-    logoUrl: "/rad-games-logo.png", // the master mark IS this brand's mark
+    // The master mark IS this brand's mark, carrying the current bar-logo version
+    // (see BAR_LOGO_VERSION) so a device holding the previous supply of
+    // `/rad-games-logo.png` cannot keep drawing it in the bar.
+    logoUrl: "/rad-games-logo.png?v=3",
     logoAlt: "Rad Games",
     welcomeLogoUrl: "/rad-games-logo.png", // the master's own mark
-    // Deliberately the SAME mark as `logoUrl`: the master's shared mark already
-    // sits on the left of the top bar, so the bar keeps the "Hi, <nickname>"
-    // chip on the right instead of drawing this mark a second time (owner
-    // direction, 30 Sep). This equality is the rule `__root.tsx` reads.
-    homeLogoUrl: "/rad-games-logo.png",
+    // Deliberately the SAME stamped url as `logoUrl`: the master's shared mark
+    // already sits on the left of the top bar, so the bar keeps the "Hi,
+    // <nickname>" chip on the right instead of drawing this mark a second time
+    // (owner direction, 30 Sep). This equality is the rule `__root.tsx` reads, so
+    // both fields must always carry the same version stamp.
+    homeLogoUrl: "/rad-games-logo.png?v=3",
     rexImageUrl: "/welcome-rex-opt.png", // the navy Rex, unchanged
     welcomeShowsRex: true, // mark AND Rex: the look the master has always had
     icon192Url: "/icon-192.png",
@@ -241,8 +294,10 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
       themeColor: "#0A1628",
     },
     // The shared Rad Games master mark: the header looks the same on every
-    // instance (owner direction, 29 Sep).
-    logoUrl: "/rad-games-logo.png",
+    // instance (owner direction, 29 Sep) — at the current bar-logo version, so the
+    // 1 Oct re-supply of `/rad-games-logo.png` reaches a device that cached the
+    // previous bytes (see BAR_LOGO_VERSION).
+    logoUrl: "/rad-games-logo.png?v=3",
     logoAlt: "Imaging Queensland",
     // The brand's own welcome artwork (Rad Games lockup with Imaging
     // Queensland's Rex), so this screen does not draw Rex separately.
@@ -258,7 +313,11 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // field (the earlier two were transparent cut-outs), so it draws as a white
     // rounded tile on the bar; the `rounded-2xl` the owner asked for is the
     // bar element's clip in src/routes/__root.tsx, never an edit to the file.
-    homeLogoUrl: "/brands/imaging-queensland/home-logo.png",
+    // The url carries the current bar-logo version (see BAR_LOGO_VERSION): this
+    // one file name was re-supplied three times in a single day, and the owner's
+    // own phone proved that only a NEW ADDRESS — not a `no-cache` header — makes
+    // an installed app fetch the replacement instead of redrawing its cached copy.
+    homeLogoUrl: "/brands/imaging-queensland/home-logo.png?v=3",
     rexImageUrl: "/brands/imaging-queensland/rex.png",
     welcomeShowsRex: false, // the welcome logo already contains Rex
     icon192Url: "/brands/imaging-queensland/icon-192.png",
@@ -280,8 +339,10 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
       themeColor: "#0A1628",
     },
     // The shared Rad Games master mark: the header looks the same on every
-    // instance (owner direction, 29 Sep).
-    logoUrl: "/rad-games-logo.png",
+    // instance (owner direction, 29 Sep) — at the current bar-logo version, so the
+    // 1 Oct re-supply of `/rad-games-logo.png` reaches a device that cached the
+    // previous bytes (see BAR_LOGO_VERSION).
+    logoUrl: "/rad-games-logo.png?v=3",
     logoAlt: "The Xray Group",
     // The brand's own welcome artwork (Rad Games lockup with The Xray Group's
     // Rex), so this screen does not draw Rex separately.
@@ -293,8 +354,10 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // this size) and no longer anything on a game page: 351x118 with ink edge to
     // edge is the same wide ~3:1 wordmark shape the other brands' marks have, and
     // it draws ~107 CSS px wide at the slot's 36 CSS px height, so nothing is
-    // stretched.
-    homeLogoUrl: "/brands/the-xray-group/home-logo.png",
+    // stretched. The url carries the current bar-logo version (see
+    // BAR_LOGO_VERSION), so a later re-supply of this same file name reaches a
+    // device that cached the current bytes.
+    homeLogoUrl: "/brands/the-xray-group/home-logo.png?v=3",
     rexImageUrl: "/brands/the-xray-group/rex.png",
     welcomeShowsRex: false, // the welcome logo already contains Rex
     icon192Url: "/brands/the-xray-group/icon-192.png",
