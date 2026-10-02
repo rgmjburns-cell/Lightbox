@@ -135,14 +135,16 @@ function RootComponent() {
           so its shared mark sits on the left only and the "Hi, <name>" chip keeps
           the right-hand slot.
 
-          The pilot mark's corners are CLIPPED ROUND on the element itself with
-          `rounded-2xl` — the same radius the app's own tiles use (the home screen
-          game grid in `src/routes/index.tsx` draws every tile `rounded-2xl`,
-          Tailwind's 1rem = 16px). The artwork file is NOT cropped or masked:
-          only the <img> is rounded, exactly the way a tile's corners are drawn
-          over its own background. Owner asked for it: "make the Imaging
-          Queensland logo have round corners the same as the whole app does on
-          its tiles."
+          The element carries NO corner clip. It briefly did: on 1 Oct the owner
+          asked for the pilot mark's corners to be rounded "the same as the whole
+          app does on its tiles", so the <img> carried `rounded-2xl` (the home
+          screen's tile radius, `src/routes/index.tsx`, Tailwind's 1rem = 16px).
+          That clip is now REMOVED (owner direction, 2 Oct): The Xray Group's logo
+          is a square-cornered file, and rounding it on the element left it looking
+          cut off. The clip was dropped unconditionally rather than per brand —
+          Imaging Queensland's artwork has its rounded corners baked into the file
+          itself, so its look is unchanged. The artwork is never cropped or masked,
+          with or without the clip.
         */}
         <header className="sticky top-0 z-30 bg-white/5 backdrop-blur-md safe-area-top">
           <div className="max-w-lg mx-auto flex items-center justify-between h-14 px-4">
@@ -167,20 +169,19 @@ function RootComponent() {
               every instance, and a width cap plus `object-contain` so a very wide
               lockup shrinks instead of overflowing at 320 CSS px.
 
-              The mark is drawn as supplied, with no filter, exactly like the
-              shared mark on the left: the owner's artwork carries its own brand
-              colours on the original glass bar. On 1 Oct the owner asked for its
-              corners to be rounded "the same as the whole app does on its tiles",
-              so the element carries `rounded-2xl` — the radius the home screen's
-              game tiles use (`src/routes/index.tsx`). It clips the <img> only; the
-              PNG itself is untouched.
+              The mark is drawn as supplied — no filter and no corner clip, exactly
+              like the shared mark on the left: the owner's artwork carries its own
+              brand colours and its own corners on the original glass bar. (The
+              `rounded-2xl` clip this slot carried for a day, added 1 Oct, was
+              removed on 2 Oct when the owner's square-cornered The Xray Group logo
+              arrived — see the note above the bar.) The PNG is untouched either way.
             */}
             {brand.homeLogoUrl !== brand.logoUrl ? (
               <img
                 src={brand.homeLogoUrl}
                 alt={brand.logoAlt}
                 draggable={false}
-                className="h-9 w-auto max-w-[45%] shrink-0 rounded-2xl object-contain object-right select-none"
+                className="h-9 w-auto max-w-[45%] shrink-0 object-contain object-right select-none"
               />
             ) : (
               playerName && (

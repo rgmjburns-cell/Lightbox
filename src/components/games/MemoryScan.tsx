@@ -429,11 +429,6 @@ export default function MemoryScan() {
         </button>
       </div>
 
-      {/* ── Rex ── */}
-      <div className="flex justify-center mb-20">
-        <Rex className="w-10 h-10" mood={rexMood} />
-      </div>
-
       {/* ── Complete Modal ── */}
       {showComplete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">

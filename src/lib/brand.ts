@@ -67,10 +67,12 @@
  *     draws it on the right, while the master's shared mark already sits on the
  *     left of the same bar, so the master keeps the greeting chip rather than
  *     showing the same mark twice. Since 1 Oct (owner direction) every instance's
- *     bar is the ORIGINAL faint glass (`bg-white/5 backdrop-blur-md`), and the
- *     pilot mark is clipped round on the element with `rounded-2xl` to match the
- *     app's tiles, so a file here has to read on that glass — how each one
- *     measures there is pinned in `src/lib/brand.test.ts`.
+ *     bar is the ORIGINAL faint glass (`bg-white/5 backdrop-blur-md`). The mark is
+ *     drawn as supplied — the `rounded-2xl` corner clip this slot carried for a day
+ *     (1 Oct) was removed on 2 Oct, because the owner's square-cornered The Xray
+ *     Group logo looked cut off under it — so a file here has to read on that glass
+ *     as its own artwork; how each one measures there is pinned in
+ *     `src/lib/brand.test.ts`.
  *   - `welcomeShowsRex` is false for the two pilot brands because their welcome
  *     logos already contain Rex (owner direction: "as they have Rex in them we
  *     don't need Rex as well on the logo in page"). The master draws the shared
@@ -185,8 +187,11 @@ export interface BrandConfig {
    * mark is not the shared Rad Games one. The master leaves it EQUAL to
    * `logoUrl` on purpose: its shared mark is already on the left of the same
    * bar, so it keeps the greeting chip instead (see the module header). Drawn on
-   * the app's original faint-glass bar, and clipped round with `rounded-2xl` (the
-   * app's tile radius), so every file here must read on that glass. The url ends
+   * the app's original faint-glass bar with no corner clip of its own — the
+   * `rounded-2xl` element clip added on 1 Oct was removed on 2 Oct (the owner's
+   * square-cornered The Xray Group logo looked cut off under it; see the bar's own
+   * note in `src/routes/__root.tsx`) — so every file here must read on that glass
+   * as its own artwork. The url ends
    * in the bar-logo version stamp `?v=3` (see `BAR_LOGO_VERSION` below).
    */
   homeLogoUrl: string;
@@ -311,8 +316,10 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // their own artwork; the two retired files are archived in
     // public/_originals/brands/. This one is an opaque RGB PNG with a white
     // field (the earlier two were transparent cut-outs), so it draws as a white
-    // rounded tile on the bar; the `rounded-2xl` the owner asked for is the
-    // bar element's clip in src/routes/__root.tsx, never an edit to the file.
+    // rounded tile on the bar; those corners are the FILE's own (the artwork has
+    // a rounded white field), never an element clip — the `rounded-2xl` the owner
+    // asked for on 1 Oct was removed again on 2 Oct and src/routes/__root.tsx
+    // carries no corner clip on this slot.
     // The url carries the current bar-logo version (see BAR_LOGO_VERSION): this
     // one file name was re-supplied three times in a single day, and the owner's
     // own phone proved that only a NEW ADDRESS — not a `no-cache` header — makes

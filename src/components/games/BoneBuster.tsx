@@ -1696,11 +1696,6 @@ export default function BoneBuster() {
         })}
       </div>
 
-      {/* ── Rex at bottom for encouragement ── */}
-      <div className="flex justify-center mb-20">
-        <Rex className="w-10 h-10" mood={rexMood} />
-      </div>
-
       {/* ── Level Complete Modal (Levels 1-14) ── */}
       {phase === "complete" && level < LEVELS.length - 1 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">

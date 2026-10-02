@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import RexSpeechBubble from "~/components/RexSpeechBubble";
-import Rex from "~/components/Rex";
 import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
 import { submitScore } from "~/lib/leaderboard";
@@ -476,9 +475,6 @@ export default function MriMixup() {
           <Link to="/" className="btn-secondary w-full text-lg mt-4 block">Back to Games</Link>
         </div>
       )}
-
-      {/* Rex below the board */}
-      <Rex className="w-12 h-12" mood={rexMood} />
 
       {/* Achievement toast */}
       {achievements.length > 0 && (
