@@ -78,6 +78,21 @@ export const ACHIEVEMENT_THRESHOLDS = {
   levelUpCount: 7, // Level Up: 7 badges other than itself
 } as const;
 
+/**
+ * The token a badge name carries where the MASCOT'S NAME belongs.
+ *
+ * One badge is named after the mascot, and what the mascot is called is per brand
+ * (owner direction, 2 Oct 2026: "Stu" on Imaging Queensland, "Rex" on the master
+ * and The Xray Group — see `mascotName` in `src/lib/brand.ts`). This file is the
+ * shared badge truth for BOTH the browser and the server, so it cannot read that
+ * config: it must stay pure, and the Railway image runs it verbatim from
+ * `server/`, where `src/` is not present at all. The name is therefore left as
+ * this token and resolved on the browser half, where the brand is known — see
+ * `ACHIEVEMENTS` in `src/lib/achievements.ts`. Renaming the badge ID is NOT part
+ * of it: `rexs-best-friend` is what a player's unlocked badges are keyed by.
+ */
+export const MASCOT_NAME_TOKEN = "{mascot}";
+
 // ── Achievement Definitions ──
 
 export const ACHIEVEMENTS: Achievement[] = [
@@ -146,7 +161,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "rexs-best-friend",
-    name: "Rex's Best Friend",
+    // Named after the mascot, so the name carries `MASCOT_NAME_TOKEN` (above):
+    // the browser half fills it from the brand config.
+    name: `${MASCOT_NAME_TOKEN}'s Best Friend`,
     description: "Play on 5 different days",
     icon: "/badges/rexs-best-friend.png",
     hint: "Come back and play on 5 different days",

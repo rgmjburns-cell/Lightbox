@@ -34,10 +34,17 @@ import {
   brand,
   brandConfig,
   brandIdFromEnv,
+  colourGameTitle,
   isBrandId,
   manifestFor,
   resolveBrandId,
+  welcomeMessageFor,
 } from "./brand";
+import { ACHIEVEMENTS, badgeName } from "./achievements";
+import {
+  ACHIEVEMENTS as SHARED_ACHIEVEMENTS,
+  MASCOT_NAME_TOKEN,
+} from "../../server/achievement-core";
 
 /** Every string a player can see from a brand config. */
 function visibleStrings(id: (typeof BRAND_IDS)[number]): string[] {
@@ -45,6 +52,7 @@ function visibleStrings(id: (typeof BRAND_IDS)[number]): string[] {
   return [
     config.brandName,
     config.productName,
+    config.mascotName,
     config.tagline,
     config.welcomeMessage,
     config.logoAlt,
@@ -77,6 +85,11 @@ describe("brand config", () => {
       expect(config.brandName.length).toBeGreaterThan(0);
       expect(config.productName).toBe(PRODUCT_NAME);
       expect(config.welcomeMessage).toContain(PRODUCT_NAME);
+      // The mascot has a name on every instance, and the greeting is composed
+      // from it rather than carrying a second copy of the name (owner direction,
+      // 2 Oct 2026 — see the `mascotName` field).
+      expect(config.mascotName.length).toBeGreaterThan(0);
+      expect(config.welcomeMessage).toBe(welcomeMessageFor(config.mascotName));
       expect(config.tagline.length).toBeGreaterThan(0);
       expect(config.colors.primary).toMatch(/^#[0-9A-F]{6}$/i);
       expect(config.colors.secondary).toMatch(/^#[0-9A-F]{6}$/i);
@@ -149,6 +162,149 @@ describe("brand config", () => {
   test("the product name is Rad Games", () => {
     expect(PRODUCT_NAME).toBe("Rad Games");
     expect(brand.productName).toBe("Rad Games");
+  });
+});
+
+describe("the mascot's name is per brand", () => {
+  // Owner direction, 2 Oct 2026: Imaging Queensland's mascot is called Stu. The
+  // master and The Xray Group keep Rex, and it stays a CONFIG change — the
+  // artwork, the palette and every other presentation choice are shared, so
+  // `mascotName` is the whole difference. These tests pin the name per brand and
+  // then pin every user-facing place the name can appear to that field, so the
+  // rename cannot land half-way on one instance.
+  test("Imaging Queensland calls him Stu, the other two keep Rex", () => {
+    expect(BRANDS["imaging-queensland"].mascotName).toBe("Stu");
+    expect(BRANDS["rad-games"].mascotName).toBe("Rex");
+    expect(BRANDS["the-xray-group"].mascotName).toBe("Rex");
+  });
+
+  test("the welcome copy says Stu on Imaging Queensland, Rex on the others", () => {
+    const iq = BRANDS["imaging-queensland"].welcomeMessage;
+    expect(iq).toContain("I am Stu,");
+    expect(iq).not.toContain("Rex");
+    for (const id of ["rad-games", "the-xray-group"] as const) {
+      expect(BRANDS[id].welcomeMessage).toContain("I am Rex,");
+      expect(BRANDS[id].welcomeMessage).not.toContain("Stu");
+    }
+    // No brand's visible copy mentions the OTHER brand's mascot name either.
+    for (const id of BRAND_IDS) {
+      const other = BRANDS[id].mascotName === "Rex" ? "Stu" : "Rex";
+      for (const value of visibleStrings(id)) expect(value).not.toContain(other);
+    }
+  });
+
+  test("the colouring game's title comes from ONE helper, on all three surfaces", () => {
+    // The title carries the mascot's name and is shown in three places: the
+    // games-home tile, a game page's title tile and the shared leaderboard's game
+    // label. All three read `colourGameTitle()`, so they cannot drift apart — and
+    // the game ID and icon stay `colour-rex` / `/icons/icon-colour-rex.png`,
+    // because the ID is what scores are submitted (and stored) under.
+    expect(colourGameTitle(BRANDS["imaging-queensland"])).toBe("Colour Stu");
+    expect(colourGameTitle(BRANDS["rad-games"])).toBe("Colour Rex");
+    expect(colourGameTitle(BRANDS["the-xray-group"])).toBe("Colour Rex");
+    for (const id of BRAND_IDS) {
+      expect(colourGameTitle(BRANDS[id])).toBe(`Colour ${BRANDS[id].mascotName}`);
+    }
+    // The default argument is the running brand.
+    expect(colourGameTitle()).toBe(colourGameTitle(brand));
+
+    const surfaces: [string, RegExp][] = [
+      ["../routes/index.tsx", /title: colourGameTitle\(\),/], // games-home tile
+      [
+        "../routes/play.$gameId.tsx",
+        /"colour-rex": \{ title: colourGameTitle\(\), icon: "\/icons\/icon-colour-rex\.png" \}/,
+      ],
+      ["./leaderboard.ts", /\{ id: "colour-rex", label: colourGameTitle\(\),/],
+    ];
+    for (const [file, call] of surfaces) {
+      const source = srcFile(file);
+      expect(source).toMatch(call);
+      // ...and no surface may carry the name as a literal of its own.
+      expect(source).not.toContain('"Colour Rex"');
+      expect(source).not.toContain('"Colour Stu"');
+    }
+  });
+
+  test("every user-facing mention of the mascot reads the brand config", () => {
+    // The copy survey, file by file: each pair is a sentence, an alt or an
+    // aria-label a player can read. Every one of them must read
+    // `brand.mascotName`...
+    const reads: [string, string][] = [
+      ["../components/Onboarding.tsx", "{brand.mascotName}"],
+      ["../routes/qr.tsx", "Look for ${brand.mascotName} on your Home Screen"],
+      ["../routes/qr.tsx", "alt={`${brand.mascotName} Home Screen icon`}"],
+      ["../components/games/ColourRex.tsx", "then tap ${brand.mascotName} to fill!"],
+      ["../components/games/ColourRex.tsx", "% of ${brand.mascotName} to finish!"],
+      [
+        "../components/games/ColourRex.tsx",
+        "You coloured {progressPct}% of {brand.mascotName}!",
+      ],
+      ["../components/games/MemoryScan.tsx", "alt={`${brand.mascotName} tile`}"],
+      ["../components/games/BoneBuster.tsx", "alt={`${brand.mascotName} Super Burst`}"],
+      ["../components/Rex.tsx", "alt={`${brand.mascotName} the skeleton mascot`}"],
+      [
+        "../components/Rex.tsx",
+        "aria-label={`${brand.mascotName} the skeleton mascot`}",
+      ],
+    ];
+    for (const [file, snippet] of reads) {
+      expect(srcFile(file)).toContain(snippet);
+    }
+
+    // ...and none of those places may still hold a literal name. The literal
+    // each file has to be free of is spelled out, rather than "any Rex": the
+    // component name, the imports, the asset paths, the localStorage keys and
+    // the comments all legitimately keep their `rex` names, and the master's and
+    // The Xray Group's `mascotName: "Rex"` is the config itself.
+    const free: [string, string[]][] = [
+      ["../components/Onboarding.tsx", [">Rex<", '"Rex"']],
+      ["../routes/qr.tsx", ["Look for Rex", '"Rex Home Screen icon"']],
+      ["../routes/index.tsx", ['"Colour Rex"', '"Colour Stu"']],
+      ["../routes/play.$gameId.tsx", ['"Colour Rex"', '"Colour Stu"']],
+      ["./leaderboard.ts", ['label: "Colour Rex"', 'label: "Colour Stu"']],
+      [
+        "../components/games/ColourRex.tsx",
+        ["tap Rex to fill!", "% of Rex to finish!", "% of Rex!"],
+      ],
+      ["../components/games/MemoryScan.tsx", ['alt="Rex tile"']],
+      ["../components/games/BoneBuster.tsx", ['alt="Rex Super Burst"']],
+      ["../components/Rex.tsx", ['"Rex the skeleton mascot"']],
+      // The greeting itself is composed, so the sentence is nowhere in the file.
+      ["./brand.ts", ['"I am Rex,', '"I am Stu,']],
+    ];
+    for (const [file, literals] of free) {
+      for (const literal of literals) {
+        expect(srcFile(file)).not.toContain(literal);
+      }
+    }
+  });
+
+  test("the badge named after the mascot follows the brand, its id and icon do not", () => {
+    // This name lives in the SHARED badge definitions
+    // (`server/achievement-core.ts`), which the server imports too, and the
+    // deployed image runs that file verbatim from `server/` — where `src/` is not
+    // present at all. It therefore cannot read the brand config, so the shared
+    // copy carries a token and the browser half (`src/lib/achievements.ts`)
+    // resolves it for the instance. The badge ID and the icon path stay as they
+    // are: unlocks are keyed by the ID, and the icon file keeps its name.
+    const shared = SHARED_ACHIEVEMENTS.find((a) => a.id === "rexs-best-friend");
+    expect(shared).toBeDefined();
+    expect(shared!.name).toBe(`${MASCOT_NAME_TOKEN}'s Best Friend`);
+    expect(shared!.name).not.toContain("Rex");
+    expect(shared!.icon).toBe("/badges/rexs-best-friend.png");
+    expect(badgeName(shared!.name, BRANDS["imaging-queensland"].mascotName)).toBe(
+      "Stu's Best Friend",
+    );
+    for (const id of ["rad-games", "the-xray-group"] as const) {
+      expect(badgeName(shared!.name, BRANDS[id].mascotName)).toBe("Rex's Best Friend");
+    }
+    // What the app shows comes from the browser list, resolved for the running
+    // brand, so no surface can print the raw token either.
+    const shown = ACHIEVEMENTS.find((a) => a.id === "rexs-best-friend");
+    expect(shown!.name).toBe(`${brand.mascotName}'s Best Friend`);
+    for (const badge of ACHIEVEMENTS) {
+      expect(badge.name).not.toContain(MASCOT_NAME_TOKEN);
+    }
   });
 });
 

@@ -29,6 +29,7 @@ import {
   isValidPlayerName,
   setPlayerId,
 } from "./playerIdentity";
+import { colourGameTitle } from "./brand";
 import {
   applyServerProfile,
   applySurvivorProgress,
@@ -68,7 +69,7 @@ export const GAME_META: { id: LeaderboardGame; label: string; emoji: string }[] 
   { id: "memory-scan", label: "Memory Scan", emoji: "🧠" },
   { id: "mri-mixup", label: "MRI Mix-Up", emoji: "🧩" },
   { id: "ecg-rhythm", label: "Pulse Pop", emoji: "❤️" },
-  { id: "colour-rex", label: "Colour Rex", emoji: "🎨" },
+  { id: "colour-rex", label: colourGameTitle(), emoji: "🎨" },
   { id: "film-stack", label: "Film Stack", emoji: "🩻" },
 ];
 

@@ -42,7 +42,7 @@ export default function Rex({
       >
         <img
           src={brand.rexImageUrl}
-          alt="Rex the skeleton mascot"
+          alt={`${brand.mascotName} the skeleton mascot`}
           className="h-full w-full"
           onError={() => setImgError(true)}
           style={{ objectFit: "contain" }}
@@ -70,7 +70,7 @@ export default function Rex({
         xmlns="http://www.w3.org/2000/svg"
         className="h-full w-full"
         role="img"
-        aria-label="Rex the skeleton mascot"
+        aria-label={`${brand.mascotName} the skeleton mascot`}
       >
         {/* Head outline */}
         <ellipse cx="30" cy="28" rx="18" ry="16" fill="none" stroke="white" strokeWidth="1.5" opacity="0.5" />

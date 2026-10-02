@@ -8,6 +8,7 @@ import LeaderboardEntry from "~/components/LeaderboardEntry";
 import { TrophyIcon } from "~/components/RankBadge";
 import { Link } from "@tanstack/react-router";
 import { addPoints } from "~/lib/points";
+import brand from "~/lib/brand";
 import {
   checkAchievements,
   trackGameCompletion,
@@ -381,7 +382,7 @@ export default function MemoryScan() {
                 >
                   <img
                     src="/rex-memory-tile.png"
-                    alt="Rex tile"
+                    alt={`${brand.mascotName} tile`}
                     draggable={false}
                     className="w-full h-full object-cover"
                     style={{ pointerEvents: "none" }}

@@ -34,6 +34,16 @@
  * The owner supplied the pilot brands' artwork on 2026-09-29 and revised the
  * Imaging Queensland top-bar mark and The Xray Group's app icons on 30 Sep.
  *
+ * What the mascot is CALLED
+ * -------------------------
+ * The owner's direction of 2 Oct 2026 renames the mascot on ONE instance: he is
+ * "Stu" on Imaging Queensland and stays "Rex" on the master and The Xray Group.
+ * It is a copy change, not a skin — the same artwork, theme and every other
+ * presentation choice are shared (see the `colors` block below) — and it lives in
+ * the `mascotName` field, which every user-facing mention of the mascot reads.
+ * Internal identifiers keep their `rex` names on purpose: they are invisible to a
+ * player, and the game id in particular is what existing scores hang off.
+ *
  * On 1 Oct the owner re-supplied all three of the marks this app draws (links,
  * per-file dimensions, alpha and md5s: `public/_originals/README.md`). Two of
  * them — Imaging Queensland's landscape lockup and The Xray Group's — are
@@ -137,7 +147,30 @@ export interface BrandConfig {
   brandName: string;
   /** The game product. The owner renamed the product for every brand. */
   productName: string;
-  /** Rex's greeting on the home screen before a nickname has been set. */
+  /**
+   * What this instance CALLS its mascot (owner direction, 2 Oct 2026): "Stu" on
+   * Imaging Queensland, "Rex" on the master and The Xray Group. This is a copy
+   * change, not a skin: the same artwork is drawn on every instance, and only the
+   * name a player reads differs.
+   *
+   * Every user-facing mention of the mascot reads this field — the onboarding
+   * sentence, the add-to-phone page, the mascot's accessible names, Colour Rex's
+   * game title (via `colourGameTitle()` below), the in-game speech bubbles and
+   * the badge named after him. Nothing a player reads hardcodes the name, so a
+   * brand that calls him something else cannot drift half-way.
+   *
+   * Internal identifiers deliberately keep their `rex` names — the game id
+   * `colour-rex`, the `colourRexBest` storage key, `/rex-colouring.png`,
+   * `/rex-memory-tile.png`, `/icons/icon-colour-rex.png`, the component and file
+   * names — because they are invisible to a player and renaming them would churn
+   * caches and break scores that already exist.
+   */
+  mascotName: string;
+  /**
+   * The mascot's greeting on the home screen before a nickname has been set.
+   * Composed from `mascotName` by `welcomeMessageFor()`, so the copy cannot name
+   * the mascot differently from the artwork beside it.
+   */
   welcomeMessage: string;
   /** How the brand signs itself in the footer of the welcome screen. */
   tagline: string;
@@ -241,6 +274,18 @@ export const PRODUCT_NAME = "Rad Games";
 export const BAR_LOGO_VERSION = "3";
 
 /**
+ * The welcome screen's greeting, composed from the mascot's name so that no brand
+ * carries the sentence twice: the owner changed the mascot's name on Imaging
+ * Queensland (2 Oct 2026: "Stu"), and the copy had to follow with nothing left in
+ * the file that says "Rex". Every brand builds its message through here, and
+ * `src/lib/brand.test.ts` pins each brand's message against its own
+ * `mascotName`, so a brand entry that hardcodes a name fails the suite.
+ */
+export function welcomeMessageFor(mascotName: string): string {
+  return `Welcome to ${PRODUCT_NAME}! I am ${mascotName}, your friendly radiology buddy. Pick a game and have fun while you wait!`;
+}
+
+/**
  * The three instances, fully defined, so standing one up is one env var away.
  * `rad-games` is the neutral master (no owner network named on screen: the
  * shared mark, the navy Rex and the product's own app icons); the two pilot
@@ -254,7 +299,9 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     brandId: "rad-games",
     brandName: "Rad Games",
     productName: PRODUCT_NAME,
-    welcomeMessage: `Welcome to ${PRODUCT_NAME}! I am Rex, your friendly radiology buddy. Pick a game and have fun while you wait!`,
+    // The mascot is called Rex on the master, as he always has been.
+    mascotName: "Rex",
+    welcomeMessage: welcomeMessageFor("Rex"),
     // The neutral master names no network: it is the product's own instance, so
     // its line stays generic rather than signing itself to a radiology group.
     tagline: "Play radiology-themed games while you wait.",
@@ -288,7 +335,11 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     brandId: "imaging-queensland",
     brandName: "Imaging Queensland",
     productName: PRODUCT_NAME,
-    welcomeMessage: `Welcome to ${PRODUCT_NAME}! I am Rex, your friendly radiology buddy. Pick a game and have fun while you wait!`,
+    // Owner direction, 2 Oct 2026: Imaging Queensland's mascot is called Stu.
+    // Config only — the artwork, the theme and every other presentation choice
+    // stay identical to the other two instances (see `mascotName` above).
+    mascotName: "Stu",
+    welcomeMessage: welcomeMessageFor("Stu"),
     tagline: "Brought to you by Imaging Queensland.",
     // Unified brand palette — identical across all instances (owner decision
     // 29 Sep): this block only colours browser/PWA chrome; the app UI is
@@ -335,7 +386,9 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     brandId: "the-xray-group",
     brandName: "The Xray Group",
     productName: PRODUCT_NAME,
-    welcomeMessage: `Welcome to ${PRODUCT_NAME}! I am Rex, your friendly radiology buddy. Pick a game and have fun while you wait!`,
+    // The Xray Group keeps the mascot's original name (owner direction, 2 Oct).
+    mascotName: "Rex",
+    welcomeMessage: welcomeMessageFor("Rex"),
     tagline: "Brought to you by The Xray Group.",
     // Unified brand palette — identical across all instances (owner decision
     // 29 Sep): this block only colours browser/PWA chrome; the app UI is
@@ -417,6 +470,24 @@ export function brandConfig(raw?: string | null): BrandConfig {
 
 /** The brand this build runs as. */
 export const brand: BrandConfig = brandConfig(brandIdFromEnv());
+
+/**
+ * The colouring game's TITLE, which carries the mascot's name: "Colour Rex" on
+ * the master and The Xray Group, "Colour Stu" on Imaging Queensland.
+ *
+ * Three surfaces show it — the games-home tile (`src/routes/index.tsx`), a game
+ * page's title tile (`src/routes/play.$gameId.tsx`) and the shared leaderboard's
+ * game label (`src/lib/leaderboard.ts`) — and every one of them reads this
+ * helper, so no two of them can disagree about what the game is called.
+ *
+ * The game's ID stays `colour-rex` and its icon stays
+ * `/icons/icon-colour-rex.png`, whatever the mascot is called: both are internal
+ * (the id is what scores are submitted under, so renaming it would orphan
+ * everyone's history), and neither is a name a player reads.
+ */
+export function colourGameTitle(config: BrandConfig = brand): string {
+  return `Colour ${config.mascotName}`;
+}
 
 /**
  * The PWA manifest for a brand. `public/manifest.json` is no longer a file on

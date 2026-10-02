@@ -10,19 +10,52 @@
  * with the browser exactly. This file is the browser's half — reading the raw
  * inputs out of localStorage, applying the shared thresholds, and writing the
  * unlocks back.
+ *
+ * It is also where the ONE badge that is named after the mascot gets its name:
+ * the definitions are shared with the server, which cannot know the brand, so
+ * the shared copy of that name carries a `MASCOT_NAME_TOKEN` and `ACHIEVEMENTS`
+ * below resolves it from `brand.mascotName` (owner direction, 2 Oct 2026).
  */
 
 import {
-  ACHIEVEMENTS,
+  ACHIEVEMENTS as SHARED_ACHIEVEMENTS,
   EMPTY_ACHIEVEMENT_STATS,
+  MASCOT_NAME_TOKEN,
   evaluateUnlockedBadgeIds,
   type Achievement,
   type AchievementState,
   type AchievementStats,
 } from "../../server/achievement-core";
 import { getAccumulatedPoints, setAccumulatedPoints } from "./points";
+import brand from "./brand";
 
-export { ACHIEVEMENTS };
+/**
+ * A shared badge name with the mascot token resolved for `mascotName`: the
+ * master's and The Xray Group's "Rex's Best Friend", Imaging Queensland's
+ * "Stu's Best Friend". Pure, so the per-brand result can be asserted directly
+ * (see `src/lib/brand.test.ts`) without depending on which brand this build is.
+ */
+export function badgeName(sharedName: string, mascotName: string): string {
+  return sharedName.replace(MASCOT_NAME_TOKEN, mascotName);
+}
+
+/**
+ * The badges, with the one name that carries the mascot resolved for the brand
+ * this app runs as: "Stu's Best Friend" on Imaging Queensland, "Rex's Best
+ * Friend" on the master and The Xray Group.
+ *
+ * The definitions themselves are shared with the server
+ * (`server/achievement-core.ts`), which cannot know the brand — it runs from
+ * `server/` verbatim, where this module's brand config is not present at all —
+ * so its copy of that name is the `{mascot}` token, and this array is where it
+ * becomes a real name. Everything that shows a badge (the Achievements page, the
+ * unlock toast, the games) reads its name from here, so there is exactly one
+ * place the substitution happens and one place it can be wrong.
+ */
+export const ACHIEVEMENTS: Achievement[] = SHARED_ACHIEVEMENTS.map((a) => ({
+  ...a,
+  name: badgeName(a.name, brand.mascotName),
+}));
 export type { Achievement, AchievementState };
 
 // ── Storage Keys ──
