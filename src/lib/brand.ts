@@ -32,7 +32,10 @@
  * Per-brand artwork
  * -----------------
  * The owner supplied the pilot brands' artwork on 2026-09-29 and revised the
- * Imaging Queensland top-bar mark and The Xray Group's app icons on 30 Sep.
+ * Imaging Queensland top-bar mark and The Xray Group's app icons on 30 Sep, then
+ * re-supplied The Xray Group's app icon again on 3 Oct (the previous one "was a
+ * bit small", and the same picture now rounds the corners of the add-to-phone
+ * page's done card).
  *
  * What the mascot is CALLED
  * -------------------------
@@ -89,7 +92,13 @@
  *     mark and its navy Rex, exactly as it did before.
  *   - `icon192Url`/`icon512Url`/`appleTouchIconUrl` are the installed app's
  *     home-screen icons: the PWA manifest and the `apple-touch-icon` link read
- *     them (iOS ignores the manifest, so both are set per brand).
+ *     them (iOS ignores the manifest, so both are set per brand). Both readers
+ *     go through `installIcons()`, which uses the brand's OPTIONAL
+ *     `manifestIcons` addresses when it has them — The Xray Group's app icon was
+ *     re-supplied on 3 Oct 2026 and is served at `?v=1` urls, so a phone that
+ *     already installed that app fetches the new artwork instead of redrawing the
+ *     copy in its own cache. The master and Imaging Queensland set nothing there
+ *     and keep the exact urls (and bytes) they have served since launch.
  *   - `colourGameIcon` (2 Oct 2026) and `bestFriendBadgeUrl` (3 Oct 2026) are the
  *     two pieces of GAME artwork that follow the brand: the colouring game's tile
  *     icon, and the picture of the badge named after the mascot. Every other game
@@ -242,6 +251,32 @@ export interface BrandConfig {
   icon192Url: string;
   icon512Url: string;
   appleTouchIconUrl: string;
+  /**
+   * OPTIONAL: the version-stamped addresses of the three installed-app icons
+   * above, for a brand whose app icon has been RE-SUPPLIED after launch.
+   *
+   * `icon192Url`/`icon512Url`/`appleTouchIconUrl` name the FILES; this field,
+   * when present, names the ADDRESS the build-time PWA manifest
+   * (`manifestFor()` in this module, written by the `brand-manifest` plugin in
+   * `vite.config.ts`) and the `apple-touch-icon` link in
+   * `src/routes/__root.tsx` actually request. A brand that carries it is served
+   * its icons at a NEW address, which is the only thing that makes an installed
+   * app fetch them again instead of redrawing its own cached copy — the same
+   * trap, and the same reasoning, as `BAR_LOGO_VERSION` below.
+   *
+   * Only The Xray Group carries it (owner re-supplied its app icon on 3 Oct
+   * 2026: "it was a bit small"). The master and Imaging Queensland deliberately
+   * do NOT: their install icons are the files they have served since launch, at
+   * their original addresses, and leaving this unset is what pins them there
+   * (`installIcons()` falls back to the plain urls above). The values are
+   * written as literals, exactly like every other stamped url in this file, so
+   * the exact address a device requests is greppable in the built bundles.
+   */
+  manifestIcons?: {
+    icon192Url: string;
+    icon512Url: string;
+    appleTouchIconUrl: string;
+  };
   /**
    * Path under public/ for the COLOURING GAME's icon: the picture on its tile on
    * the games-home screen (`src/routes/index.tsx`) and in a game page's title
@@ -536,9 +571,28 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     homeLogoUrl: "/brands/the-xray-group/home-logo.png?v=3",
     rexImageUrl: "/brands/the-xray-group/rex.png",
     welcomeShowsRex: false, // the welcome logo already contains Rex
+    // The FILES behind the installed app's icon. The owner re-supplied this
+    // artwork on 3 Oct 2026 (https://ibb.co/F4Y7bfzf — "the previous icon was a
+    // bit small"): the same Rex-X mark drawn tighter, filling 0.73 x 0.76 of its
+    // square against the 0.62 x 0.64 of the export it replaces, so the installed
+    // icon reads larger on a home screen. The supplied square is scaled to each
+    // size and never cropped, re-margined or keyed.
     icon192Url: "/brands/the-xray-group/icon-192.png",
     icon512Url: "/brands/the-xray-group/icon-512.png",
     appleTouchIconUrl: "/brands/the-xray-group/icon-180.png",
+    // ...and the ADDRESS those files are served at for the installed app. The
+    // three files above kept their names, so without this the manifest and the
+    // `apple-touch-icon` link would name the SAME urls as before and a phone that
+    // already installed this app could keep drawing the icon it cached out of its
+    // own disk store, no matter what the server now holds. The `?v=1` literals are
+    // NEW addresses for NEW artwork (see `manifestIcons` above and
+    // BAR_LOGO_VERSION below). Only this brand carries them; the master and
+    // Imaging Queensland keep their icons at the addresses they have always had.
+    manifestIcons: {
+      icon192Url: "/brands/the-xray-group/icon-192.png?v=1",
+      icon512Url: "/brands/the-xray-group/icon-512.png?v=1",
+      appleTouchIconUrl: "/brands/the-xray-group/icon-180.png?v=1",
+    },
     // The Xray Group's OWN colouring-game icon (owner artwork, 2 Oct 2026): Rex
     // with a brush and palette, orange cape and the brand's orange x badge,
     // 512x512 from a 1254x1254 square export (never stretched). Like Imaging
@@ -553,13 +607,18 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // it, and the `?v=1` stamp makes this a NEW address a cache cannot answer.
     bestFriendBadgeUrl: "/brands/the-xray-group/best-friend-badge.png?v=1",
     // The Xray Group's OWN app-icon picture for the add-to-phone page's DONE
-    // card (owner artwork, 3 Oct 2026, https://ibb.co/1t0J8yKk): Rex made of
-    // blue tiles forming the X, orange cape and the brand's orange x badge — the
-    // same supplied export the PWA icons are made from, scaled to 512x512 with
-    // the iOS corner radius (~113 px, 22%) masked into the file, so it reads as
-    // the icon the phone is about to install. New address (`?v=1`), shared file
-    // and manifest icons untouched, exactly as for Imaging Queensland.
-    addToPhoneIconUrl: "/brands/the-xray-group/add-to-phone-icon.png?v=1",
+    // card. First supplied on 3 Oct 2026 (https://ibb.co/1t0J8yKk) and then
+    // RE-SUPPLIED the same day with the owner's revised app icon
+    // (https://ibb.co/F4Y7bfzf: "change the add to screen app icon on the bottom
+    // to this and round the corners"), so this is the new artwork — the same
+    // supplied export the PWA icons above are made from, scaled to 512x512 with
+    // the iOS corner radius (~113 px, 22%) masked into the file, so the corners
+    // are transparent and it reads as the icon the phone is about to install.
+    // The stamp moved to `?v=2` with the artwork: the file name is unchanged, so
+    // a phone holding `?v=1` would otherwise answer it out of its own cache and
+    // the owner would still see the old, smaller picture. The shared
+    // `/icon-512.png`, the master and Imaging Queensland are untouched.
+    addToPhoneIconUrl: "/brands/the-xray-group/add-to-phone-icon.png?v=2",
   },
 };
 
@@ -630,6 +689,32 @@ export function colourGameTitle(config: BrandConfig = brand): string {
 }
 
 /**
+ * The three installed-app icon urls the build-time manifest and the
+ * `apple-touch-icon` link request for a brand: its `manifestIcons` addresses
+ * when it carries them, and the plain `icon192Url`/`icon512Url`/
+ * `appleTouchIconUrl` files otherwise.
+ *
+ * Both readers go through here so the manifest and the head can never disagree
+ * about which address an installing phone is told to fetch, and so the fallback
+ * keeps the two brands whose icons have not moved (the master and Imaging
+ * Queensland) on the exact urls they have always served. See the
+ * `manifestIcons` field for why a re-supplied icon needs a new ADDRESS at all.
+ */
+export function installIcons(config: BrandConfig = brand): {
+  icon192Url: string;
+  icon512Url: string;
+  appleTouchIconUrl: string;
+} {
+  return (
+    config.manifestIcons ?? {
+      icon192Url: config.icon192Url,
+      icon512Url: config.icon512Url,
+      appleTouchIconUrl: config.appleTouchIconUrl,
+    }
+  );
+}
+
+/**
  * The PWA manifest for a brand. `public/manifest.json` is no longer a file on
  * disk: `vite.config.ts` serves this object in dev and writes it into the build,
  * so the installed app's name follows the brand with no second place to edit.
@@ -645,6 +730,7 @@ export function manifestFor(config: BrandConfig = brand): {
   background_color: string;
   icons: { src: string; sizes: string; type: string }[];
 } {
+  const icons = installIcons(config);
   return {
     name: config.productName,
     short_name: config.productName,
@@ -655,10 +741,13 @@ export function manifestFor(config: BrandConfig = brand): {
     theme_color: config.colors.primary,
     background_color: "#F5F5F5",
     // The icon FILES follow the brand (the installed app shows that brand's
-    // artwork on the home screen); the manifest's chrome colour does not.
+    // artwork on the home screen); the manifest's chrome colour does not. The
+    // address comes from `installIcons()` so a re-supplied icon is served at a
+    // NEW url and an already-installed app fetches it rather than redrawing the
+    // copy in its own cache.
     icons: [
-      { src: config.icon192Url, sizes: "192x192", type: "image/png" },
-      { src: config.icon512Url, sizes: "512x512", type: "image/png" },
+      { src: icons.icon192Url, sizes: "192x192", type: "image/png" },
+      { src: icons.icon512Url, sizes: "512x512", type: "image/png" },
     ],
   };
 }

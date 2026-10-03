@@ -35,6 +35,7 @@ import {
   brandConfig,
   brandIdFromEnv,
   colourGameTitle,
+  installIcons,
   isBrandId,
   manifestFor,
   resolveBrandId,
@@ -645,10 +646,11 @@ describe("per-brand artwork", () => {
   test("every brand's home-screen icons exist at both PWA sizes, plus iOS", async () => {
     for (const id of BRAND_IDS) {
       const config = BRANDS[id];
+      const icons = installIcons(config);
       const expected: [string, number][] = [
-        [config.icon192Url, 192],
-        [config.icon512Url, 512],
-        [config.appleTouchIconUrl, 180], // what iOS asks for
+        [icons.icon192Url, 192],
+        [icons.icon512Url, 512],
+        [icons.appleTouchIconUrl, 180], // what iOS asks for
       ];
       for (const [url, size] of expected) {
         const file = publicFile(url);
@@ -660,11 +662,59 @@ describe("per-brand artwork", () => {
     }
   });
 
+  test("a re-supplied app icon is served at a NEW address, and only for that brand", () => {
+    // The owner re-supplied The Xray Group's app icon on 3 Oct 2026 ("it was a
+    // bit small"), and the three icon FILES kept their names — so the addresses
+    // the installed-app surfaces request had to move, or a phone that already
+    // installed this app would keep drawing the picture in its own cache. The
+    // master and Imaging Queensland carry no such addresses and therefore keep
+    // the exact urls they have served since launch: a `?v=` appearing on either
+    // of them would silently change a live app's icon request.
+    const txg = BRANDS["the-xray-group"];
+    expect(txg.manifestIcons).toEqual({
+      icon192Url: "/brands/the-xray-group/icon-192.png?v=1",
+      icon512Url: "/brands/the-xray-group/icon-512.png?v=1",
+      appleTouchIconUrl: "/brands/the-xray-group/icon-180.png?v=1",
+    });
+    for (const id of ["rad-games", "imaging-queensland"] as const) {
+      expect(BRANDS[id]).not.toHaveProperty("manifestIcons");
+      expect(installIcons(BRANDS[id])).toEqual({
+        icon192Url: BRANDS[id].icon192Url,
+        icon512Url: BRANDS[id].icon512Url,
+        appleTouchIconUrl: BRANDS[id].appleTouchIconUrl,
+      });
+    }
+    expect(installIcons(BRANDS["rad-games"]).icon512Url).toBe("/icon-512.png");
+    expect(installIcons(BRANDS["imaging-queensland"]).icon512Url).toBe(
+      "/brands/imaging-queensland/icon-512.png",
+    );
+    // Every stamped install-icon address still names the same file as the
+    // unversioned field beside it — the query is part of the request address
+    // only, so `?v=1` must not 404.
+    for (const url of Object.values(txg.manifestIcons!)) {
+      expect(url.split("?")[0]).toBe(url.replace(/\?v=1$/, ""));
+      expect(publicFile(url)).toBe(publicFile(url.replace("?v=1", "")));
+    }
+    expect(installIcons()).toEqual(installIcons(brand));
+  });
+
   test("the master's icons are the same files it has always shipped", () => {
     const master = BRANDS["rad-games"];
     expect(master.icon192Url).toBe("/icon-192.png");
     expect(master.icon512Url).toBe("/icon-512.png");
     expect(master.appleTouchIconUrl).toBe("/apple-touch-icon.png?v=3");
+    // The installed-app surfaces read `installIcons()`, so the pin has to hold
+    // there too: the master must not have gained a stamped icon address when The
+    // Xray Group's icon moved (3 Oct 2026).
+    expect(installIcons(master).icon192Url).toBe("/icon-192.png");
+    expect(installIcons(master).icon512Url).toBe("/icon-512.png");
+    expect(installIcons(master).appleTouchIconUrl).toBe("/apple-touch-icon.png?v=3");
+    // Imaging Queensland's own icons are likewise untouched by that change: same
+    // three urls, no version stamp.
+    const iq = installIcons(BRANDS["imaging-queensland"]);
+    expect(iq.icon192Url).toBe("/brands/imaging-queensland/icon-192.png");
+    expect(iq.icon512Url).toBe("/brands/imaging-queensland/icon-512.png");
+    expect(iq.appleTouchIconUrl).toBe("/brands/imaging-queensland/icon-180.png");
   });
 
   test("the add-to-phone page's icon follows the brand, and the master's is untouched", async () => {
@@ -675,6 +725,16 @@ describe("per-brand artwork", () => {
     // deliberately left alone.
     const master = BRANDS["rad-games"];
     expect(master.addToPhoneIconUrl).toBe("/icon-512.png");
+    // The stamps, pinned by value: The Xray Group's picture was re-supplied on
+    // 3 Oct 2026 (the owner's revised app icon, same file name), so its address
+    // moved on to `?v=2` while Imaging Queensland's `?v=1` picture is the one it
+    // has served since the same morning and does not move.
+    expect(BRANDS["the-xray-group"].addToPhoneIconUrl).toBe(
+      "/brands/the-xray-group/add-to-phone-icon.png?v=2",
+    );
+    expect(BRANDS["imaging-queensland"].addToPhoneIconUrl).toBe(
+      "/brands/imaging-queensland/add-to-phone-icon.png?v=1",
+    );
     // The master's file is the same bytes it has always served, so the live
     // neutral instance cannot move because of this change...
     expect(
@@ -1373,18 +1433,25 @@ describe("brand artwork files", () => {
   });
 
   test("The Xray Group's installed app icon is the owner's revised artwork", async () => {
-    // Owner report (30 Sep): the old icon's mark ran right to the edges, so the
-    // installed app "looked too big" on the home screen. The replacement is the
-    // same Rex-X mark with real margins around it, scaled faithfully from the
-    // owner's 1024x1024 export — never re-cropped and never re-margined — so the
-    // padding the owner drew is what installs. The pin is the subject's share of
-    // the canvas: 0.62 here, against 0.93 in the artwork it replaced.
+    // The owner has now supplied this icon three times. 29 Sep: the mark ran
+    // right to the edges, so the installed app "looked too big". 30 Sep: the same
+    // Rex-X mark with real margins around it (the subject filled 0.62 x 0.64 of
+    // the canvas), which the owner then reported on 3 Oct "was a bit small" —
+    // and re-supplied (https://ibb.co/F4Y7bfzf) with the mark drawn tighter,
+    // filling 0.73 x 0.76. The shipped file is scaled faithfully from that
+    // 1254x1254 export — never re-cropped, re-margined or keyed — so the size the
+    // owner drew is the size that installs, and the icon is FULL-BLEED: the
+    // phone's own mask is what rounds it, which is why the rounded-corner
+    // treatment is deliberately NOT baked into these three files.
     const icons = [
-      [512, BRANDS["the-xray-group"].icon512Url],
-      [192, BRANDS["the-xray-group"].icon192Url],
-      [180, BRANDS["the-xray-group"].appleTouchIconUrl],
+      [512, installIcons(BRANDS["the-xray-group"]).icon512Url],
+      [192, installIcons(BRANDS["the-xray-group"]).icon192Url],
+      [180, installIcons(BRANDS["the-xray-group"]).appleTouchIconUrl],
     ] as const;
     for (const [size, url] of icons) {
+      // Every one of them is a NEW address, so a phone holding the previous
+      // artwork cannot answer the request out of its own cache.
+      expect(url).toMatch(/\?v=1$/);
       const file = publicFile(url);
       const meta = await sharp(file).metadata();
       expect([meta.width, meta.height]).toEqual([size, size]);
@@ -1411,10 +1478,19 @@ describe("brand artwork files", () => {
       }
       const widthShare = (x1 - x0 + 1) / info.width;
       const heightShare = (y1 - y0 + 1) / info.height;
-      expect(widthShare).toBeGreaterThan(0.5); // a whole, readable mark
-      expect(widthShare).toBeLessThan(0.75); // with the margin the owner wanted
-      expect(heightShare).toBeGreaterThan(0.5);
-      expect(heightShare).toBeLessThan(0.75);
+      // Bigger than the export this replaces (0.62 x 0.64) on every size, which
+      // is the whole point of the re-supply...
+      expect(widthShare).toBeGreaterThan(0.7);
+      expect(heightShare).toBeGreaterThan(0.7);
+      // ...and still a whole, readable mark with a little breathing room rather
+      // than artwork bleeding off the canvas.
+      expect(widthShare).toBeLessThan(0.8);
+      expect(heightShare).toBeLessThan(0.82);
+      // Full-bleed means the corners are the artwork's own white field, opaque:
+      // nothing here is masked (the rounded corners live in the add-to-phone
+      // picture only).
+      expect(data[3]).toBe(255);
+      expect(readFileSync(file).byteLength).toBeLessThan(150_000);
     }
   });
 });
@@ -1511,10 +1587,13 @@ describe("manifestFor", () => {
   });
 
   test("the installed app's icons follow the brand, and the master's are unchanged", () => {
+    // The manifest reads `installIcons()`, so a re-supplied icon is served at a
+    // NEW address there too — and the two brands whose icons have not moved keep
+    // the exact urls an already-installed app holds.
     for (const id of BRAND_IDS) {
       expect(manifestFor(BRANDS[id]).icons.map((icon) => icon.src)).toEqual([
-        BRANDS[id].icon192Url,
-        BRANDS[id].icon512Url,
+        installIcons(BRANDS[id]).icon192Url,
+        installIcons(BRANDS[id]).icon512Url,
       ]);
     }
     // An installed master app keeps the icon it already had: a brand's icon
@@ -1527,6 +1606,23 @@ describe("manifestFor", () => {
       "/brands/imaging-queensland/icon-192.png",
       "/brands/imaging-queensland/icon-512.png",
     ]);
+    // ...while The Xray Group's manifest now names the re-supplied artwork at its
+    // stamped address, and the head's `apple-touch-icon` (same helper) with it.
+    expect(manifestFor(BRANDS["the-xray-group"]).icons.map((icon) => icon.src)).toEqual([
+      "/brands/the-xray-group/icon-192.png?v=1",
+      "/brands/the-xray-group/icon-512.png?v=1",
+    ]);
+    expect(installIcons(BRANDS["the-xray-group"]).appleTouchIconUrl).toBe(
+      "/brands/the-xray-group/icon-180.png?v=1",
+    );
+  });
+
+  test("the head's apple-touch-icon comes from the same helper as the manifest", () => {
+    // Two surfaces, one source: a brand icon that moved in the manifest but not
+    // in the head (or the reverse) would install one picture and show another.
+    const root = srcFile("../routes/__root.tsx");
+    expect(root).toContain('href: installIcons(brand).appleTouchIconUrl');
+    expect(root).not.toContain("brand.appleTouchIconUrl");
   });
 
   test("every brand's manifest carries the same unified theme colour", () => {

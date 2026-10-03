@@ -218,3 +218,37 @@ What shipped, and how it was derived:
   two pilot brands — a NEW address for NEW artwork, so no device answers it out of
   a cache of the square `/icon-512.png` they used to draw — while the master's is
   the original unversioned `/icon-512.png`.
+## The owner's second The Xray Group app icon (3 Oct 2026) — the current artwork
+The icon installed on 30 Sep drew the Rex-X mark with wide margins (the subject
+filled 0.62 x 0.64 of the canvas). The owner reported the same day that the icon
+"was a bit small" and supplied a replacement through ImgBB
+(https://ibb.co/F4Y7bfzf -> `i.ibb.co/5hjcWzLz/330-EA878-A4-AB-4402-A86-A-A38-F948-E1301.png`),
+**1254x1254, RGB with no alpha channel, 1,695,418 bytes, md5
+`b5f5939a9771b475ee0404ea0a3985bc`** — the same Rex-X mark drawn tighter, filling
+0.73 x 0.76 of its square. It replaces `brands/txg-app-icon.png`, which is kept
+beside it as **`brands/txg-app-icon-2026-09-30.png`** (1024x1024, md5
+`10d703e3ee1c36696a96791e4d2cf02d`; the 29 Sep export it superseded is still
+archived as `txg-app-icon-2026-09-29.png`, md5 `2fb38453fb14d3eda1e73fad1b496e0e`).
+What shipped, and how it was derived:
+- `public/brands/the-xray-group/icon-512.png` (127 kB), `icon-192.png` (18 kB) and
+  `icon-180.png` (15 kB) — the Apple touch icon — are the supplied square scaled
+  faithfully to each install size (`fit: fill`, lanczos3), never cropped,
+  re-margined or keyed, and **opaque**: an app icon is drawn on the phone's own
+  home screen, where iOS paints transparency black. The new mark is FULL-BLEED, so
+  the phone's own mask is what rounds the installed icon; the manifest/apple-touch
+  icons deliberately carry no baked rounding.
+- `public/brands/the-xray-group/add-to-phone-icon.png` (93 kB, 512x512 RGBA) is the
+  same export with the iOS corner radius (113 px of 512, 22%) masked into the file,
+  transparent corners and all — the owner asked for the page's picture to be this
+  artwork too ("change the add to screen app icon on the bottom to this and round
+  the corners"). Same `writeAddToPhoneIcon` pass as before.
+- Because the icon FILES kept their names, `src/lib/brand.ts` moved the ADDRESSES:
+  The Xray Group's install icons are served from the `manifestIcons` `?v=1` urls
+  (the manifest's two icons and the head's `apple-touch-icon`), and its
+  `addToPhoneIconUrl` went from `?v=1` to **`?v=2`**. An installed app only fetches
+  new bytes when the address it requests changes; see `BAR_LOGO_VERSION` in
+  `src/lib/brand.ts`.
+- Nothing else moved: the master's and Imaging Queensland's icons keep their exact
+  urls and bytes, and `scripts/brand-artwork-assets.mjs` regenerating both brands'
+  artwork reproduces their committed files byte for byte (checked with `git status`
+  after the run).
