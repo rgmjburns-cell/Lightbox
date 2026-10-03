@@ -185,12 +185,14 @@ function AddToPhonePage() {
                 onClick={() => setIosBrowser("safari")}
                 label="Safari"
                 icon={<SafariIcon color={iosBrowser === "safari" ? "#FFFFFF" : "#6B7280"} />}
+                inactiveClassName="text-mutedText hover:text-darkText"
               />
               <ToggleButton
                 active={iosBrowser === "chrome"}
                 onClick={() => setIosBrowser("chrome")}
                 label="Chrome"
                 icon={<ChromeIcon color={iosBrowser === "chrome" ? "#FFFFFF" : "#6B7280"} />}
+                inactiveClassName="text-mutedText hover:text-darkText"
               />
             </>
           ) : (
@@ -200,12 +202,14 @@ function AddToPhonePage() {
                 onClick={() => setAndroidBrowser("chrome")}
                 label="Chrome"
                 icon={<ChromeIcon color={androidBrowser === "chrome" ? "#FFFFFF" : "#6B7280"} />}
+                inactiveClassName="text-mutedText hover:text-darkText"
               />
               <ToggleButton
                 active={androidBrowser === "samsung"}
                 onClick={() => setAndroidBrowser("samsung")}
                 label="Samsung Internet"
                 icon={<SamsungIcon color={androidBrowser === "samsung" ? "#FFFFFF" : "#6B7280"} />}
+                inactiveClassName="text-mutedText hover:text-darkText"
               />
             </>
           )}
@@ -254,11 +258,17 @@ function ToggleButton({
   onClick,
   label,
   icon,
+  // Label colour when NOT selected. The two toggle rows sit on different
+  // backgrounds: the device row is translucent white on the navy page, the
+  // browser row is inside a white card — so the browser row passes the theme's
+  // muted grey (owner report, 3 Oct: white labels were invisible on the card).
+  inactiveClassName = "text-white/70 hover:text-white",
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
   icon: React.ReactNode;
+  inactiveClassName?: string;
 }) {
   return (
     <button
@@ -266,7 +276,7 @@ function ToggleButton({
       onClick={onClick}
       aria-pressed={active}
       className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-150 ${
-        active ? "bg-secondary text-white shadow" : "text-white/70 hover:text-white"
+        active ? "bg-secondary text-white shadow" : inactiveClassName
       }`}
     >
       {icon}
