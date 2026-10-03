@@ -197,8 +197,10 @@ describe("the mascot's name is per brand", () => {
     // The title carries the mascot's name and is shown in three places: the
     // games-home tile, a game page's title tile and the shared leaderboard's game
     // label. All three read `colourGameTitle()`, so they cannot drift apart — and
-    // the game ID and icon stay `colour-rex` / `/icons/icon-colour-rex.png`,
-    // because the ID is what scores are submitted (and stored) under.
+    // the game ID stays `colour-rex`, because that is what scores are submitted
+    // (and stored) under. The ICON beside that title is the one game icon that
+    // follows the brand since 2 Oct 2026, so both tiles read
+    // `brand.colourGameIcon` (pinned by name below).
     expect(colourGameTitle(BRANDS["imaging-queensland"])).toBe("Colour Stu");
     expect(colourGameTitle(BRANDS["rad-games"])).toBe("Colour Rex");
     expect(colourGameTitle(BRANDS["the-xray-group"])).toBe("Colour Rex");
@@ -210,9 +212,13 @@ describe("the mascot's name is per brand", () => {
 
     const surfaces: [string, RegExp][] = [
       ["../routes/index.tsx", /title: colourGameTitle\(\),/], // games-home tile
+      // ...and the icon next to that title comes from the brand config on both
+      // tiles, so a brand's own artwork reaches both at once (see "the colouring
+      // game's icon follows the brand" below).
+      ["../routes/index.tsx", /icon: brand\.colourGameIcon,/],
       [
         "../routes/play.$gameId.tsx",
-        /"colour-rex": \{ title: colourGameTitle\(\), icon: "\/icons\/icon-colour-rex\.png" \}/,
+        /"colour-rex": \{ title: colourGameTitle\(\), icon: brand\.colourGameIcon \}/,
       ],
       ["./leaderboard.ts", /\{ id: "colour-rex", label: colourGameTitle\(\),/],
     ];
@@ -374,6 +380,93 @@ describe("per-brand artwork", () => {
     expect(BRANDS["imaging-queensland"].rexImageUrl).not.toBe(
       BRANDS["the-xray-group"].rexImageUrl,
     );
+  });
+  test("the colouring game's icon follows the brand, and the master's is untouched", async () => {
+    // On 2 Oct 2026 the owner supplied this ONE game icon per brand — the mascot
+    // with a brush and palette, drawn in each brand's own colours — so it is the
+    // only game icon in the app that follows the brand (every other one is still
+    // the shared /icons/*.png). The master deliberately keeps the file it has
+    // always drawn: the neutral instance is live, and its icon must not move.
+    expect(BRANDS["rad-games"].colourGameIcon).toBe("/icons/icon-colour-rex.png");
+    expect(
+      createHash("sha256")
+        .update(readFileSync(publicFile("/icons/icon-colour-rex.png")))
+        .digest("hex"),
+    ).toBe("0671c09e7315c2674e4dc2dda4d73de4a412d8ccef0d969ff33883f067907a84");
+
+    for (const id of pilots) {
+      const config = BRANDS[id];
+      expect(config.colourGameIcon).toContain(`/brands/${id}/`);
+      expect(config.colourGameIcon).not.toBe(BRANDS["rad-games"].colourGameIcon);
+      // A NEW address for new artwork: both pilot urls carry a stamp, so no
+      // device can answer them out of a cache of the picture they replace — the
+      // trap that taught us this is recorded at BAR_LOGO_VERSION.
+      expect(config.colourGameIcon).toMatch(/\?v=\d+$/);
+      const file = publicFile(config.colourGameIcon);
+      expect(existsSync(file)).toBe(true);
+      const image = sharp(file);
+      const { width, height } = await image.metadata();
+      // Square, so the title tile's square `object-contain` slot is filled
+      // without letterboxing (the owner's Imaging Queensland export is 1312x1199
+      // and was padded to square, never stretched)...
+      expect(width).toBe(512);
+      expect(height).toBe(512);
+      const { data, info } = await sharp(file)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const alphaAt = (x: number, y: number) =>
+        data[(y * info.width + x) * info.channels + 3];
+      // ...and transparent around the character, so it sits on the dark tile
+      // without a white box, while the mascot still fills the canvas (the
+      // character and its brush and palette ink ~39% of the square; a shrunken or
+      // half-empty export would fall well below that).
+      expect(alphaAt(0, 0)).toBe(0);
+      expect(alphaAt(info.width - 1, info.height - 1)).toBe(0);
+      let inked = 0;
+      for (let y = 0; y < info.height; y++) {
+        for (let x = 0; x < info.width; x++) if (alphaAt(x, y) > 8) inked++;
+      }
+      expect(inked / (info.width * info.height)).toBeGreaterThan(0.25);
+      // Small enough to fetch over a phone's own data in a waiting room.
+      expect(readFileSync(file).byteLength).toBeLessThan(150_000);
+    }
+    // Two brands, two pictures: the tiles must not show the same mascot.
+    expect(
+      readFileSync(publicFile(BRANDS["imaging-queensland"].colourGameIcon)).equals(
+        readFileSync(publicFile(BRANDS["the-xray-group"].colourGameIcon)),
+      ),
+    ).toBe(false);
+  });
+  test("the memory game's face-down tile is one shared picture, at a stamped address", async () => {
+    // The face-down card is the same picture on every brand (guest tiles are not
+    // per-brand artwork). The owner replaced its bytes on 2 Oct 2026 — the earlier
+    // Rex tile became a glossy tile carrying a scan glyph — so the game's <img>
+    // asks for a stamped address: the file name is unchanged, and a device that
+    // cached the previous bytes would otherwise keep drawing the old tile.
+    const source = srcFile("../components/games/MemoryScan.tsx");
+    expect(source).toMatch(/src="\/rex-memory-tile\.png\?v=\d+"/);
+    const file = publicFile("/rex-memory-tile.png");
+    expect(existsSync(file)).toBe(true);
+    const { width, height } = await sharp(file).metadata();
+    expect(width).toBe(height); // the grid's cards are square
+    expect(width).toBe(512);
+    const { data, info } = await sharp(file)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const alphaAt = (x: number, y: number) =>
+      data[(y * info.width + x) * info.channels + 3];
+    expect(alphaAt(0, 0)).toBe(0);
+    expect(alphaAt(info.width - 1, info.height - 1)).toBe(0);
+    expect(readFileSync(file).byteLength).toBeLessThan(150_000);
+    // The superseded Rex tile is archived, not deleted, so a re-supply can be
+    // compared byte for byte with what it replaced.
+    expect(
+      existsSync(
+        fileURLToPath(new URL("../../public/_originals/rex-memory-tile-2026-09-06.png", import.meta.url)),
+      ),
+    ).toBe(true);
   });
 
   test("the welcome screen draws Rex only where the mark has none", () => {

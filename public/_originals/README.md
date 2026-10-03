@@ -113,3 +113,38 @@ link, the image its page resolves to, its dimensions, its alpha and its md5.
   slot at which the rejected 300x210 export drew ~51x36 and the original 583x174
   export drew ~120x36 — the weight the owner wanted back, measured from the rendered
   page and recorded in `/home/team/shared/new-iq-logo/r2/MEASUREMENTS.md`.
+
+## The owner's 2 Oct 2026 supply: the colouring game's icon, per brand, and a new memory tile
+
+Three ImgBB uploads, archived here before anything was processed from them.
+
+| mark | owner's link | resolves to | file | dimensions | alpha | md5 |
+|---|---|---|---|---|---|---|
+| Imaging Queensland — the colouring game's icon | https://ibb.co/XZ5sHmTY | `i.ibb.co/QFHN0sGD/77712-D3-E-14-DA-4-F19-B333-963-ADAB1-BCA0.png` | `brands/iq-colour-game-icon.png` | 1312x1199 | RGBA, fully transparent background (52.3% of the canvas alpha 0); content 1229x1073 at 52,67 | `13d5363c5caafa23fb5ed5c0b3e9c524` |
+| The Xray Group — the colouring game's icon | https://ibb.co/k6HXkd9V | `i.ibb.co/gFjJHnPb/AEEA22-D6-117-C-497-A-9226-A23-C12-FB9-B19.png` | `brands/txg-colour-game-icon.png` | 1254x1254 | RGBA, fully transparent background (45.9% alpha 0); content 1136x1193 | `fee99d56dde18e220ae9b88d4507424c` |
+| Memory Scan — the face-down tile, ALL brands | https://ibb.co/xqSkHnjp | `i.ibb.co/r2GjsB6C/10-F8-AF2-B-CD53-463-A-A2-C4-4-FCCE4-D4-ACE3.png` | `memory-card-back.png` | 1254x1254 | RGBA, transparent background (14.6% alpha 0); content 1174x1165 — one rounded tile, not a grid | `20435e36063ff3bd3f83e10203c49fe7` |
+
+What shipped, and how it was derived:
+- **The two game icons are the first GAME artwork in this repo that is per brand.**
+  Both draw the same mascot (brush in one hand, palette in the other) in that
+  brand's own colours: Imaging Queensland's is red caped with the brand's red
+  spiral badge, The Xray Group's orange caped with the brand's orange x badge.
+  Each is resampled to a **512x512** square — the Imaging Queensland export is
+  1312x1199, so it was fitted into the square and padded with transparent pixels,
+  **never stretched or cropped** — and written to
+  `public/brands/<brand>/colour-game-icon.png` (512x512 RGBA; 53,005 bytes for
+  Imaging Queensland, 67,646 for The Xray Group — the same size class as the
+  shared `public/icons/*.png` game icons, which are 55–80 kB at 256x256). The
+  master keeps `/icons/icon-colour-rex.png`
+  untouched (sha256 `0671c09e…`), so the live neutral instance is unchanged.
+  The pipeline is a one-off (like the earlier artwork passes): trim the
+  transparent border, fit into 96% of the square, extend to the square with
+  alpha 0, `png({ compressionLevel: 9, effort: 10 })`.
+- **The memory tile is ONE shared picture for all three brands**, replacing the
+  Rex tile that was at `public/rex-memory-tile.png` (archived beside this file as
+  `rex-memory-tile-2026-09-06.png`, md5 `6ed85e38937d5c1ad9de836307b3572b`). The
+  new art is the same glossy teal card, now carrying a scan glyph instead of Rex;
+  it is a single tile face, so it is the CARD BACK — the game's 14 distinct pair
+  faces (`public/memory-tile-*.png`) are untouched. Shipped at **512x512**, 98,991
+  bytes (the file it replaces was 1,260,812 bytes, ~92% smaller). The file name is
+  unchanged, so its address carries a `?v=1` stamp.

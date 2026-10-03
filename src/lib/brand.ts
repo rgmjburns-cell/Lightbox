@@ -237,6 +237,28 @@ export interface BrandConfig {
   icon192Url: string;
   icon512Url: string;
   appleTouchIconUrl: string;
+  /**
+   * Path under public/ for the COLOURING GAME's icon: the picture on its tile on
+   * the games-home screen (`src/routes/index.tsx`) and in a game page's title
+   * tile (`src/routes/play.$gameId.tsx`).
+   *
+   * The owner supplied a per-brand version of this one icon on 2 Oct 2026 (the
+   * same mascot brandishing a brush and palette, drawn in each brand's own
+   * colours), so it is the first GAME icon that follows the brand; every other
+   * game icon is still the shared `/icons/*.png`. The master deliberately keeps
+   * the shared `/icons/icon-colour-rex.png` exactly as it has always been (owner
+   * direction), so the neutral instance draws precisely what it drew before.
+   *
+   * The two pilot urls carry a `?v=1` stamp: this is a NEW address for new
+   * artwork, so no device can answer it out of a cache of the old file (see
+   * `BAR_LOGO_VERSION` for why an ADDRESS, not just a file, is what reaches an
+   * installed app). Bump that stamp — `?v=2`, … — the next time these two files
+   * are re-supplied; the master's url is deliberately unstamped, because its
+   * file has been live all along and is unchanged. Both urls are literals so the
+   * exact versioned address is greppable in the built bundles, exactly like the
+   * bar logos (see `BAR_LOGO_VERSION`).
+   */
+  colourGameIcon: string;
 }
 
 /** The game product's name, used by every brand. */
@@ -330,6 +352,10 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     icon192Url: "/icon-192.png",
     icon512Url: "/icon-512.png",
     appleTouchIconUrl: "/apple-touch-icon.png?v=3",
+    // The colouring game's icon stays EXACTLY as it is (owner direction, 2 Oct
+    // 2026): the master is the neutral instance and keeps drawing the shared
+    // file it has always drawn, at its original unversioned address.
+    colourGameIcon: "/icons/icon-colour-rex.png",
   },
   "imaging-queensland": {
     brandId: "imaging-queensland",
@@ -381,6 +407,13 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     icon192Url: "/brands/imaging-queensland/icon-192.png",
     icon512Url: "/brands/imaging-queensland/icon-512.png",
     appleTouchIconUrl: "/brands/imaging-queensland/icon-180.png",
+    // Imaging Queensland's OWN colouring-game icon (owner artwork, 2 Oct 2026):
+    // Stu with a brush and palette, red cape and the brand's red spiral badge,
+    // 512x512 from a 1312x1199 export padded to square (never stretched). The
+    // owner's art is what ships here, so this instance's
+    // mascot wears the brand's real colours; the shared file above is untouched
+    // and the master still draws it.
+    colourGameIcon: "/brands/imaging-queensland/colour-game-icon.png?v=1",
   },
   "the-xray-group": {
     brandId: "the-xray-group",
@@ -423,6 +456,12 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     icon192Url: "/brands/the-xray-group/icon-192.png",
     icon512Url: "/brands/the-xray-group/icon-512.png",
     appleTouchIconUrl: "/brands/the-xray-group/icon-180.png",
+    // The Xray Group's OWN colouring-game icon (owner artwork, 2 Oct 2026): Rex
+    // with a brush and palette, orange cape and the brand's orange x badge,
+    // 512x512 from a 1254x1254 square export (never stretched). Like Imaging
+    // Queensland's, the owner's art is what ships, so this instance's mascot
+    // wears the brand's real colours.
+    colourGameIcon: "/brands/the-xray-group/colour-game-icon.png?v=1",
   },
 };
 
@@ -480,10 +519,13 @@ export const brand: BrandConfig = brandConfig(brandIdFromEnv());
  * game label (`src/lib/leaderboard.ts`) — and every one of them reads this
  * helper, so no two of them can disagree about what the game is called.
  *
- * The game's ID stays `colour-rex` and its icon stays
- * `/icons/icon-colour-rex.png`, whatever the mascot is called: both are internal
- * (the id is what scores are submitted under, so renaming it would orphan
- * everyone's history), and neither is a name a player reads.
+ * The game's ID stays `colour-rex`, whatever the mascot is called: the id is
+ * internal (it is what scores are submitted under, so renaming it would orphan
+ * everyone's history) and no player reads it. The game's ICON is the one part of
+ * its presentation that is per brand since 2 Oct 2026 — the owner supplied a
+ * version of it in each brand's own colours — so both surfaces draw
+ * `brand.colourGameIcon`, whose master entry is still the shared
+ * `/icons/icon-colour-rex.png` file, unchanged.
  */
 export function colourGameTitle(config: BrandConfig = brand): string {
   return `Colour ${config.mascotName}`;
