@@ -52,9 +52,14 @@
  * they are kept that way: an app icon is drawn on the phone's own home screen,
  * not on the app's navy theme, and iOS paints transparency black. The Xray
  * Group's icons were replaced with the owner's revised artwork on 30 Sep (the
- * same Rex-X mark with the margins the owner wanted around it); the resizing
- * below is deliberately faithful — the supplied square is scaled to each install
- * size, never re-cropped or re-margined, so what the owner drew is what installs.
+ * same Rex-X mark with the margins the owner wanted around it), and re-supplied
+ * AGAIN on 3 Oct 2026 (owner: the previous icon "was a bit small" — the new
+ * export draws the same Rex-X mark tighter, filling 0.73 x 0.76 of its canvas
+ * against the 0.62 x 0.64 of the file it replaces); the resizing below is
+ * deliberately faithful — the supplied square is scaled to each install size,
+ * never re-cropped, re-margined or keyed, so what the owner drew is what installs
+ * and the new artwork is FULL-BLEED at every size, leaving the phone's own icon
+ * mask to round it.
  *
  * `add-to-phone-icon.png` is the ONE derived file that is not just a resize: it
  * is the same supplied square, scaled to `ADD_TO_PHONE_SIZE` and masked to a
@@ -62,9 +67,15 @@
  * transparent corners. It is what the add-to-phone page's DONE card draws
  * (owner ask, 3 Oct 2026: "rounded, per brand, like an app icon"), and the
  * rounding is BAKED INTO THE FILE, not left to a CSS clip that a later style
- * change could drop. It is deliberately NOT the manifest/PWA icon (those keep
- * the owner's opaque square, byte for byte, as supplied): this file is the
- * page's picture only. The three `icon-*.png` files above are untouched by it.
+ * change could drop. On 3 Oct 2026 the owner re-supplied The Xray Group's
+ * artwork and asked for it here too ("change the add to screen app icon on the
+ * bottom to this and round the corners"), so this file moves with the install
+ * icons above — and its url is cache-busted to `?v=2` in `src/lib/brand.ts`,
+ * because the same file name at the same address is exactly what an installed
+ * app answers out of its own disk cache. It is deliberately NOT the
+ * manifest/PWA icon (those keep the owner's opaque square, byte for byte, as
+ * supplied): this file is the page's picture only. The three `icon-*.png` files
+ * above are untouched by the mask.
  *
  * Run from the repo root:  node scripts/brand-artwork-assets.mjs
  * Originals live in public/_originals/brands/ and are never modified.
@@ -333,17 +344,39 @@ async function writeIcons(file, dir) {
 }
 /**
  * The md5 of the owner's archived app-icon export, per brand, as it sits in
- * `public/_originals/brands/`. Both files were supplied through ImgBB links and
- * downloaded twice — once after the owner sent them and once when this rounded
- * file was added — with the same md5 each time (`public/_originals/README.md`
- * records the links). Checking it here means a later re-supply dropped in under
- * the same file name cannot silently reach the page without being archived and
- * recorded first.
+ * `public/_originals/brands/`. Every brand derives BOTH its installed-app icons
+ * (`icon-192/512/180.png`) and the add-to-phone page's rounded picture from this
+ * one file, so this is the gate for the whole app-icon supply. Both files were
+ * supplied through ImgBB links and downloaded twice — once after the owner sent
+ * them and once when this rounded file was added — with the same md5 each time
+ * (`public/_originals/README.md` records the links). Checking it here means a
+ * later re-supply dropped in under the same file name cannot silently reach the
+ * page or a patient's home screen without being archived and recorded first: on
+ * 3 Oct 2026 the owner replaced The Xray Group's export ("the previous icon was
+ * a bit small") and its md5 moved from `10d703e3…` to `b5f5939a…` in the same
+ * commit that archived the file it supersedes as
+ * `txg-app-icon-2026-09-30.png`.
  */
 const ADD_TO_PHONE_SRC_MD5 = {
   "imaging-queensland": "a672da9eef426568c48db0061eb943b3",
-  "the-xray-group": "10d703e3ee1c36696a96791e4d2cf02d",
+  "the-xray-group": "b5f5939a9771b475ee0404ea0a3985bc",
 };
+
+/**
+ * The md5 of a supplied export, checked against the archived record. Throws
+ * rather than shipping a file the owner never sent.
+ */
+function verifiedExportMd5(file, expectedMd5) {
+  const md5 = createHash("md5").update(readFileSync(file)).digest("hex");
+  if (md5 !== expectedMd5) {
+    throw new Error(
+      `${file}: md5 ${md5} is not the recorded owner export ${expectedMd5} — archive the new ` +
+        `supply in ${SRC} and record it before shipping it`,
+    );
+  }
+  return md5;
+}
+
 /**
  * The add-to-phone page's app-icon picture: the supplied square, scaled to
  * `ADD_TO_PHONE_SIZE` and masked to a rounded square with TRANSPARENT corners.
@@ -353,16 +386,16 @@ const ADD_TO_PHONE_SRC_MD5 = {
  * is never keyed, cropped or re-margined, so Rex sits exactly where the owner
  * drew him and only the four corners become see-through. Alpha is forced on
  * first because the supplied PNGs carry no alpha channel at all, and a
- * `dest-in` composite onto RGB artwork would have nothing to multiply.
+ * `dest-in` composite onto RGB artwork would have nothing to multiply. That is
+ * also why this works on The Xray Group's 3 Oct export, whose corners sit on the
+ * artwork's own white field: the rounded mask turns those corners transparent,
+ * so the picture reads as an app icon on the navy theme.
+ *
+ * `md5` is the already-verified md5 of the source export (see the caller): the
+ * gate is checked before anything is written, so a bad supply cannot leave half
+ * of a brand's artwork replaced on disk.
  */
-async function writeAddToPhoneIcon(file, dest, expectedMd5) {
-  const md5 = createHash("md5").update(readFileSync(file)).digest("hex");
-  if (md5 !== expectedMd5) {
-    throw new Error(
-      `${file}: md5 ${md5} is not the recorded owner export ${expectedMd5} — archive the new ` +
-        `supply in ${SRC} and record it before shipping it`,
-    );
-  }
+async function writeAddToPhoneIcon(file, dest, md5) {
   const meta = await sharp(file).metadata();
   if (meta.width !== meta.height) {
     throw new Error(`${file}: ${meta.width}x${meta.height} is not square`);
@@ -406,6 +439,14 @@ for (const [brand, files] of Object.entries(BRANDS)) {
   if (!originals.includes(files.addToPhoneIcon)) {
     throw new Error(`missing original ${SRC}/${files.addToPhoneIcon}`);
   }
+  // Both brands derive their installed-app icons AND the add-to-phone picture
+  // from this one export, so its md5 is verified BEFORE any file is written: a
+  // supply that was dropped in without being archived fails the run with the
+  // tree untouched, instead of leaving a brand half re-artworked.
+  const appIconMd5 = verifiedExportMd5(
+    path.join(SRC, files.addToPhoneIcon),
+    ADD_TO_PHONE_SRC_MD5[brand],
+  );
   report.push({
     brand,
     logo: await writeLogo(path.join(SRC, files.logo), path.join(dir, "welcome-logo.png")),
@@ -423,7 +464,7 @@ for (const [brand, files] of Object.entries(BRANDS)) {
     addToPhone: await writeAddToPhoneIcon(
       path.join(SRC, files.addToPhoneIcon),
       path.join(dir, "add-to-phone-icon.png"),
-      ADD_TO_PHONE_SRC_MD5[brand],
+      appIconMd5,
     ),
   });
 }

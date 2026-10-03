@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { useState, useEffect, type ReactNode } from "react";
 import appCss from "~/styles/app.css?url";
-import brand from "~/lib/brand";
+import brand, { installIcons } from "~/lib/brand";
 import NavBar from "~/components/NavBar";
 import Onboarding from "~/components/Onboarding";
 import {
@@ -37,8 +37,10 @@ export const Route = createRootRoute({
       { rel: "manifest", href: "/manifest.json?v=3" },
       { rel: "icon", href: "/favicon.ico?v=4" },
       // iOS takes the home-screen icon from here, not from the manifest, so the
-      // brand's own icon is set alongside the manifest's icons.
-      { rel: "apple-touch-icon", href: brand.appleTouchIconUrl },
+      // brand's own icon is set alongside the manifest's icons — through the same
+      // `installIcons()` helper the manifest uses, so a re-supplied icon reaches
+      // an installed app as a NEW address and the two can never disagree.
+      { rel: "apple-touch-icon", href: installIcons(brand).appleTouchIconUrl },
     ],
   }),
   notFoundComponent: () => (
