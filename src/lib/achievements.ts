@@ -11,10 +11,11 @@
  * inputs out of localStorage, applying the shared thresholds, and writing the
  * unlocks back.
  *
- * It is also where the ONE badge that is named after the mascot gets its name:
- * the definitions are shared with the server, which cannot know the brand, so
- * the shared copy of that name carries a `MASCOT_NAME_TOKEN` and `ACHIEVEMENTS`
- * below resolves it from `brand.mascotName` (owner direction, 2 Oct 2026).
+ * It is also where the ONE badge that is named after the mascot gets its name
+ * AND its artwork: the definitions are shared with the server, which cannot know
+ * the brand, so the shared copy of that name carries a `MASCOT_NAME_TOKEN` and of
+ * that icon the shared path, and `ACHIEVEMENTS` below resolves both from the
+ * brand config (owner direction: name on 2 Oct 2026, artwork on 3 Oct 2026).
  */
 
 import {
@@ -27,7 +28,7 @@ import {
   type AchievementStats,
 } from "../../server/achievement-core";
 import { getAccumulatedPoints, setAccumulatedPoints } from "./points";
-import brand from "./brand";
+import brand, { type BrandConfig } from "./brand";
 
 /**
  * A shared badge name with the mascot token resolved for `mascotName`: the
@@ -40,21 +41,48 @@ export function badgeName(sharedName: string, mascotName: string): string {
 }
 
 /**
+ * The id of the ONE badge that carries the mascot's name (and, since 3 Oct 2026,
+ * its own per-brand artwork). The id itself is unchanged on every brand: it is
+ * what a player's unlocks are keyed by, on the device and on the server.
+ */
+export const MASCOT_BADGE_ID = "rexs-best-friend";
+
+/**
+ * A shared badge's icon path, with the mascot badge's artwork swapped for the
+ * running brand's. Pure, so the per-brand result can be asserted directly for
+ * all three brands (see `src/lib/brand.test.ts`) whatever brand this build is.
+ *
+ * Only `bestFriendBadgeUrl` is resolved here. Every other badge keeps the shared
+ * path from `server/achievement-core.ts`, and so does this one on the server —
+ * that file is shared with the leaderboard server, which never draws badge
+ * artwork at all, so its copy stays pure and shared.
+ */
+export function badgeIcon(
+  shared: Pick<Achievement, "id" | "icon">,
+  config: BrandConfig = brand,
+): string {
+  return shared.id === MASCOT_BADGE_ID ? config.bestFriendBadgeUrl : shared.icon;
+}
+
+/**
  * The badges, with the one name that carries the mascot resolved for the brand
  * this app runs as: "Stu's Best Friend" on Imaging Queensland, "Rex's Best
- * Friend" on the master and The Xray Group.
+ * Friend" on the master and The Xray Group — and that same badge's ARTWORK
+ * resolved for the brand too (owner artwork, 3 Oct 2026).
  *
  * The definitions themselves are shared with the server
  * (`server/achievement-core.ts`), which cannot know the brand — it runs from
  * `server/` verbatim, where this module's brand config is not present at all —
- * so its copy of that name is the `{mascot}` token, and this array is where it
- * becomes a real name. Everything that shows a badge (the Achievements page, the
- * unlock toast, the games) reads its name from here, so there is exactly one
- * place the substitution happens and one place it can be wrong.
+ * so its copy of that name is the `{mascot}` token and of that icon the shared
+ * path, and this array is where each becomes the brand's own. Everything that
+ * shows a badge (the Achievements page, the unlock toast, the games-home card)
+ * reads its name AND its icon from here, so there is exactly one place either
+ * substitution happens and one place it can be wrong.
  */
 export const ACHIEVEMENTS: Achievement[] = SHARED_ACHIEVEMENTS.map((a) => ({
   ...a,
   name: badgeName(a.name, brand.mascotName),
+  icon: badgeIcon(a),
 }));
 export type { Achievement, AchievementState };
 

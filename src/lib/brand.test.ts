@@ -22,7 +22,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import {
@@ -40,7 +40,7 @@ import {
   resolveBrandId,
   welcomeMessageFor,
 } from "./brand";
-import { ACHIEVEMENTS, badgeName } from "./achievements";
+import { ACHIEVEMENTS, MASCOT_BADGE_ID, badgeIcon, badgeName } from "./achievements";
 import {
   ACHIEVEMENTS as SHARED_ACHIEVEMENTS,
   MASCOT_NAME_TOKEN,
@@ -75,6 +75,32 @@ const publicFile = (url: string) =>
 
 /** The source of a file in src/, for the markup assertions below. */
 const srcFile = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+
+/**
+ * Every shipped `.ts`/`.tsx` file under `src/`, as [path, contents] pairs.
+ *
+ * Test files are skipped: they legitimately import the shared badge definitions
+ * to pin them (this file does), and a player never runs them.
+ */
+function srcSources(dir = fileURLToPath(new URL("../", import.meta.url))): [string, string][] {
+  const out: [string, string][] = [];
+  for (const entry of readdirSync(dir)) {
+    const full = `${dir}/${entry}`;
+    if (statSync(full).isDirectory()) out.push(...srcSources(full));
+    else if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry))
+      out.push([full, readFileSync(full, "utf8")]);
+  }
+  return out;
+}
+
+/**
+ * Source with `import type …` statements removed. A type-only import is erased
+ * at build time, so it can carry no shared icon path — or any other value — into
+ * a render surface; `src/lib/profile.ts` imports one badge STAT type from the
+ * shared module that way and is not a reader of the badge definitions.
+ */
+const withoutTypeImports = (source: string) =>
+  source.replace(/import\s+type\s*\{[^}]*\}\s*from\s*"[^"]*";/g, "");
 
 describe("brand config", () => {
   test("all three brands are fully defined", () => {
@@ -231,6 +257,31 @@ describe("the mascot's name is per brand", () => {
     }
   });
 
+  test("the colouring game's home-tile subtitle is shared copy, its title is not", () => {
+    // Owner copy change, 3 Oct 2026: the games-home tile's subtitle reads "Colour
+    // our mascot". It is a SHARED games-list entry, so the words are the same on
+    // all three instances — nothing brand-specific to resolve, and no helper to
+    // add. What must NOT move with it is the tile's TITLE: the owner explicitly
+    // kept the game's name, which stays `colourGameTitle()` and therefore still
+    // carries each brand's mascot ("Colour Rex" / "Colour Stu"). The game page's
+    // title tile and the leaderboard label are untouched for the same reason.
+    const home = srcFile("../routes/index.tsx");
+    // The subtitle sits on the colouring game's own entry (the id is internal and
+    // unchanged: it is what scores are submitted under).
+    expect(home).toMatch(/id: "colour-rex",[\s\S]{0,600}?subtitle: "Colour our mascot",/);
+    expect(home).not.toMatch(/Colour the mascot/i);
+    // ...and the title on that same entry still comes from the mascot helper.
+    expect(home).toMatch(/id: "colour-rex",[\s\S]{0,600}?title: colourGameTitle\(\),/);
+    expect(colourGameTitle(BRANDS["rad-games"])).toBe("Colour Rex");
+    expect(colourGameTitle(BRANDS["the-xray-group"])).toBe("Colour Rex");
+    expect(colourGameTitle(BRANDS["imaging-queensland"])).toBe("Colour Stu");
+    // The old wording is gone from every shipped source file, not just the tile.
+    const stale = srcSources()
+      .filter(([, contents]) => /Colour the mascot/i.test(contents))
+      .map(([file]) => file);
+    expect(stale).toEqual([]);
+  });
+
   test("every user-facing mention of the mascot reads the brand config", () => {
     // The copy survey, file by file: each pair is a sentence, an alt or an
     // aria-label a player can read. Every one of them must read
@@ -291,8 +342,11 @@ describe("the mascot's name is per brand", () => {
     // deployed image runs that file verbatim from `server/` — where `src/` is not
     // present at all. It therefore cannot read the brand config, so the shared
     // copy carries a token and the browser half (`src/lib/achievements.ts`)
-    // resolves it for the instance. The badge ID and the icon path stay as they
-    // are: unlocks are keyed by the ID, and the icon file keeps its name.
+    // resolves it for the instance. The badge ID stays as it is — unlocks are
+    // keyed by it — and so does this SHARED icon path: the server never draws
+    // badge artwork, and the two pilot brands' own pictures of it are swapped in
+    // on the browser half only (see "the badge named after the mascot carries
+    // the brand's own artwork" below).
     const shared = SHARED_ACHIEVEMENTS.find((a) => a.id === "rexs-best-friend");
     expect(shared).toBeDefined();
     expect(shared!.name).toBe(`${MASCOT_NAME_TOKEN}'s Best Friend`);
@@ -437,6 +491,117 @@ describe("per-brand artwork", () => {
         readFileSync(publicFile(BRANDS["the-xray-group"].colourGameIcon)),
       ),
     ).toBe(false);
+  });
+
+  test("the badge named after the mascot carries the brand's own artwork", async () => {
+    // On 3 Oct 2026 the owner supplied a picture of this ONE badge per pilot
+    // brand: the mascot hugging a heart that spells the badge's own name ("Rex's
+    // Best Friend" / "Stu's Best Friend"), 1233-1234 x 1275 RGBA exports. So it
+    // becomes the second piece of artwork that follows the brand, after the
+    // colouring game's icon. The badge ID is untouched — unlocks are keyed by it
+    // — and so is the `{mascot}`-resolved NAME pinned in the test above: both
+    // brands' pictures already spell the name themselves.
+    //
+    // The master keeps the SHARED file, unversioned and byte-identical: the owner
+    // did not ask for the neutral instance to change, and that file has been live
+    // all along.
+    expect(BRANDS["rad-games"].bestFriendBadgeUrl).toBe("/badges/rexs-best-friend.png");
+    expect(
+      createHash("sha256")
+        .update(readFileSync(publicFile("/badges/rexs-best-friend.png")))
+        .digest("hex"),
+    ).toBe("e9d526f99bb8407e76c1cfcf4ba0b18d6eab0906cf84424ac312da75ac749335");
+
+    for (const id of pilots) {
+      const config = BRANDS[id];
+      expect(config.bestFriendBadgeUrl).toContain(`/brands/${id}/`);
+      expect(config.bestFriendBadgeUrl).not.toBe(BRANDS["rad-games"].bestFriendBadgeUrl);
+      // A NEW address for NEW artwork: both pilot urls carry a stamp, so no
+      // device can answer them out of a cache of the shared picture they replace
+      // (the trap that taught us this is recorded at BAR_LOGO_VERSION).
+      expect(config.bestFriendBadgeUrl).toMatch(/\?v=\d+$/);
+      const file = publicFile(config.bestFriendBadgeUrl);
+      expect(existsSync(file)).toBe(true);
+      const { width, height } = await sharp(file).metadata();
+      // Square, so the badge grid's square `object-contain` slot is filled
+      // without letterboxing (both exports are ~1233x1275 and were fitted into
+      // the square and padded with transparent pixels, never stretched)...
+      expect(width).toBe(512);
+      expect(height).toBe(512);
+      const { data, info } = await sharp(file)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const alphaAt = (x: number, y: number) =>
+        data[(y * info.width + x) * 4 + 3];
+      // ...and transparent around the character, so it sits on the dark card
+      // without a white box, while the mascot still fills the canvas.
+      expect(alphaAt(0, 0)).toBe(0);
+      expect(alphaAt(info.width - 1, info.height - 1)).toBe(0);
+      let inked = 0;
+      for (let y = 0; y < info.height; y++) {
+        for (let x = 0; x < info.width; x++) if (alphaAt(x, y) > 8) inked++;
+      }
+      expect(inked / (info.width * info.height)).toBeGreaterThan(0.25);
+      // Small enough to fetch over a phone's own data in a waiting room (the
+      // owner's 2.1 MB exports are ~97 kB each once fitted to 512 px).
+      expect(readFileSync(file).byteLength).toBeLessThan(102_400);
+    }
+    // Two brands, two pictures: the badge grid must not show the same mascot.
+    expect(
+      readFileSync(publicFile(BRANDS["imaging-queensland"].bestFriendBadgeUrl)).equals(
+        readFileSync(publicFile(BRANDS["the-xray-group"].bestFriendBadgeUrl)),
+      ),
+    ).toBe(false);
+  });
+
+  test("the browser resolves that badge's icon per brand, the server keeps the shared path", () => {
+    // The shared definitions are what the leaderboard server imports, and the
+    // deployed image runs that file verbatim out of `server/` — where the brand
+    // config is not present at all. It also never DRAWS badge artwork (it stores
+    // and returns badge IDs), so its copy of the icon path stays shared and pure,
+    // and the swap lives on the browser half beside the `{mascot}` name.
+    const shared = SHARED_ACHIEVEMENTS.find((a) => a.id === MASCOT_BADGE_ID);
+    expect(shared).toBeDefined();
+    expect(shared!.icon).toBe("/badges/rexs-best-friend.png");
+    for (const id of BRAND_IDS) {
+      expect(badgeIcon(shared!, BRANDS[id])).toBe(BRANDS[id].bestFriendBadgeUrl);
+    }
+    // Every OTHER badge keeps the shared path on every brand.
+    for (const badge of SHARED_ACHIEVEMENTS.filter((a) => a.id !== MASCOT_BADGE_ID)) {
+      for (const id of BRAND_IDS) expect(badgeIcon(badge, BRANDS[id])).toBe(badge.icon);
+    }
+    // The default argument is the running brand, and the array the app draws from
+    // is the resolved one...
+    expect(badgeIcon(shared!)).toBe(brand.bestFriendBadgeUrl);
+    const shown = ACHIEVEMENTS.find((a) => a.id === MASCOT_BADGE_ID);
+    expect(shown).toBeDefined();
+    expect(shown!.icon).toBe(brand.bestFriendBadgeUrl);
+    expect(shown!.name).toBe(`${brand.mascotName}'s Best Friend`);
+    for (const badge of ACHIEVEMENTS) {
+      const fromShared = SHARED_ACHIEVEMENTS.find((a) => a.id === badge.id)!;
+      expect(badge.icon).toBe(
+        badge.id === MASCOT_BADGE_ID ? brand.bestFriendBadgeUrl : fromShared.icon,
+      );
+    }
+    // ...and no render surface may reach the raw shared definitions: the shared
+    // module is imported by the browser half only, and each surface that draws a
+    // badge does it through one of the three accessors there.
+    const importers = srcSources()
+      .filter(([, contents]) =>
+        /from\s+"[^"]*server\/achievement-core"/.test(withoutTypeImports(contents)),
+      )
+      .map(([file]) => file.slice(file.indexOf("/src/") + 5).replace(/^\//, ""));
+    expect(importers).toEqual(["lib/achievements.ts"]);
+    expect(srcFile("../routes/index.tsx")).toContain("getLastEarnedAchievement");
+    expect(srcFile("../routes/achievements.tsx")).toContain("getAchievements");
+    // Every game that shows the unlock toast resolves its badge the same way.
+    const toasts = srcSources().filter(
+      ([file, contents]) =>
+        file.includes("/components/games/") && contents.includes("AchievementToast"),
+    );
+    expect(toasts.length).toBeGreaterThan(0);
+    for (const [, contents] of toasts) expect(contents).toContain("checkAchievements(");
   });
   test("the memory game's face-down tile is one shared picture, at a stamped address", async () => {
     // The face-down card is the same picture on every brand (guest tiles are not
