@@ -59,7 +59,7 @@ const playExperiences = [
     // The title carries the mascot's name, so it comes from the one helper the
     // game page and the leaderboard read too (see `colourGameTitle`).
     title: colourGameTitle(),
-    subtitle: "Colour the mascot",
+    subtitle: "Colour our mascot",
     // The ONE per-brand game icon (owner artwork, 2 Oct 2026); the master's entry
     // in the brand config is still the shared file this tile has always drawn.
     icon: brand.colourGameIcon,

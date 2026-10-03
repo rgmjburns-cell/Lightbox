@@ -148,3 +148,37 @@ What shipped, and how it was derived:
   faces (`public/memory-tile-*.png`) are untouched. Shipped at **512x512**, 98,991
   bytes (the file it replaces was 1,260,812 bytes, ~92% smaller). The file name is
   unchanged, so its address carries a `?v=1` stamp.
+
+## The owner's 3 Oct 2026 supply: the "Best Friend" badge, per pilot brand
+
+Two ImgBB uploads of the ONE badge named after the mascot, archived here before
+anything was processed from them. The master was not asked to change and keeps
+the shared `/badges/rexs-best-friend.png` byte for byte.
+
+| mark | owner's link | resolves to | file | dimensions | alpha | md5 |
+|---|---|---|---|---|---|---|
+| Imaging Queensland — the mascot badge | https://ibb.co/DH9xfB0n | `i.ibb.co/5grNhQbV/96326790-E389-4-E69-949-F-AFA975-A4967-E.png` | `brands/iq-best-friend-badge.png` | 1233x1275 | RGBA, transparent background (46.7% of the canvas alpha 0); content 1199x1169 at 15,56 | `d4077ffd7f8430d16e0f48da152399ce` |
+| The Xray Group — the mascot badge | https://ibb.co/x85WXqt0 | `i.ibb.co/M5NrZkx4/7628-F04-C-D6-B7-4962-9136-CC5482692-A90.png` | `brands/txg-best-friend-badge.png` | 1234x1275 | RGBA, transparent background (47.1% alpha 0); content 1195x1168 at 16,56 | `971d66f58e57959ed14db24834483020` |
+
+What shipped, and how it was derived:
+
+- **Both files are byte-identical to the owner's uploads** (the md5s above are the
+  uploads' own), so the two images are the originals, not re-exports.
+- **Each picture is the same joke in that brand's colours**: the mascot hugging a
+  glossy teal heart that carries the badge's own name, with the cape and the
+  shoulder badge in the brand's colour — Imaging Queensland's is red-caped with
+  the red spiral badge and reads **"Stu's Best Friend"**; The Xray Group's is
+  orange-caped with the orange x badge and reads **"Rex's Best Friend"**. Both
+  already spell the name, which is why neither the badge's ID (`rexs-best-friend`,
+  what unlocks are keyed by) nor its `{mascot}`-resolved NAME changed.
+- Shipped as **512x512** RGBA in `public/brands/<brand>/best-friend-badge.png`
+  (Imaging Queensland 99,179 bytes, The Xray Group 96,197 — both a hair under the
+  100 kB target). Same convention as the 2 Oct colouring-game icons: crop to the
+  visible pixels (alpha > 8), scale the artwork into **96% of a transparent
+  square — never stretched or cropped away** — extend to the square with alpha 0,
+  `png({ compressionLevel: 9, effort: 10 })`. The pipeline is a one-off, like the
+  earlier artwork passes.
+- The urls in `src/lib/brand.ts` (`bestFriendBadgeUrl`) carry a `?v=1` stamp on
+  the two pilot brands — a NEW address for NEW artwork, so no installed app can
+  answer it out of a cache — while the master's is the original unversioned
+  `/badges/rexs-best-friend.png`.

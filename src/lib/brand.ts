@@ -90,6 +90,11 @@
  *   - `icon192Url`/`icon512Url`/`appleTouchIconUrl` are the installed app's
  *     home-screen icons: the PWA manifest and the `apple-touch-icon` link read
  *     them (iOS ignores the manifest, so both are set per brand).
+ *   - `colourGameIcon` (2 Oct 2026) and `bestFriendBadgeUrl` (3 Oct 2026) are the
+ *     two pieces of GAME artwork that follow the brand: the colouring game's tile
+ *     icon, and the picture of the badge named after the mascot. Every other game
+ *     icon and badge is still the shared file, and the neutral master keeps the
+ *     shared file for both of these too.
  *
  * Each of those is a path under `public/`, so a brand change is a config edit and
  * a file drop. The per-brand files are produced from the owner's originals by
@@ -259,6 +264,34 @@ export interface BrandConfig {
    * bar logos (see `BAR_LOGO_VERSION`).
    */
   colourGameIcon: string;
+  /**
+   * Path under public/ for the artwork of the badge named after the mascot —
+   * "Rex's Best Friend" on the master and The Xray Group, "Stu's Best Friend" on
+   * Imaging Queensland (`rexs-best-friend`, the badge id the owner has not asked
+   * to change).
+   *
+   * The owner supplied a per-brand picture of that one badge on 3 Oct 2026 — the
+   * mascot hugging a heart that carries the badge's own name in that brand's
+   * cape colour — so it joins `colourGameIcon` as the second piece of artwork
+   * that follows the brand. The badge's ID and the `{mascot}`-resolved NAME are
+   * untouched: the id is what unlocks are keyed by, and both brands' pictures
+   * already spell the name themselves.
+   *
+   * The shared definitions in `server/achievement-core.ts` stay pure and keep the
+   * shared path — the deployed image runs that file verbatim from `server/`,
+   * where this config is not present at all, and it never draws badge artwork —
+   * so the swap happens in `src/lib/achievements.ts`, exactly where the name
+   * token is resolved (see `ACHIEVEMENTS` there).
+   *
+   * The master deliberately keeps the shared `/badges/rexs-best-friend.png`,
+   * unstamped and byte-identical, because that file has been live all along and
+   * the owner did not ask for it to move. The two pilot urls carry a `?v=1`
+   * stamp: these are NEW addresses for NEW artwork, so no device can answer them
+   * out of a cache (see `BAR_LOGO_VERSION` for why the ADDRESS, not just the
+   * file, is what reaches an installed app). Bump that stamp — `?v=2`, … — the
+   * next time either file is re-supplied.
+   */
+  bestFriendBadgeUrl: string;
 }
 
 /** The game product's name, used by every brand. */
@@ -356,6 +389,11 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // 2026): the master is the neutral instance and keeps drawing the shared
     // file it has always drawn, at its original unversioned address.
     colourGameIcon: "/icons/icon-colour-rex.png",
+    // The badge named after the mascot keeps the SHARED artwork (owner
+    // direction, 3 Oct 2026: the two pilot brands were given their own picture
+    // of it, the neutral instance was not). This file has been live all along,
+    // so it keeps its original unversioned address and its exact bytes.
+    bestFriendBadgeUrl: "/badges/rexs-best-friend.png",
   },
   "imaging-queensland": {
     brandId: "imaging-queensland",
@@ -414,6 +452,13 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // mascot wears the brand's real colours; the shared file above is untouched
     // and the master still draws it.
     colourGameIcon: "/brands/imaging-queensland/colour-game-icon.png?v=1",
+    // Imaging Queensland's OWN picture of the badge named after the mascot
+    // (owner artwork, 3 Oct 2026, https://ibb.co/DH9xfB0n): Stu hugging a teal
+    // heart reading "Stu's Best Friend", 512x512 from a 1233x1275 export fitted
+    // into the square and padded with transparent pixels (never stretched). The
+    // shared file is untouched and the master still draws it; a NEW address
+    // (`?v=1`) so no device answers it out of a cache of the shared picture.
+    bestFriendBadgeUrl: "/brands/imaging-queensland/best-friend-badge.png?v=1",
   },
   "the-xray-group": {
     brandId: "the-xray-group",
@@ -462,6 +507,13 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // Queensland's, the owner's art is what ships, so this instance's mascot
     // wears the brand's real colours.
     colourGameIcon: "/brands/the-xray-group/colour-game-icon.png?v=1",
+    // The Xray Group's OWN picture of the badge named after the mascot (owner
+    // artwork, 3 Oct 2026, https://ibb.co/x85WXqt0): Rex hugging a teal heart
+    // reading "Rex's Best Friend", 512x512 from a 1234x1275 export fitted into
+    // the square and padded with transparent pixels (never stretched). As with
+    // Imaging Queensland's, the shared file is untouched, the master still draws
+    // it, and the `?v=1` stamp makes this a NEW address a cache cannot answer.
+    bestFriendBadgeUrl: "/brands/the-xray-group/best-friend-badge.png?v=1",
   },
 };
 
