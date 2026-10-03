@@ -381,7 +381,17 @@ export default function MemoryScan() {
                   }}
                 >
                   <img
-                    src="/rex-memory-tile.png"
+                    // The face-down tile: ONE shared picture for every brand (the
+                    // owner's 2 Oct 2026 re-supply of this file — a glossy teal
+                    // tile carrying a scan glyph, in place of the earlier Rex
+                    // one). The file name is unchanged, so the address carries a
+                    // `?v=1` stamp: without it a device that cached the previous
+                    // bytes would keep drawing the old tile (see
+                    // `BAR_LOGO_VERSION` in src/lib/brand.ts for the case that
+                    // taught us this — an installed app answers from its own
+                    // disk cache). Bump the stamp the next time this file is
+                    // replaced.
+                    src="/rex-memory-tile.png?v=1"
                     alt={`${brand.mascotName} tile`}
                     draggable={false}
                     className="w-full h-full object-cover"

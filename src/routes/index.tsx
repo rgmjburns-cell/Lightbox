@@ -60,7 +60,9 @@ const playExperiences = [
     // game page and the leaderboard read too (see `colourGameTitle`).
     title: colourGameTitle(),
     subtitle: "Colour the mascot",
-    icon: "/icons/icon-colour-rex.png",
+    // The ONE per-brand game icon (owner artwork, 2 Oct 2026); the master's entry
+    // in the brand config is still the shared file this tile has always drawn.
+    icon: brand.colourGameIcon,
     color: "from-secondary/80 to-primary/50",
     built: true,
   },
