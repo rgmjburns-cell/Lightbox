@@ -666,6 +666,90 @@ describe("per-brand artwork", () => {
     expect(master.icon512Url).toBe("/icon-512.png");
     expect(master.appleTouchIconUrl).toBe("/apple-touch-icon.png?v=3");
   });
+
+  test("the add-to-phone page's icon follows the brand, and the master's is untouched", async () => {
+    // The add-to-phone page's final card shows "this is what lands on your Home
+    // Screen". Until 3 Oct 2026 that was the SHARED `/icon-512.png` on every
+    // instance; the owner then supplied each pilot brand its own app-icon
+    // picture ("rounded, per brand, like an app icon") and the master was
+    // deliberately left alone.
+    const master = BRANDS["rad-games"];
+    expect(master.addToPhoneIconUrl).toBe("/icon-512.png");
+    // The master's file is the same bytes it has always served, so the live
+    // neutral instance cannot move because of this change...
+    expect(
+      createHash("sha256")
+        .update(readFileSync(publicFile("/icon-512.png")))
+        .digest("hex"),
+    ).toBe("8b5deebc0a8cde95dde8953a1b6eeb4d219a46f8839fe05eb28a81dc399313ff");
+    for (const id of pilots) {
+      const config = BRANDS[id];
+      expect(config.addToPhoneIconUrl).toContain(`/brands/${id}/`);
+      expect(config.addToPhoneIconUrl).not.toBe(master.addToPhoneIconUrl);
+      // A NEW address for new artwork: the `?v=1` stamp is what stops a device
+      // answering it out of a cache of the square `/icon-512.png` this instance
+      // used to draw here (the trap recorded at BAR_LOGO_VERSION).
+      expect(config.addToPhoneIconUrl).toMatch(/\?v=\d+$/);
+      const file = publicFile(config.addToPhoneIconUrl);
+      expect(existsSync(file)).toBe(true);
+      const meta = await sharp(file).metadata();
+      expect(meta.format).toBe("png");
+      // One square, at the size the DONE card's 80 CSS px slot wants on a 2x
+      // phone, with alpha the supplied exports do not have: the rounding is a
+      // mask, not a CSS clip that a later style change could drop.
+      expect([meta.width, meta.height]).toEqual([512, 512]);
+      expect(meta.hasAlpha).toBe(true);
+      const { data, info } = await sharp(file)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const alphaAt = (x: number, y: number) => data[(y * info.width + x) * 4 + 3];
+      // ...the four corners are transparent (the iOS corner radius, ~22% of the
+      // side, is baked into the file)...
+      for (const [x, y] of [
+        [0, 0],
+        [info.width - 1, 0],
+        [0, info.height - 1],
+        [info.width - 1, info.height - 1],
+      ]) {
+        expect(alphaAt(x, y)).toBe(0);
+      }
+      // ...while the edges' midpoints and the middle stay opaque, so the artwork
+      // is not mostly transparent or half-masked...
+      expect(alphaAt(Math.floor(info.width / 2), 0)).toBe(255);
+      expect(alphaAt(0, Math.floor(info.height / 2))).toBe(255);
+      expect(alphaAt(Math.floor(info.width / 2), Math.floor(info.height / 2))).toBe(255);
+      // ...and it is a picture a waiting-room phone can fetch.
+      expect(readFileSync(file).byteLength).toBeLessThan(150_000);
+    }
+    // Two brands, two pictures: the card must not show the same mascot.
+    expect(
+      readFileSync(publicFile(BRANDS["imaging-queensland"].addToPhoneIconUrl)).equals(
+        readFileSync(publicFile(BRANDS["the-xray-group"].addToPhoneIconUrl)),
+      ),
+    ).toBe(false);
+    // The PWA/manifest icons are NOT this file: they stay the owner's opaque
+    // square, exactly as supplied (iOS paints transparency black on the home
+    // screen), so the two must never be pointed at the same bytes.
+    for (const id of pilots) {
+      expect(BRANDS[id].addToPhoneIconUrl).not.toBe(BRANDS[id].icon512Url);
+    }
+  });
+
+  test("the add-to-phone page draws the brand's own icon in its done card", () => {
+    // The markup pin: the page must read the brand field, not a fixed path. The
+    // alt text stays mascotName-driven (pinned in "every user-facing mention of
+    // the mascot reads the brand config" above), so this test only follows the
+    // `src`.
+    const page = srcFile("../routes/qr.tsx");
+    expect(page).toMatch(
+      /<img\s+src=\{brand\.addToPhoneIconUrl\}\s+alt=\{`\$\{brand\.mascotName\} Home Screen icon`\}/,
+    );
+    // ...and no hard-coded icon path may come back: that literal is what made
+    // all three instances show the shared picture.
+    expect(page).not.toContain('"/icon-512.png"');
+    expect(page).not.toContain("'/icon-512.png'");
+  });
 });
 
 describe("brand logo asset", () => {
@@ -1456,5 +1540,51 @@ describe("manifestFor", () => {
     expect(manifestFor()).toEqual(manifestFor(brand));
     expect(manifestFor().name).toBe(PRODUCT_NAME);
     expect(manifestFor().description).toContain(brand.brandName);
+  });
+});
+
+/**
+ * The add-to-phone page's step glyphs — pinned here because this file already
+ * pins that page's brand-driven copy (see "every user-facing mention of the
+ * mascot reads the brand config"), and because nothing at runtime can catch a
+ * glyph that points the wrong way: it renders, it is the right size, and it is
+ * only wrong to a human eye.
+ */
+describe("the add-to-phone page's Share step glyph", () => {
+  const page = srcFile("../routes/qr.tsx");
+  /** The Share case's own markup, up to the next icon (`menu`). */
+  const share = page.slice(page.indexOf("function StepIcon"), page.indexOf('case "menu"'));
+
+  test("the share icon is an arrow leaving the box, not an arrow going into it", () => {
+    // The page told the owner's patients to tap "the square with the arrow up",
+    // but the glyph shipped as a DOWNLOAD arrow: a shaft down the middle of an
+    // open tray with its head at the BOTTOM. The owner caught it on a phone on
+    // 3 Oct 2026 ("it has the download arrow instead of the share arrow").
+    //
+    // The tray: a rounded box whose TOP edge is open in the middle — the path
+    // draws down the sides and across the bottom only, leaving the arrow a gap
+    // to come through.
+    expect(share).toContain('d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"');
+    // The arrowhead, at the top of the viewBox...
+    const head = share.match(/<polyline points="([^"]+)" \/>/);
+    expect(head).not.toBeNull();
+    const headY = head![1]
+      .split(/\s+/)
+      .map(Number)
+      .filter((_, i) => i % 2 === 1);
+    // ...every point of it ABOVE the tray's top edge (y = 12), which is what
+    // makes the arrow read as leaving the box rather than going into it...
+    expect(Math.max(...headY)).toBeLessThan(12);
+    // ...and the shaft starts up there with the head and drops through the
+    // opening into the box.
+    const shaft = share.match(/<line x1="(\d+)" y1="(\d+)" x2="(\d+)" y2="(\d+)" \/>/);
+    expect(shaft).not.toBeNull();
+    expect(Number(shaft![2])).toBeLessThan(12);
+    expect(Number(shaft![4])).toBeGreaterThan(12);
+    // Same stroke as the menu/home/check icons beside it, so the steps stay one set.
+    expect(share).toContain('stroke={stroke} strokeWidth="2"');
+    // The download glyph it replaced — shaft from y=3 to y=16 under a head at
+    // its bottom — is gone from the page, not just from this case.
+    expect(page).not.toContain('d="M12 3v13m0 0l-4-4m4 4l4-4"');
   });
 });

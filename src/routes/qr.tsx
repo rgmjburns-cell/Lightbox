@@ -234,7 +234,7 @@ function AddToPhonePage() {
       {/* ── Final step: done ── */}
       <div className="card p-5 flex flex-col items-center text-center">
         <img
-          src="/icon-512.png"
+          src={brand.addToPhoneIconUrl}
           alt={`${brand.mascotName} Home Screen icon`}
           className="w-20 h-20 rounded-2xl shadow-md mb-3"
         />
@@ -279,10 +279,23 @@ function StepIcon({ name }: { name: "share" | "menu" | "home" | "check" }) {
   const stroke = "#008C95";
   switch (name) {
     case "share":
+      // The iOS Share button, as the step's own words describe it: "the square
+      // with the arrow up" (STEP text above). The tray's top edge is open in the
+      // middle and the arrow stands ABOVE it — the arrowhead sits at the top of
+      // the viewBox (y=2..6, clearly outside the tray, which starts at y=12) and
+      // the shaft drops through the opening to y=15.
+      //
+      // What it replaced (owner report, 3 Oct 2026: "it has the download arrow
+      // instead of the share arrow"): `M4 12v6…v-6` plus a shaft from y=3 down
+      // to y=16 ending in a head at its BOTTOM — an arrow pointing DOWN into a
+      // closed tray, i.e. the download/save glyph. A shorter tray (y12→y18 vs
+      // y12→y20) did not change which way the arrow pointed; only moving the head
+      // above the container does.
       return (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6" />
-          <path d="M12 3v13m0 0l-4-4m4 4l4-4" />
+          <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+          <polyline points="16 6 12 2 8 6" />
+          <line x1="12" y1="2" x2="12" y2="15" />
         </svg>
       );
     case "menu":

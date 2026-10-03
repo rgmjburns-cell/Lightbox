@@ -182,3 +182,39 @@ What shipped, and how it was derived:
   the two pilot brands — a NEW address for NEW artwork, so no installed app can
   answer it out of a cache — while the master's is the original unversioned
   `/badges/rexs-best-friend.png`.
+## The owner's add-to-phone app icon, per brand (3 Oct 2026)
+The add-to-phone page's final card had been showing the SHARED `/icon-512.png` on
+every instance. The owner asked for the brand's own picture there — "rounded, per
+brand, like an app icon" — and supplied one image per pilot brand through ImgBB.
+Both uploads turn out to be **the same two files this directory already archives**
+as the source of each brand's PWA icons, byte for byte:
+
+| brand | owner's link | resolves to | archived file | dimensions | alpha | md5 |
+|---|---|---|---|---|---|---|
+| The Xray Group | https://ibb.co/1t0J8yKk | `i.ibb.co/JwcF5629/4-F9-FEAE3-DB39-4724-A213-BE492667-D8-AC.png` | `brands/txg-app-icon.png` | 1024x1024 | **RGB, no alpha** — an opaque white field carrying Rex built from blue tiles that form the X, orange cape and the brand's orange x badge | `10d703e3ee1c36696a96791e4d2cf02d` |
+| Imaging Queensland | https://ibb.co/k2nGMQ0y | `i.ibb.co/r2PQv4Mt/DB97-B3-D3-B4-DA-4-D96-B64-E-C7-E77969-B370.png` | `brands/iq-app-icon.png` | 1254x1254 | **RGB, no alpha** — an opaque white field carrying Stu flying with the red cape and the brand's red spiral behind him | `a672da9eef426568c48db0061eb943b3` |
+- Both links were fetched a second time when this page icon was made: 496,163
+  bytes for The Xray Group and 2,082,994 for Imaging Queensland, md5 identical to
+  the archived files above and to the copies the owner's artwork directory holds.
+  So no new original was added here, and the archive was already complete.
+What shipped, and how it was derived:
+- `public/brands/<brand>/add-to-phone-icon.png`, **512x512 RGBA** — Imaging
+  Queensland 119,863 bytes, The Xray Group 34,054 (both well under the 150 kB
+  budget this app holds per-brand artwork to). `scripts/brand-artwork-assets.mjs`
+  scales the archived square with lanczos3, forces alpha on (`ensureAlpha()` — the
+  supplied exports have no alpha channel), composits an SVG rounded rectangle
+  `dest-in` and encodes with `png({compressionLevel: 9, effort: 10,
+  adaptiveFiltering: false })`. The rectangle's radius is **113 px of 512 (22%)**,
+  the iOS home-screen corner, so the picture has genuinely transparent corners.
+- **The rounding is baked into the file, not left to CSS.** The page keeps its
+  own `rounded-2xl` clip (the master's card has always had one, and master still
+  draws the unrounded shared file), but the two pilot files are rounded on their
+  own, so the icon reads as an app icon even where that class is lost.
+- **The PWA icons are untouched by this.** The manifest and apple-touch icons
+  (`icon-512/192/180.png`) stay the owner's opaque square, exactly as supplied —
+  iOS paints transparency black on the home screen — and the shared
+  `/icon-512.png` is unchanged. This file is the page's picture only.
+- The urls in `src/lib/brand.ts` (`addToPhoneIconUrl`) carry a `?v=1` stamp on the
+  two pilot brands — a NEW address for NEW artwork, so no device answers it out of
+  a cache of the square `/icon-512.png` they used to draw — while the master's is
+  the original unversioned `/icon-512.png`.
