@@ -292,6 +292,29 @@ export interface BrandConfig {
    * next time either file is re-supplied.
    */
   bestFriendBadgeUrl: string;
+  /**
+   * The app-icon picture the add-to-phone page (`src/routes/qr.tsx`) shows in
+   * its final "done" card — "this is what will appear on your Home Screen".
+   *
+   * It is NOT any of the PWA icons above, even though a pilot brand's file is
+   * derived from the same owner export: the manifest/apple-touch icons are the
+   * owner's opaque square, byte for byte, because iOS paints transparency black
+   * and the artwork has to be ready for the home screen itself. This one is the
+   * page's picture, drawn on the app's own navy-and-white theme at 80 CSS px, so
+   * it is a 512x512 PNG with the iOS corner radius (~22%) masked into the file —
+   * transparent corners, nothing left to a CSS clip that a later style change
+   * could drop — which is what makes it read as "an app icon" (owner ask, 3 Oct
+   * 2026: "rounded, per brand, like an app icon").
+   *
+   * The master keeps `/icon-512.png` exactly as it is: the same file its DONE
+   * card has always drawn, unstamped and byte-identical, because the owner did
+   * not ask for the neutral instance to move. The two pilot urls carry a `?v=1`
+   * stamp — NEW addresses for NEW artwork, so no device answers them out of a
+   * cache of the square file they replace (see `BAR_LOGO_VERSION` for why the
+   * ADDRESS is what reaches an installed app). Bump that stamp the next time
+   * either file is re-supplied.
+   */
+  addToPhoneIconUrl: string;
 }
 
 /** The game product's name, used by every brand. */
@@ -394,6 +417,11 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // of it, the neutral instance was not). This file has been live all along,
     // so it keeps its original unversioned address and its exact bytes.
     bestFriendBadgeUrl: "/badges/rexs-best-friend.png",
+    // The add-to-phone page's picture stays the file this instance has always
+    // drawn (owner direction, 3 Oct 2026: the two pilot brands were given their
+    // own app icon, the neutral instance was not). Unstamped and byte-identical,
+    // so nothing about the live master moves.
+    addToPhoneIconUrl: "/icon-512.png",
   },
   "imaging-queensland": {
     brandId: "imaging-queensland",
@@ -459,6 +487,16 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // shared file is untouched and the master still draws it; a NEW address
     // (`?v=1`) so no device answers it out of a cache of the shared picture.
     bestFriendBadgeUrl: "/brands/imaging-queensland/best-friend-badge.png?v=1",
+    // Imaging Queensland's OWN app-icon picture for the add-to-phone page's DONE
+    // card (owner artwork, 3 Oct 2026, https://ibb.co/k2nGMQ0y): Stu flying with
+    // his red cape and the brand's red spiral behind him — the same supplied
+    // export the PWA icons are made from, but scaled to 512x512 with the iOS
+    // corner radius (~113 px, 22%) masked into the file, so the page's picture
+    // is rounded with transparent corners without any CSS doing it. New address
+    // (`?v=1`) so no device answers it out of a cache of `/icon-512.png`, which
+    // this instance used to draw here; the shared file and every manifest icon
+    // are untouched.
+    addToPhoneIconUrl: "/brands/imaging-queensland/add-to-phone-icon.png?v=1",
   },
   "the-xray-group": {
     brandId: "the-xray-group",
@@ -514,6 +552,14 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // Imaging Queensland's, the shared file is untouched, the master still draws
     // it, and the `?v=1` stamp makes this a NEW address a cache cannot answer.
     bestFriendBadgeUrl: "/brands/the-xray-group/best-friend-badge.png?v=1",
+    // The Xray Group's OWN app-icon picture for the add-to-phone page's DONE
+    // card (owner artwork, 3 Oct 2026, https://ibb.co/1t0J8yKk): Rex made of
+    // blue tiles forming the X, orange cape and the brand's orange x badge — the
+    // same supplied export the PWA icons are made from, scaled to 512x512 with
+    // the iOS corner radius (~113 px, 22%) masked into the file, so it reads as
+    // the icon the phone is about to install. New address (`?v=1`), shared file
+    // and manifest icons untouched, exactly as for Imaging Queensland.
+    addToPhoneIconUrl: "/brands/the-xray-group/add-to-phone-icon.png?v=1",
   },
 };
 

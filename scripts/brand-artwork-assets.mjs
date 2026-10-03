@@ -15,6 +15,9 @@
  *   public/brands/<brand>/icon-512.png       PWA / home-screen icon
  *   public/brands/<brand>/icon-192.png       PWA / home-screen icon
  *   public/brands/<brand>/icon-180.png       iOS apple-touch-icon
+ *   public/brands/<brand>/add-to-phone-icon.png
+ *                                            the app icon the add-to-phone page
+ *                                            shows in its DONE card (rounded)
  *
  * Two conventions are inherited from the artwork these accompany, so a brand
  * instance looks like the master and not like a differently-scaled app:
@@ -53,6 +56,16 @@
  * below is deliberately faithful — the supplied square is scaled to each install
  * size, never re-cropped or re-margined, so what the owner drew is what installs.
  *
+ * `add-to-phone-icon.png` is the ONE derived file that is not just a resize: it
+ * is the same supplied square, scaled to `ADD_TO_PHONE_SIZE` and masked to a
+ * rounded square (`ADD_TO_PHONE_RADIUS`, ~22% — the iOS corner), leaving
+ * transparent corners. It is what the add-to-phone page's DONE card draws
+ * (owner ask, 3 Oct 2026: "rounded, per brand, like an app icon"), and the
+ * rounding is BAKED INTO THE FILE, not left to a CSS clip that a later style
+ * change could drop. It is deliberately NOT the manifest/PWA icon (those keep
+ * the owner's opaque square, byte for byte, as supplied): this file is the
+ * page's picture only. The three `icon-*.png` files above are untouched by it.
+ *
  * Run from the repo root:  node scripts/brand-artwork-assets.mjs
  * Originals live in public/_originals/brands/ and are never modified.
  */
@@ -83,11 +96,15 @@ const BRANDS = {
     homeLogoKeep: true,
     rex: "iq-rex.png",
     icon: "iq-app-icon.png",
+    // Owner artwork, 3 Oct 2026 (the same archived export the PWA icons come
+    // from): the add-to-phone page's DONE card draws this brand's own picture.
+    addToPhoneIcon: "iq-app-icon.png",
   },
   "the-xray-group": {
     logo: "txg-logo.png",
     rex: "txg-rex.png",
     icon: "txg-app-icon.png",
+    addToPhoneIcon: "txg-app-icon.png",
   },
 };
 
@@ -117,8 +134,26 @@ const REX_WIDTH_FILL = 0.853;
 
 /** The icon sizes the manifest and iOS ask for. */
 const ICON_SIZES = [512, 192, 180];
+/**
+ * The add-to-phone page's app-icon picture: one square, one corner radius.
+ * 512 is the size the owner's PWA icons already ship at and crisp at 80 CSS px
+ * on any phone; `ADD_TO_PHONE_RADIUS` is 22% of the side — 113 px of 512 — the
+ * corner radius iOS gives its own home-screen icons, so the picture the page
+ * shows reads as "the icon you are about to install".
+ */
+const ADD_TO_PHONE_SIZE = 512;
+const ADD_TO_PHONE_RADIUS_RATIO = 0.22;
 
 const PNG = { compressionLevel: 9, effort: 10, adaptiveFiltering: true };
+/**
+ * Encoding for the add-to-phone icon only: the shared `PNG` options plus
+ * `adaptiveFiltering: false`. Adaptive filtering (right for the flat, mostly
+ * empty logos above) costs 25% on this file — 150,143 bytes for Imaging
+ * Queensland against 119,863 without it — and buys no visible difference on a
+ * full-bleed illustration, so the picture stays under the 150 kB budget the
+ * other per-brand artwork is held to.
+ */
+const PNG_ADD_TO_PHONE = { ...PNG, adaptiveFiltering: false };
 
 /** The bounding box of everything above `ALPHA_CUTOFF`, in pixels. */
 async function visibleBoxOf(pipeline, label) {
@@ -296,6 +331,66 @@ async function writeIcons(file, dir) {
   }
   return out;
 }
+/**
+ * The md5 of the owner's archived app-icon export, per brand, as it sits in
+ * `public/_originals/brands/`. Both files were supplied through ImgBB links and
+ * downloaded twice — once after the owner sent them and once when this rounded
+ * file was added — with the same md5 each time (`public/_originals/README.md`
+ * records the links). Checking it here means a later re-supply dropped in under
+ * the same file name cannot silently reach the page without being archived and
+ * recorded first.
+ */
+const ADD_TO_PHONE_SRC_MD5 = {
+  "imaging-queensland": "a672da9eef426568c48db0061eb943b3",
+  "the-xray-group": "10d703e3ee1c36696a96791e4d2cf02d",
+};
+/**
+ * The add-to-phone page's app-icon picture: the supplied square, scaled to
+ * `ADD_TO_PHONE_SIZE` and masked to a rounded square with TRANSPARENT corners.
+ *
+ * The mask is an SVG rounded rectangle composited `dest-in`, which multiplies
+ * the artwork's alpha by the mask's — the artwork itself (an opaque RGB export)
+ * is never keyed, cropped or re-margined, so Rex sits exactly where the owner
+ * drew him and only the four corners become see-through. Alpha is forced on
+ * first because the supplied PNGs carry no alpha channel at all, and a
+ * `dest-in` composite onto RGB artwork would have nothing to multiply.
+ */
+async function writeAddToPhoneIcon(file, dest, expectedMd5) {
+  const md5 = createHash("md5").update(readFileSync(file)).digest("hex");
+  if (md5 !== expectedMd5) {
+    throw new Error(
+      `${file}: md5 ${md5} is not the recorded owner export ${expectedMd5} — archive the new ` +
+        `supply in ${SRC} and record it before shipping it`,
+    );
+  }
+  const meta = await sharp(file).metadata();
+  if (meta.width !== meta.height) {
+    throw new Error(`${file}: ${meta.width}x${meta.height} is not square`);
+  }
+  const radius = Math.round(ADD_TO_PHONE_SIZE * ADD_TO_PHONE_RADIUS_RATIO);
+  const mask = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${ADD_TO_PHONE_SIZE}" height="${ADD_TO_PHONE_SIZE}">` +
+      `<rect width="${ADD_TO_PHONE_SIZE}" height="${ADD_TO_PHONE_SIZE}" rx="${radius}" ry="${radius}" fill="#fff"/>` +
+      `</svg>`,
+  );
+  const info = await sharp(file)
+    .resize(ADD_TO_PHONE_SIZE, ADD_TO_PHONE_SIZE, { fit: "fill", kernel: "lanczos3" })
+    .ensureAlpha()
+    .composite([{ input: mask, blend: "dest-in" }])
+    .png(PNG_ADD_TO_PHONE)
+    .toFile(dest);
+  const out = await sharp(dest).metadata();
+  return {
+    dest,
+    width: info.width,
+    height: info.height,
+    bytes: info.size,
+    radius,
+    src: `${meta.width}x${meta.height}`,
+    hasAlpha: out.hasAlpha,
+    md5,
+  };
+}
 
 const report = [];
 const originals = readdirSync(SRC);
@@ -307,6 +402,9 @@ for (const [brand, files] of Object.entries(BRANDS)) {
   }
   if (files.homeLogo && !originals.includes(files.homeLogo)) {
     throw new Error(`missing original ${SRC}/${files.homeLogo}`);
+  }
+  if (!originals.includes(files.addToPhoneIcon)) {
+    throw new Error(`missing original ${SRC}/${files.addToPhoneIcon}`);
   }
   report.push({
     brand,
@@ -322,6 +420,11 @@ for (const [brand, files] of Object.entries(BRANDS)) {
       : null,
     rex: await writeRex(path.join(SRC, files.rex), path.join(dir, "rex.png")),
     icons: await writeIcons(path.join(SRC, files.icon), dir),
+    addToPhone: await writeAddToPhoneIcon(
+      path.join(SRC, files.addToPhoneIcon),
+      path.join(dir, "add-to-phone-icon.png"),
+      ADD_TO_PHONE_SRC_MD5[brand],
+    ),
   });
 }
 
@@ -340,4 +443,9 @@ for (const row of report) {
   for (const icon of row.icons) {
     console.log(`  icon-${icon.size}.png      ${icon.size}x${icon.size}  ${kB(icon.bytes)}${icon.hasAlpha ? "" : "  (opaque, as supplied)"}`);
   }
+  const atp = row.addToPhone;
+  console.log(
+    `  add-to-phone-icon.png  ${atp.width}x${atp.height}  ${kB(atp.bytes)}  (scaled from ${atp.src}, ` +
+      `radius ${atp.radius}px${atp.hasAlpha ? ", transparent corners" : " — NO ALPHA, mask lost"}, md5 ${atp.md5})`,
+  );
 }
