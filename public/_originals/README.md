@@ -85,7 +85,7 @@ md5, so any later re-supply can be compared byte for byte.
   home-screen game tiles use) are unchanged and remained a display clip in that
   version: the `<img>` box was clipped rather than the artwork pre-rounded.
 
-## The owner's third Imaging Queensland supply (1 Oct 2026) — the current mark
+## The owner's third Imaging Queensland supply (1 Oct 2026) — superseded 7 Oct 2026
 
 The owner rejected the white-field export above and sent the same lockup with the
 corners rounded **in the artwork itself**. Same provenance discipline: the ImgBB
@@ -93,7 +93,7 @@ link, the image its page resolves to, its dimensions, its alpha and its md5.
 
 | mark | owner's link | resolves to | file | dimensions | alpha | md5 |
 |---|---|---|---|---|---|---|
-| Imaging Queensland (current) | https://ibb.co/wNRDDWr5 | `i.ibb.co/xSDVVj8x/D771-F476-0844-4512-89-F9-56-BE1-BF3-DE4-F.png` | `brands/iq-home-logo-2026-10-01-owner-rounded.png` | 2170x725 | **RGBA**, transparent corners (17.0% of the canvas fully transparent; solid field 1,289,654 px = a red #DF1C2B-ish field 84.7% of it, carrying the lockup in white 11.2%) | `c16f680faac96392bcc84a4b0ff69f9c` |
+| Imaging Queensland (superseded 7 Oct, see the next section but one) | https://ibb.co/wNRDDWr5 | `i.ibb.co/xSDVVj8x/D771-F476-0844-4512-89-F9-56-BE1-BF3-DE4-F.png` | `brands/iq-home-logo-2026-10-01-owner-rounded.png` | 2170x725 | **RGBA**, transparent corners (17.0% of the canvas fully transparent; solid field 1,289,654 px = a red #DF1C2B-ish field 84.7% of it, carrying the lockup in white 11.2%) | `c16f680faac96392bcc84a4b0ff69f9c` |
 
 - This upload IS what ships, byte for byte: `brands/imaging-queensland/home-logo.png`
   is a copy of the original archived here (1,772,328 bytes, ~1.69 MiB), and
@@ -113,6 +113,38 @@ link, the image its page resolves to, its dimensions, its alpha and its md5.
   slot at which the rejected 300x210 export drew ~51x36 and the original 583x174
   export drew ~120x36 — the weight the owner wanted back, measured from the rendered
   page and recorded in `/home/team/shared/new-iq-logo/r2/MEASUREMENTS.md`.
+
+## The owner's fourth Imaging Queensland supply (7 Oct 2026) — the current mark
+
+The owner replaced the red plate: *"we have another logo for the top transparent line
+to replace the red one… make it as big as the xray group one… the last red one was too
+small."* Same provenance discipline — the link, the image its page resolves to, the
+dimensions, the alpha and the md5 — and the upload ships byte for byte.
+
+| mark | owner's link | resolves to | file | dimensions | alpha | md5 |
+|---|---|---|---|---|---|---|
+| Imaging Queensland (current) | https://ibb.co/NntwHkBr | `i.ibb.co/3Y4tL8Zv/IMG-1791.png` | `brands/iq-home-logo-2026-10-07.png` | 583x174 | **RGBA**, true transparency and no plate: solid ink 11,235 px, ink spans 524x173 of the canvas, all four canvas corners alpha 0 | `2d23edc5af90f75ec8b4971ae5c95896` |
+
+- This upload IS what ships, byte for byte (23,382 bytes):
+  `brands/imaging-queensland/home-logo.png` is a copy of the original archived here,
+  and `scripts/brand-artwork-assets.mjs` copies **this** original through under
+  `homeLogoKeep: true`, with `HOME_LOGO_MD5` now `2d23edc5…`. It is 76x lighter on the
+  wire than the 1.69 MiB file it retires — a bar mark is only ever drawn 36 CSS px
+  tall, so nothing in that file's resolution was being used.
+- Why the owner saw the previous one as "too small", measured rather than assumed:
+  the bar sizes EVERY mark by height (`h-9` = 36 CSS px, one shared class for all
+  three instances), so what a player reads is the ink's share of the artwork's own
+  canvas. The retired 2170x725 plate spent 15.5% of its height on transparent margin
+  — 613 of its 725 rows carried ink — so it drew **30.4 CSS px** tall against The
+  Xray Group's **35.7** (350x117 of 351x118). This cut-out's ink reaches the canvas
+  edges (173 of 174 rows, 524 of 583 columns), so it draws **35.8 CSS px** on the
+  very same class: within a tenth of a CSS px of The Xray Group's, with no CSS
+  changed on any instance and nothing touched for TXG or the master. The parity is
+  pinned in `src/lib/brand.test.ts` (it measures both files' ink, and the retired
+  file's 0.845 as the counter-example).
+- The stamp moved to `?v=4` for this one file (`HOME_LOGO_VERSION` in
+  `src/lib/brand.ts`); The Xray Group's `?v=3` and the shared mark's `?v=3` are
+  unchanged, because their bytes did not change.
 
 ## The owner's 2 Oct 2026 supply: the colouring game's icon, per brand, and a new memory tile
 
