@@ -205,11 +205,11 @@ export interface BrandConfig {
   };
   /**
    * Path under public/ for the app header's mark (`src/routes/__root.tsx`): the
-   * shared Rad Games mark in all three entries (owner direction, 29 Sep). Like
-   * `homeLogoUrl` it ends in the bar-logo version stamp `?v=3` — see
-   * `BAR_LOGO_VERSION` below for why the address, and not just the file, is
-   * versioned. The welcome screen draws `welcomeLogoUrl` instead, and the games
-   * home screen its own `homeLogoUrl`.
+   * shared Rad Games mark in all three entries (owner direction, 29 Sep). It ends
+   * in the bar-logo version stamp `?v=3` — see `BAR_LOGO_VERSION` below for why
+   * the address, and not just the file, is versioned. The welcome screen draws
+   * `welcomeLogoUrl` instead, and a pilot instance's top bar its own
+   * `homeLogoUrl` on the right.
    */
   logoUrl: string;
   /** The accessible name for the mark above (the brand's name). */
@@ -238,8 +238,11 @@ export interface BrandConfig {
    * `rounded-2xl` element clip added on 1 Oct was removed on 2 Oct (the owner's
    * square-cornered The Xray Group logo looked cut off under it; see the bar's own
    * note in `src/routes/__root.tsx`) — so every file here must read on that glass
-   * as its own artwork. The url ends
-   * in the bar-logo version stamp `?v=3` (see `BAR_LOGO_VERSION` below).
+   * as its own artwork. The url ends in the version stamp for THIS brand's file
+   * — `?v=4` on Imaging Queensland, `?v=3` on The Xray Group, and on the master
+   * the same `?v=3` `logoUrl` carries (see `HOME_LOGO_VERSION` and
+   * `BAR_LOGO_VERSION` below), so one brand's re-supply never invalidates
+   * another instance's cached copy.
    */
   homeLogoUrl: string;
   /**
@@ -356,10 +359,11 @@ export interface BrandConfig {
 export const PRODUCT_NAME = "Rad Games";
 
 /**
- * The version stamp the url of every mark in the app's top bar ends in — the
- * shared Rad Games mark (`logoUrl`, drawn on the left of every instance) and a
- * pilot brand's own mark (`homeLogoUrl`, drawn on the right of the two pilot
- * instances): `…/home-logo.png?v=3`.
+ * The version stamp on the SHARED Rad Games mark's url (`logoUrl`) — the mark
+ * drawn on the LEFT of every instance's top bar, from one file all three brands
+ * fetch: `/rad-games-logo.png?v=3`. `homeLogoUrl` — a pilot brand's OWN mark in
+ * the right-hand slot — carries a per-file stamp instead, `HOME_LOGO_VERSION`
+ * just below, because each pilot draws its own file.
  *
  * Why the ADDRESS is versioned, not just the file. A brand's bar artwork is
  * replaced by dropping new bytes over the same file name, so the url used to stay
@@ -371,13 +375,15 @@ export const PRODUCT_NAME = "Rad Games";
  * version in the address is the one thing a cached device cannot answer from
  * memory.
  *
- * Bumping it IS the whole procedure for the next artwork change: put the new file
- * in place, raise this to `"4"` (then `"5"`, …) and change the `?v=` in the urls
- * below to match — the urls are written out as literals on purpose, so the built
- * client and server bundles contain the exact versioned address a device requests
- * (a `?v=` assembled by a helper at runtime is invisible to a grep of the build).
- * `src/lib/brand.test.ts` pins this value AND every bar url against it, so a bump
- * that misses one of the two edits fails the suite by name.
+ * Bumping a stamp IS the whole procedure for the next artwork change of the file
+ * it names: put the new file in place, raise the constant to `"4"` (then `"5"`, …)
+ * and change the `?v=` in the url literal below to match — the urls are written
+ * out as literals on purpose, so the built client and server bundles contain the
+ * exact versioned address a device requests (a `?v=` assembled by a helper at
+ * runtime is invisible to a grep of the build). `src/lib/brand.test.ts` pins each
+ * constant AND every bar url against it, so a bump that misses one of the two
+ * edits fails the suite by name. A stamp moves only when ITS file's bytes do —
+ * one brand's re-supply never invalidates another instance's cache.
  *
  * The query is cosmetic: it is part of the request address only, so the same
  * bytes are fetched under a versioned address and nothing a player sees changes.
@@ -385,6 +391,25 @@ export const PRODUCT_NAME = "Rad Games";
  * when the file is read.)
  */
 export const BAR_LOGO_VERSION = "3";
+
+/**
+ * The version stamp on each pilot brand's OWN top-bar mark (`homeLogoUrl`) — the
+ * file that instance supplies for the right-hand slot of its bar. One value per
+ * FILE, not one for the whole bar: the two pilots draw two different pictures and
+ * a re-supply of one must not send the other brand's device after bytes that did
+ * not change (see `BAR_LOGO_VERSION` above for why an address, not just a file,
+ * is what reaches an installed app).
+ *
+ * Imaging Queensland's mark moved to `"4"` on 7 Oct 2026, when the owner
+ * re-supplied it ("we have another logo for the top transparent line to replace
+ * the red one"); The Xray Group's has not changed since it went in and stays at
+ * `"3"`. The master has no entry: its right-hand slot is the greeting chip, and
+ * its `homeLogoUrl` is deliberately EQUAL to `logoUrl` on the shared stamp.
+ */
+export const HOME_LOGO_VERSION = {
+  "imaging-queensland": "4",
+  "the-xray-group": "3",
+} as const;
 
 /**
  * The welcome screen's greeting, composed from the mascot's name so that no brand
@@ -485,24 +510,33 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // The brand's own welcome artwork (Rad Games lockup with Imaging
     // Queensland's Rex), so this screen does not draw Rex separately.
     welcomeLogoUrl: "/brands/imaging-queensland/welcome-logo.png",
-    // The brand's red lockup, for the top bar's right-hand slot. The owner has
-    // now supplied it three times: a 482x144 scaled copy (30 Sep), then the
-    // 583x174 landscape export itself ("put this imaging Queensland logo on
-    // instead", 1 Oct) which turned out to be the OLD mark, and finally the
-    // current 300x210 export (1 Oct, https://ibb.co/8gKcz7YX). The owner's file
-    // is what ships here, byte for byte — md5 eb0196b6… — so the instance draws
-    // their own artwork; the two retired files are archived in
-    // public/_originals/brands/. This one is an opaque RGB PNG with a white
-    // field (the earlier two were transparent cut-outs), so it draws as a white
-    // rounded tile on the bar; those corners are the FILE's own (the artwork has
-    // a rounded white field), never an element clip — the `rounded-2xl` the owner
-    // asked for on 1 Oct was removed again on 2 Oct and src/routes/__root.tsx
-    // carries no corner clip on this slot.
-    // The url carries the current bar-logo version (see BAR_LOGO_VERSION): this
-    // one file name was re-supplied three times in a single day, and the owner's
-    // own phone proved that only a NEW ADDRESS — not a `no-cache` header — makes
-    // an installed app fetch the replacement instead of redrawing its cached copy.
-    homeLogoUrl: "/brands/imaging-queensland/home-logo.png?v=3",
+    // The brand's own mark, for the top bar's right-hand slot — re-supplied by
+    // the owner for the FOURTH time on 7 Oct 2026: "we have another logo for the
+    // top transparent line to replace the red one… make it as big as the xray
+    // group one… the last red one was too small."
+    //
+    // The retired file was the 2170x725 RGBA export installed on 1 Oct (the red
+    // plate carrying the white lockup and a teal X watermark, archived as
+    // `iq-home-logo-2026-10-01-owner-rounded.png`). It was not the ELEMENT that
+    // drew it small: the bar sizes every mark by height, `h-9` = 36 CSS px, and a
+    // 2170x725 canvas carries ~15% transparent margin, so only 613 of its 725
+    // rows held ink and the mark the player saw was 30.4 CSS px tall against The
+    // Xray Group's 35.7. The owner's new file (583x174, https://ibb.co/NntwHkBr →
+    // i.ibb.co/3Y4tL8Zv/IMG-1791.png, md5 2d23edc5…, archived as
+    // `iq-home-logo-2026-10-07.png`) is a transparent cut-out whose ink fills its
+    // canvas, so the SAME shared class now draws it 35.8 CSS px tall — the size
+    // parity the owner asked for, with no per-brand CSS and nothing changed for
+    // the other two instances. `src/lib/brand.test.ts` pins that parity by
+    // measuring both files' ink, so a future supply that arrives with margin
+    // again fails the suite instead of silently shrinking.
+    //
+    // The owner's file ships byte for byte, as supplied and never resampled (the
+    // convention every bar mark follows). The url carries THIS file's own version
+    // (`?v=4`, see HOME_LOGO_VERSION): the file name is unchanged, and the owner's
+    // own phone has already proved that only a NEW ADDRESS — not a `no-cache`
+    // header — makes an installed app fetch the replacement instead of redrawing
+    // its cached copy. The Xray Group's mark and the master are untouched.
+    homeLogoUrl: "/brands/imaging-queensland/home-logo.png?v=4",
     rexImageUrl: "/brands/imaging-queensland/rex.png",
     welcomeShowsRex: false, // the welcome logo already contains Rex
     icon192Url: "/brands/imaging-queensland/icon-192.png",
@@ -565,9 +599,12 @@ export const BRANDS: Record<BrandId, BrandConfig> = {
     // this size) and no longer anything on a game page: 351x118 with ink edge to
     // edge is the same wide ~3:1 wordmark shape the other brands' marks have, and
     // it draws ~107 CSS px wide at the slot's 36 CSS px height, so nothing is
-    // stretched. The url carries the current bar-logo version (see
-    // BAR_LOGO_VERSION), so a later re-supply of this same file name reaches a
-    // device that cached the current bytes.
+    // stretched. Its ink fills its canvas edge to edge, which is what makes it
+    // the size reference the owner now measures the other mark against — see
+    // Imaging Queensland's entry above. The url carries THIS file's own version
+    // (`?v=3`, see HOME_LOGO_VERSION), so a later re-supply of this same file name
+    // reaches a device that cached the current bytes without disturbing the other
+    // instances' addresses.
     homeLogoUrl: "/brands/the-xray-group/home-logo.png?v=3",
     rexImageUrl: "/brands/the-xray-group/rex.png",
     welcomeShowsRex: false, // the welcome logo already contains Rex

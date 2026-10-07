@@ -94,16 +94,17 @@ const OUT = "public/brands";
 const BRANDS = {
   "imaging-queensland": {
     logo: "iq-logo.png",
-    homeLogo: "iq-home-logo-2026-10-01-owner-rounded.png",
+    homeLogo: "iq-home-logo-2026-10-07.png",
     // Owner direction, 1 Oct: the supplied canvas IS the shipped file, so it is
     // copied through byte for byte rather than resampled and the instance draws
-    // the owner's own artwork (see `keepHomeLogo`). This is the owner's THIRD
-    // supply that day — the 583x174 landscape export installed first turned out
-    // to be the OLD mark, the 300x210 export that replaced it drew as an opaque
-    // white tile the owner rejected, and this 2170x725 RGBA export is the current
-    // mark with the rounded corners drawn into the artwork itself. It is archived
-    // here as `iq-home-logo-2026-10-01-owner-rounded.png`; the white-field export
-    // it retires is kept beside it as `iq-home-logo-2026-10-01-whitefield.png`.
+    // the owner's own artwork (see `keepHomeLogo`). The owner re-supplied this same
+    // slot on 7 Oct 2026 ("replace the red one… make it as big as the xray group
+    // one"), so this now names the 583x174 white lockup archived as
+    // `iq-home-logo-2026-10-07.png` (`HOME_LOGO_MD5` below). The supplies it
+    // supersedes stay archived beside it: `…-2026-10-01-owner-rounded.png` (the
+    // 2170x725 red plate with its rounded corners drawn in), `…-2026-10-01.png` /
+    // `…-2026-09-30.png` (the 583x174 cut-outs before it) and
+    // `…-2026-10-01-whitefield.png` (the opaque 300x210 export the owner rejected).
     homeLogoKeep: true,
     rex: "iq-rex.png",
     icon: "iq-app-icon.png",
@@ -293,7 +294,11 @@ async function writeHomeLogo(file, dest) {
  * 300x210 md5 eb0196b6…, drew as a white tile the owner rejected).
  */
 const HOME_LOGO_MD5 = {
-  "imaging-queensland": "c16f680faac96392bcc84a4b0ff69f9c",
+  // The owner's 7 Oct 2026 supply, `iq-home-logo-2026-10-07.png` (583x174): the
+  // white "Imaging Queensland" lockup on transparent, ink to the edges of the
+  // canvas, replacing the 2170x725 red plate (`c16f680f…`, still archived) whose
+  // own transparent margin made it draw ~15% shorter than The Xray Group's mark.
+  "imaging-queensland": "2d23edc5af90f75ec8b4971ae5c95896",
 };
 
 /**
