@@ -184,14 +184,14 @@ function AddToPhonePage() {
                 active={iosBrowser === "safari"}
                 onClick={() => setIosBrowser("safari")}
                 label="Safari"
-                icon={<SafariIcon color={iosBrowser === "safari" ? "#FFFFFF" : "#6B7280"} />}
+                icon={<SafariIcon />}
                 inactiveClassName="text-stone-400 hover:text-stone-600"
               />
               <ToggleButton
                 active={iosBrowser === "chrome"}
                 onClick={() => setIosBrowser("chrome")}
                 label="Chrome"
-                icon={<ChromeIcon color={iosBrowser === "chrome" ? "#FFFFFF" : "#6B7280"} />}
+                icon={<ChromeIcon />}
                 inactiveClassName="text-stone-400 hover:text-stone-600"
               />
             </>
@@ -201,14 +201,14 @@ function AddToPhonePage() {
                 active={androidBrowser === "chrome"}
                 onClick={() => setAndroidBrowser("chrome")}
                 label="Chrome"
-                icon={<ChromeIcon color={androidBrowser === "chrome" ? "#FFFFFF" : "#6B7280"} />}
+                icon={<ChromeIcon />}
                 inactiveClassName="text-stone-400 hover:text-stone-600"
               />
               <ToggleButton
                 active={androidBrowser === "samsung"}
                 onClick={() => setAndroidBrowser("samsung")}
                 label="Samsung Internet"
-                icon={<SamsungIcon color={androidBrowser === "samsung" ? "#FFFFFF" : "#6B7280"} />}
+                icon={<SamsungIcon />}
                 inactiveClassName="text-stone-400 hover:text-stone-600"
               />
             </>
@@ -266,6 +266,10 @@ function ToggleButton({
   // the owner found that too dark and stark on 7 Oct ("too hard to read we need
   // to make it lighter still warm not stark"), so it now passes warm stone-400
   // (#A8A29E) instead — a lighter, warmer grey that still reads on white.
+  // The browser icons follow this class too: they are drawn with
+  // stroke="currentColor", so they inherit whatever text colour the button has
+  // (stone-400 unselected, white selected) and can never fall out of step with
+  // the label. The device row's icons are still coloured explicitly (#9CA3AF).
   inactiveClassName = "text-white/70 hover:text-white",
 }: {
   active: boolean;
@@ -359,18 +363,25 @@ function AndroidIcon({ color }: { color: string }) {
   );
 }
 
-function SafariIcon({ color }: { color: string }) {
+// Browser icons inherit the button's text colour (stroke="currentColor"), so an
+// unselected button paints them its inactive warm grey (stone-400) and a
+// selected button paints them white — the icon can never drift from the label.
+// Before this they carried a hardcoded `color` prop, which shipped #6B7280 (the
+// theme's cool muted grey) on the unselected buttons while the label beside them
+// was stone-400 (owner report, 7 Oct: the icons looked darker than their labels).
+function SafariIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="9" />
       <path d="M15.5 8.5l-2 5-5 2 2-5z" />
     </svg>
   );
 }
 
-function ChromeIcon({ color }: { color: string }) {
+// Colours as SafariIcon: inherits the button's text colour.
+function ChromeIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="9" />
       <path d="M12 3a9 9 0 0 1 7.79 4.5L12 14.5" />
       <path d="M12 21a9 9 0 0 1-7.79-4.5L12 9.5" />
@@ -379,9 +390,10 @@ function ChromeIcon({ color }: { color: string }) {
   );
 }
 
-function SamsungIcon({ color }: { color: string }) {
+// Colours as SafariIcon: inherits the button's text colour.
+function SamsungIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="9" />
       <circle cx="12" cy="12" r="4.5" />
     </svg>
