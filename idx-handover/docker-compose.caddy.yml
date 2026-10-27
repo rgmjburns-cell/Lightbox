@@ -1,0 +1,121 @@
+# Rad Games — OPTIONAL Caddy front end (alternative to IDX's own proxy)
+#
+# USE ONE MODE ONLY:
+#   * PRIMARY: docker-compose.yml  (containers on 127.0.0.1:3001/3002, IDX's proxy + IDX's certs)
+#   * ALTERNATIVE: docker-compose.caddy.yml  (this file: Caddy publishes 80/443, Let's Encrypt,
+#     automatic renewal)
+#
+# Never run both, and never combine them in one `docker compose -f a -f b` invocation —
+# they bind the same ports.
+#
+# Requires: public DNS A records for both hostnames pointing at this server, and inbound
+# 80 + 443 reachable from the internet (Caddy answers the ACME HTTP-01 challenge on 80).
+#
+# Start:  docker compose -f docker-compose.caddy.yml up -d
+# Logs:   docker compose -f docker-compose.caddy.yml logs -f caddy
+
+name: radgames
+
+x-common: &common
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  mem_limit: 512m
+  memswap_limit: 1g
+  pids_limit: 256
+  cpus: 1.0
+  stop_grace_period: 20s
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+  healthcheck:
+    test:
+      - CMD
+      - bun
+      - -e
+      - "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))"
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 60s
+
+services:
+  imaging-queensland:
+    <<: *common
+    image: rgmjburns/lightbox-play@sha256:53d5317d8e62dfca0e3a898efa4e69047a3d0eff87d40927425cc15335faa21c
+    container_name: radgames-imaging-queensland
+    hostname: imaging-queensland
+    environment:
+      PORT: "3000"
+      HOME: /tmp
+      LEADERBOARD_ADMIN_PASSCODE: "${LEADERBOARD_ADMIN_PASSCODE:?set LEADERBOARD_ADMIN_PASSCODE in .env - see .env.example}"
+    volumes:
+      - iq_data:/app/data
+    # No host ports in Caddy mode: Caddy reaches this container by name on the
+    # compose network (imaging-queensland:3000).
+
+  the-xray-group:
+    <<: *common
+    image: rgmjburns/lightbox-play@sha256:6e188530d393aab96e0b32360a60771bf97d1a7d1ef286c888a311d04d978d54
+    container_name: radgames-the-xray-group
+    hostname: the-xray-group
+    environment:
+      PORT: "3000"
+      HOME: /tmp
+      LEADERBOARD_ADMIN_PASSCODE: "${LEADERBOARD_ADMIN_PASSCODE:?set LEADERBOARD_ADMIN_PASSCODE in .env - see .env.example}"
+    volumes:
+      - txg_data:/app/data
+
+  caddy:
+    # Pinned by tag (the upstream project's supported channel). After the first
+    # pull you may pin the exact digest:  docker image inspect caddy:2-alpine \
+    #   --format '{{index .RepoDigests 0}}'  and replace the image line with it.
+    image: caddy:2-alpine
+    container_name: radgames-caddy
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Caddy must bind 80/443 inside the container; this is the one capability it needs.
+    cap_add:
+      - NET_BIND_SERVICE
+    mem_limit: 256m
+    memswap_limit: 512m
+    pids_limit: 128
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3; harmless if IDX's firewall blocks UDP
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # certificates + ACME state — back this up (see runbook §11)
+      - caddy_config:/config
+    depends_on:
+      - imaging-queensland
+      - the-xray-group
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  iq_data:
+    name: radgames_iq_data
+  txg_data:
+    name: radgames_txg_data
+  caddy_data:
+    name: radgames_caddy_data
+  caddy_config:
+    name: radgames_caddy_config
