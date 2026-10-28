@@ -1,11 +1,11 @@
-# Rad Games — OPTIONAL Caddy front end (alternative to IDX's own proxy)
+# OPTIONAL Caddy front end (alternative to IDX's own proxy)
 #
 # USE ONE MODE ONLY:
 #   * PRIMARY: docker-compose.yml  (containers on 127.0.0.1:3001/3002, IDX's proxy + IDX's certs)
 #   * ALTERNATIVE: docker-compose.caddy.yml  (this file: Caddy publishes 80/443, Let's Encrypt,
 #     automatic renewal)
 #
-# Never run both, and never combine them in one `docker compose -f a -f b` invocation —
+# Never run both, and never combine them in one `docker compose -f a -f b` invocation:
 # they bind the same ports.
 #
 # Requires: public DNS A records for both hostnames pointing at this server, and inbound
@@ -99,7 +99,7 @@ services:
       - "443:443/udp"   # HTTP/3; harmless if IDX's firewall blocks UDP
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data      # certificates + ACME state — back this up (see runbook §11)
+      - caddy_data:/data      # certificates + ACME state; back this up (see runbook §11)
       - caddy_config:/config
     depends_on:
       - imaging-queensland

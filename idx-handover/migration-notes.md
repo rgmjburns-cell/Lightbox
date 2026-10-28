@@ -1,15 +1,13 @@
-# Migration notes — do the self-host instances start fresh, or carry the pilot boards over?
+# Migration notes: do the self-host instances start fresh, or carry the pilot boards over?
 
-**STATUS: OPEN — owner decision required. Nothing here is decided.**
-Both paths are written up and both are executable by IT/owner without us. Until a decision is
+**STATUS: OPEN. This is my call before first boot, and nothing here is decided.**
+Both paths are written up and both are executable by your team without me. Until a decision is
 recorded, the bundle deploys **fresh** (it is the default behaviour of `docker-compose.yml`).
-
-Owner decision point: Megan (product owner). Input needed from IDX only on retention/policy
-wording, not on the mechanics.
+Input is needed from IDX only on retention/policy wording, not on the mechanics.
 
 ---
 
-## Which data are we talking about?
+## Which data does this cover?
 
 | Thing | Where it lives today (Railway) | Behaviour on rollover |
 |---|---|---|
@@ -30,7 +28,7 @@ which is the main argument for the fresh start.
 
 ---
 
-## Option A — FRESH START (recommended)
+## Option A: FRESH START (recommended)
 
 Pilot boards were born fresh; the new instances are new deployments on new infrastructure, and
 the monthly wipe makes any carried-over ranking moot within weeks. Nothing to migrate means
@@ -39,28 +37,28 @@ server.
 
 **Steps**
 
-1. Deploy as documented in `runbook.md` §1–§6. Nothing else.
+1. Deploy as documented in `runbook.md` §1 to §6. Nothing else.
 2. First boot creates each brand's empty board automatically.
 3. Optional but recommended if IDX wants a genuinely pristine database (the image ships an old
-   August seed, invisible on the board but physically present on the new volume) — run the
+   August seed, invisible on the board but physically present on the new volume): run the
    one-off cleanup in `runbook.md` §12.
 4. Verify with `smoke-checklist.md`.
 
 **Edge cases**
 
 - Players who were on the Railway boards keep nothing on the new instances except their own
-  badge/best progress **if** their hidden player id was also carried over — with a fresh start,
+  badge/best progress **if** their hidden player id was also carried over. With a fresh start
   it is not, so everyone begins at zero. This is expected and consistent with the monthly wipe.
-- Nothing on Railway is deleted by this option. The Railway instances keep running (master
-  stays there permanently); the IQ/TXG Railway instances can be retired later or kept as a
-  fallback — that is a separate decision, not part of this migration.
+- Nothing on Railway is deleted by this option. The Railway instances keep running (the
+  unbranded master stays there permanently); the IQ and TXG Railway instances can be retired
+  later or kept as a fallback. That is a separate decision, not part of this migration.
 
 ---
 
-## Option B — CARRY-OVER (copy the current month's board into the new instance)
+## Option B: CARRY-OVER (copy the current month's board into the new instance)
 
-Choose this only if the owner wants the pilot's existing players to see their scores on the new
-server on day one.
+Choose this only if the pilot should carry its existing players' scores onto the new server for
+day one.
 
 The app has a passcode-protected full-database export, so the mechanics are simple:
 
@@ -106,17 +104,17 @@ sudo docker compose up -d
   sit in the table and are purged at the next rollover (harmless, but it means an October
   import is worthless in November).
 - The player-progress rows (badges/bests) reference hidden player ids that only exist inside
-  that database; importing them is possible but this bundle does not do it (the board nodes
-  above are what players see). If badges on day one matter, ask for the progress rows to be
-  imported too and we extend this procedure.
+  that database; importing them is possible but this bundle does not do it (the board rows
+  above are what players see). If badges on day one matter, tell me and I extend this
+  procedure.
 - Copying a production database is itself a data-handling step: the file contains nicknames.
   It must be transferred and deleted securely, and the export should not be left on disk.
-- Requires the existing instance's passcode, i.e. the owner doing the export step.
+- Requires the existing instance's passcode, which I'll supply.
 
 ---
 
 ## What "done" looks like
 
-- [ ] Owner records the decision (A or B) in the team's plan and tells IT/owner which to run.
+- [ ] I record the decision (A or B) and tell IT which runs.
 - [ ] If B: export downloaded, sanity-checked, imported, and the temporary `.db` files deleted.
 - [ ] Either way: `smoke-checklist.md` signed off on both instances.

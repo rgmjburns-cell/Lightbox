@@ -1,4 +1,4 @@
-# Rad Games — OPTIONAL Caddy configuration (alternative mode ONLY).
+# OPTIONAL Caddy configuration (alternative mode ONLY).
 # Used by docker-compose.caddy.yml. NOT used in the primary mode, where IDX's own
 # reverse proxy terminates TLS and forwards to 127.0.0.1:3001 / 127.0.0.1:3002.
 #
@@ -6,22 +6,22 @@
 # hostnames below. Prerequisites: both DNS A records already point at this server,
 # and inbound TCP 80 + 443 are open from the internet.
 #
-# Replace the email with a REAL, monitored contact address before starting —
+# Replace the email with a REAL, monitored contact address before starting:
 # Let's Encrypt uses it for expiry/abuse notices. (A placeholder here means nobody
 # is told if renewal ever fails.)
 
 {
-	email admin@example.com
+    email admin@example.com
 }
 
-# Imaging Queensland — mascot "Stu"
+# Imaging Queensland, mascot "Stu"
 games.imagingqueensland.com.au {
-	encode zstd gzip
-	reverse_proxy imaging-queensland:3000
+    encode zstd gzip
+    reverse_proxy imaging-queensland:3000
 }
 
-# The Xray Group — mascot "Rex"
+# The Xray Group, mascot "Rex"
 games.thexraygroup.com.au {
-	encode zstd gzip
-	reverse_proxy the-xray-group:3000
+    encode zstd gzip
+    reverse_proxy the-xray-group:3000
 }
