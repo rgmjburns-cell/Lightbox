@@ -1,4 +1,4 @@
-# Rad Games self-host — post-deploy smoke checklist
+# Self-host post-deploy smoke checklist - Imaging Queensland & The Xray Group
 
 Run this after `docker compose up -d` (before DNS), then again once the public URLs exist.
 Tick each line and record the output where shown. If a line fails, stop and read
@@ -6,7 +6,7 @@ Tick each line and record the output where shown. If a line fails, stop and read
 
 > **Do not test against the live master board.** Score submissions made against
 > `play-production-3271.up.railway.app` (or any existing Railway instance) land on a real,
-> in-use leaderboard — leave those systems alone during this deployment. All testing below
+> in-use leaderboard, so leave those systems alone during this deployment. All testing below
 > targets the new server only. On the new instances a couple of guest rounds are fine: the
 > boards are fresh and throwaway.
 
@@ -38,16 +38,16 @@ sudo docker inspect --format '{{.Name}} {{.State.Health.Status}}' radgames-imagi
 - [ ] Neither container is restarting (`docker compose ps` shows no `Restarting`).
 - [ ] `journalctl`/`docker compose logs` show no repeating crash loop.
 
-## C. First-boot seed purge — do this before the board checks
+## C. First-boot seed purge (do this before the board checks)
 
 The image copies a bundled August-2026 starter database into `/app/data` on **first boot only**
-(no database on the volume yet ⇒ the seed is copied in). That seed carries **nine old
-nickname/score rows**. The board API hides them — it only ever shows the current UTC month — but
+(no database on the volume yet, so the seed is copied in). That seed carries **nine old
+nickname/score rows**. The board API hides them (it only ever shows the current UTC month), but
 the rows physically sit on the new volume until the next 1st-of-month rollover. Purge them now,
-before the board checks, so the boards IDX signs off on are genuinely pristine. Full rationale and
+before the board checks, so the boards you sign off on are genuinely pristine. Full rationale and
 the canonical command: **`runbook.md` §12** (reproduced here only so this list stands alone).
 
-> **Scope caveat — read this first.** This applies to **fresh volumes only**, i.e. this server's
+> **Scope caveat: read this first.** This applies to **fresh volumes only**, i.e. this server's
 > first boot. The live Railway instances are **not** affected: their starter rows were cleared by
 > the **1 Oct 2026 rollover** and their boards hold real current-month rows. Never run this purge
 > against Railway.
@@ -55,7 +55,7 @@ the canonical command: **`runbook.md` §12** (reproduced here only so this list 
 ```bash
 cd /opt/radgames
 sudo docker compose stop            # app stopped, volumes intact
-# §12 purge — run the same block once per service (each brand has its own volume/DB)
+# §12 purge - run the same block once per service (each brand has its own volume/DB)
 sudo docker compose run --rm --no-deps imaging-queensland bun -e '
   import { Database } from "bun:sqlite";
   const db = new Database("/app/data/leaderboard.db");
@@ -71,12 +71,12 @@ sudo docker compose run --rm --no-deps the-xray-group bun -e '
 sudo docker compose up -d
 ```
 
-- [ ] Both purges print `cleared 9 inherited rows` (`cleared 0` on a re-run is fine — already clean).
+- [ ] Both purges print `cleared 9 inherited rows` (`cleared 0` on a re-run is fine, already clean).
 - [ ] Both containers are `healthy` again afterwards (repeat the §B check).
 - [ ] `curl -sS http://127.0.0.1:3001/api/leaderboard | head -c 300` and the `:3002` equivalent
-      return `"ok":true` with an **empty `entries` array** — no current-month rows on either board.
+      return `"ok":true` with an **empty `entries` array** and no current-month rows on either board.
 - [ ] (Optional) Row-level proof, using the same `docker compose run … bun -e` pattern as §12 so
-      `sqlite3` is **not** required on the host — `scores`, `players` and `player_profiles` all
+      `sqlite3` is **not** required on the host: `scores`, `players` and `player_profiles` all
       read `0` (the August seed carried score rows only; the app creates the other two empty):
 
       ```bash
@@ -110,7 +110,7 @@ curl -sS http://127.0.0.1:3002/api/leaderboard | head -c 300; echo
 - [ ] Not an HTML error page, not a 500.
 
 ```bash
-# Admin page is served (passcode-protected: 200 with a login gate, or 401/403 — both fine)
+# Admin page is served (passcode-protected: 200 with a login gate, or 401/403, both fine)
 curl -sS -o /dev/null -w 'IQ  /admin -> %{http_code}\n' http://127.0.0.1:3001/admin
 curl -sS -o /dev/null -w 'TXG /admin -> %{http_code}\n' http://127.0.0.1:3002/admin
 ```
@@ -127,11 +127,11 @@ once DNS/TLS exist).
 
 **Imaging Queensland (`:3001`)**
 - [ ] Mascot is **Stu** (not Rex).
-- [ ] Top bar shows the Imaging Queensland logo — asset URL contains `home-logo.png?v=4`.
+- [ ] Top bar shows the Imaging Queensland logo. The asset URL contains `home-logo.png?v=4`.
 - [ ] Brand/copy text says Imaging Queensland; leaderboard is that brand's own.
 
 **The Xray Group (`:3002`)**
-- [ ] Mascot is **Rex** (cape colour is a placeholder crimson until final artwork lands —
+- [ ] Mascot is **Rex** (cape colour is a placeholder crimson until final artwork lands, so
       a colour mismatch is not a failure).
 - [ ] Top bar shows The Xray Group logo.
 - [ ] Brand/copy text says The Xray Group; leaderboard is that brand's own.
@@ -143,7 +143,7 @@ Both:
 
 ## F. End-to-end gameplay (new instances only)
 
-Pick one easy game per instance — Scan Rush or Bone Buster — and play a short round.
+Pick one easy game per instance (Scan Rush or Bone Buster) and play a short round.
 
 - [ ] Game loads and is playable on a phone-sized viewport.
 - [ ] Completing a round submits a score: the leaderboard page then shows the guest/nickname
@@ -184,9 +184,9 @@ curl -sS https://games.thexraygroup.com.au/api/leaderboard | head -c 200; echo
 
 ## I. Housekeeping
 
-- [ ] The admin passcode is stored in IDX's / the owner's password manager, and `.env` is not
-      readable by other users (`ls -l /opt/radgames/.env` → `-rw-------`).
-- [ ] Backup approach for the volumes is agreed and scheduled (see `runbook.md` §9 — open
+- [ ] The admin passcode is held by me in my password manager, and `.env` is not readable by
+      other users (`ls -l /opt/radgames/.env` → `-rw-------`).
+- [ ] Backup approach for the volumes is agreed and scheduled (see `runbook.md` §9, open
       question for IDX IT).
 - [ ] Decision recorded for `migration-notes.md` (fresh start vs carry-over).
 - [ ] No test data left where it should not be: any guest rounds played here belong to the new
@@ -194,11 +194,11 @@ curl -sS https://games.thexraygroup.com.au/api/leaderboard | head -c 200; echo
 
 ## Sign-off
 
-- [ ] Pristine board — no seeded data (purged at first boot)
+- [ ] Pristine board, no seeded data (purged at first boot)
 
 | Item | Result | Notes |
 |---|---|---|
-| A–C bring-up, seed purge, pristine boards | | |
+| A to C bring-up, seed purge, pristine boards | | |
 | D local health + API | | |
 | E brand identity | | |
 | F gameplay + board submission | | |

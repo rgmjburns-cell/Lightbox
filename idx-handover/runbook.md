@@ -1,8 +1,8 @@
-# Rad Games — Runbook for the IDX self-host server
+# Runbook - Imaging Queensland & The Xray Group on the IDX self-host server
 
-**Audience:** IDX IT (preferred) or the product owner, executing on `3.104.233.90`.
-**Written by:** the Rad Games team. Nothing here needs anyone from our side: the server
-pulls pre-built images from a public registry; we have no inbound access to it.
+**Audience:** IDX IT, executing on `3.104.233.90`.
+Nothing here needs me: the server pulls pre-built images from a public registry, and I have no
+inbound access to it.
 
 Read this top to bottom once before starting. Every command is copy-pasteable.
 
@@ -15,7 +15,7 @@ Read this top to bottom once before starting. Every command is copy-pasteable.
 | 1 | Imaging Queensland | `radgames-imaging-queensland` | `127.0.0.1:3001` → container `:3000` | `https://games.imagingqueensland.com.au` |
 | 2 | The Xray Group | `radgames-the-xray-group` | `127.0.0.1:3002` → container `:3000` | `https://games.thexraygroup.com.au` |
 
-- **Two containers only.** The neutral Rad Games master instance stays on Railway and is
+- **Two containers only.** The separate unbranded master instance stays on Railway and is
   **not** part of this server or this bundle.
 - Runtime inside the container: **Bun** (not Node), serving the site and its JSON API over
   plain **HTTP on port 3000**.
@@ -26,21 +26,20 @@ Read this top to bottom once before starting. Every command is copy-pasteable.
   container's own database.
 - Health definition: **`GET /` returns HTTP 200**; `GET /api/leaderboard` returns JSON.
 
-Ports 3001 and 3002 are bound to **loopback only** — they are not reachable from the network.
+Ports 3001 and 3002 are bound to **loopback only**, so they are not reachable from the network.
 IDX's reverse proxy on 80/443 terminates TLS and forwards to them.
 
 Bundle contents:
 
 ```
 docker-compose.yml          the stack (PRIMARY deployment mode)
-.env.example                environment template — copy to .env, set the passcode
+.env.example                environment template, copy to .env and set the passcode
 runbook.md                  this file
 SECURITY-POSTURE.md         one page for IT review
 smoke-checklist.md          post-deploy verification checklist
-migration-notes.md          open decision: fresh board vs carry-over (owner to decide)
-Caddyfile                   OPTIONAL alternative (self-service TLS) — not the primary mode
-docker-compose.caddy.yml    OPTIONAL alternative stack — see §11
-handover-to-idx-it.md       earlier context: DNS records, keys, network facts
+migration-notes.md          open decision: fresh board vs carry-over (default: fresh)
+Caddyfile                   OPTIONAL alternative (self-service TLS), not the primary mode
+docker-compose.caddy.yml    OPTIONAL alternative stack, see §11
 ```
 
 ---
@@ -59,7 +58,7 @@ docker compose version      # expect Docker Compose version v2.x
 
 If `docker compose version` reports "command not found" but `docker-compose version` works,
 the plugin package is missing: `sudo apt install -y docker-compose-v2` (do **not** use the
-old `docker-compose` v1 binary — this stack uses compose file features v1 cannot parse).
+old `docker-compose` v1 binary, because this stack uses compose file features v1 cannot parse).
 
 Run the remaining commands either as `root` (e.g. `sudo -i`) or as a user in the `docker`
 group (`sudo usermod -aG docker <user>` then log out and back in). The examples assume root;
@@ -90,8 +89,10 @@ All commands below run from `/opt/radgames`.
 ## 3. Create `.env` with a real admin passcode
 
 The passcode protects the leaderboard's admin actions (clearing the board) and the `/admin`
-analytics dashboard. **Someone at IDX / the owner generates the value and holds it.** IT just
-pastes it in — no one else needs the plaintext.
+analytics dashboard. **It is generated once and held by me.** I'll send you the value when you
+reach this step and you paste it into `.env`; nobody else needs the plaintext. The command
+below generates that value on the server if you would rather do it yourself, in which case tell
+me the value so I keep the second copy. Never log it or commit it.
 
 ```bash
 cd /opt/radgames
@@ -99,8 +100,8 @@ printf 'LEADERBOARD_ADMIN_PASSCODE=%s\n' "$(openssl rand -hex 24)" | sudo tee .e
 sudo chmod 600 .env
 ```
 
-- The generated value is a 48-character hex string. Store it in your password manager
-  (IDX should hold a copy too).
+- The generated value is a 48-character hex string. Store it in your password manager; I keep
+  the other copy in mine.
 - **Do not use the app's built-in fallback passcode (`clear2026`).** `docker-compose.yml`
   deliberately has no default; if `.env` is missing or empty the stack refuses to start with
   a clear error message. That is intentional.
@@ -124,13 +125,13 @@ sudo docker compose pull
 ```
 
 - Both images come from the public Docker Hub repository `rgmjburns/lightbox-play`, pinned
-  **by digest** in `docker-compose.yml` — the server fetches exactly the builds we verified.
+  **by digest** in `docker-compose.yml`; the server fetches exactly the builds I verified.
 - Expect roughly 1.1 GB of downloads on first pull (two images, ~568 MB each) and a few
   minutes on a typical AWS egress link. The 80 GB disk is ample.
 - If Docker Hub rate-limits an anonymous pull (`toomanyrequests`), wait a few minutes and
-  re-run — it is a per-IP limit on anonymous pulls, not an error in the stack.
+  re-run. It is a per-IP limit on anonymous pulls, not an error in the stack.
 
-Optional integrity check — the digests must match the compose file exactly:
+Optional integrity check, the digests must match the compose file exactly:
 
 ```bash
 sudo docker image inspect --format '{{index .RepoDigests 0}}' \
@@ -149,7 +150,7 @@ sudo docker compose up -d
 sudo docker compose ps
 ```
 
-Expected: both services `running`, and after ~10–60 s the `STATUS` column shows `(healthy)`.
+Expected: both services `running`, and after ~10 to 60 s the `STATUS` column shows `(healthy)`.
 The first boot also creates each brand's SQLite database on its volume.
 
 Watch the boot if you want to see it:
@@ -161,11 +162,11 @@ sudo docker compose logs -f imaging-queensland
 
 **Benign log lines you can ignore on first boot:**
 
-- `sudo: command not found` / `sudo: ... operation not permitted` — the app's start script
-  tries to free port 3000 with `sudo`; in a fresh container nothing holds the port, the failure
+- `sudo: command not found` / `sudo: ... operation not permitted`: the app's start script
+  tries to free port 3000 with `sudo`. In a fresh container nothing holds the port, the failure
   is handled deliberately, and the server binds normally. This is expected with the hardening
   in place.
-- `railway-entrypoint: seeded /app/data/leaderboard.db from frozen data` — first-boot seed
+- `railway-entrypoint: seeded /app/data/leaderboard.db from frozen data`: first-boot seed
   copy. See §12 for what that seed contains and the one-off cleanup.
 
 If a container goes `unhealthy` or restarts in a loop, go to §10.
@@ -174,21 +175,21 @@ If a container goes `unhealthy` or restarts in a loop, go to §10.
 
 ## 6. Verify on the server itself (before DNS or TLS exist)
 
-Health check — `GET /` must return HTTP 200 for both ports:
+Health check: `GET /` must return HTTP 200 for both ports:
 
 ```bash
 curl -sS -o /dev/null -w 'IQ  / -> %{http_code}\n'  http://127.0.0.1:3001/
 curl -sS -o /dev/null -w 'TXG / -> %{http_code}\n'  http://127.0.0.1:3002/
 ```
 
-Board API — must return JSON (`{"ok":true,...}`, an empty list is expected initially):
+Board API: must return JSON (`{"ok":true,...}`, an empty list is expected initially):
 
 ```bash
 curl -sS http://127.0.0.1:3001/api/leaderboard
 curl -sS http://127.0.0.1:3002/api/leaderboard
 ```
 
-Admin dashboard loads (passcode-protected; a login prompt or 401/403 is fine — what matters
+Admin dashboard loads (passcode-protected; a login prompt or 401/403 is fine, what matters
 is that the page is served):
 
 ```bash
@@ -209,16 +210,16 @@ sudo docker inspect --format '{{.Name}} {{.State.Health.Status}}' \
 > (always present in the image):
 > `bun -e "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))"`.
 > If you would rather health-check from outside the container, use the `curl` commands above
-> from cron/monitoring and the container healthcheck can stay as is (or be removed).
+> from cron or monitoring and the container healthcheck can stay as is (or be removed).
 
 ---
 
-## 7. After DNS and TLS exist (IDX's side)
+## 7. After DNS and TLS exist (IDX-managed)
 
-Prerequisite: both A records point at `3.104.233.90` (see `handover-to-idx-it.md` §1), and
-IDX's proxy serves HTTPS for the two hostnames.
+Prerequisite: both A records point at `3.104.233.90` (confirmed resolving by your team on
+27 Oct), and IDX's proxy serves HTTPS for the two hostnames.
 
-Reverse-proxy requirement — forward the **whole** request to the right loopback port:
+Reverse-proxy requirement: forward the **whole** request to the right loopback port:
 
 | Hostname | Upstream |
 |---|---|
@@ -252,10 +253,10 @@ curl -sS https://games.thexraygroup.com.au/api/leaderboard
 
 Browser check (open each URL in a phone or desktop browser):
 
-- **Imaging Queensland** — mascot is **Stu**, brand logo in the top bar
+- **Imaging Queensland**: mascot is **Stu**, brand logo in the top bar
   (`home-logo.png?v=4`), welcome copy says Imaging Queensland.
-- **The Xray Group** — mascot is **Rex** (crimson cape placeholder until the owner's final
-  artwork lands), brand logo in the top bar.
+- **The Xray Group**: mascot is **Rex** (crimson cape placeholder until final artwork lands),
+  brand logo in the top bar.
 - Both: the dark navy theme, the eight games, and a leaderboard that loads.
 
 Then work through `smoke-checklist.md` and sign it off.
@@ -264,8 +265,8 @@ Then work through `smoke-checklist.md` and sign it off.
 
 ## 8. Day-2: shipping an update
 
-An update is a **digest swap** — there is no build on this server and no access from our side.
-We send you two new digest strings; you replace them in `docker-compose.yml`.
+An update is a **digest swap**. There is no build on this server and no access from my side.
+I send you two new digest strings and you replace them in `docker-compose.yml`.
 
 1. **Note the current digests** (this is your rollback):
 
@@ -291,10 +292,10 @@ We send you two new digest strings; you replace them in `docker-compose.yml`.
    sudo docker compose ps
    ```
 
-4. **Verify** — §6 again (health 200, `/api/leaderboard` JSON, `/admin` served), then the
+4. **Verify:** §6 again (health 200, `/api/leaderboard` JSON, `/admin` served), then the
    browser brand check in §7. Player data is untouched: it lives on the volume, not the image.
 
-5. **Rollback** — restore the previous file and re-apply:
+5. **Rollback:** restore the previous file and re-apply:
 
    ```bash
    sudo cp docker-compose.yml.bak-YYYY-MM-DD docker-compose.yml
@@ -304,12 +305,12 @@ We send you two new digest strings; you replace them in `docker-compose.yml`.
 
    Rollback is safe at any time; the database is never touched by an image swap.
 
-**Never use `docker compose down -v`** — the `-v` flag deletes the data volumes, i.e. the
+**Never use `docker compose down -v`.** The `-v` flag deletes the data volumes, i.e. the
 month's leaderboard. Plain `docker compose down` keeps them.
 
-Maintenance windows: a restart takes ~5–10 s per container and players simply reload the page.
-Mid-evening peak is unlikely on this workload, but if you want to be careful, update outside
-clinic hours.
+Maintenance windows: a restart takes ~5 to 10 s per container and players simply reload the
+page. Mid-evening peak is unlikely on this workload, but if you want to be careful, update
+outside clinic hours.
 
 ---
 
@@ -317,12 +318,12 @@ clinic hours.
 
 What exists already, inside each container:
 
-- `/app/data/leaderboard.db` — the live SQLite database.
-- `/app/data/backups/` — the app snapshots it **daily on a rotating basis, keeping the
+- `/app/data/leaderboard.db`: the live SQLite database.
+- `/app/data/backups/`: the app snapshots it **daily on a rotating basis, keeping the
   newest 10 copies**. Zero configuration required.
 
 What is **not** covered by the app: the whole volume, i.e. losing the server or the volume.
-Recommend one of these, owned by IDX:
+I recommend one of these, owned by IDX:
 
 ```bash
 # Nightly tar of both volumes (add to cron, e.g. 02:30 daily)
@@ -356,25 +357,25 @@ sudo docker compose ps
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `port is already allocated` | something else holds 3001/3002 | `sudo ss -ltnp \| grep -E '3001\|3002'` — stop the other process |
+| `port is already allocated` | something else holds 3001/3002 | `sudo ss -ltnp \| grep -E '3001\|3002'`, stop the other process |
 | Container restarts in a loop | missing/blank `.env` variable, or volume permission | `docker compose logs --tail=100 <service>`; check `.env` exists with `chmod 600` |
 | `unhealthy` after 2 min | app not answering `/` | `docker compose logs`; check no proxy/iptables rule intercepts loopback |
 | `toomanyrequests` on pull | Docker Hub anonymous pull limit | wait, re-run `docker compose pull` |
 | Proxy returns 502 | container down, or wrong upstream port (3001 vs 3002 swapped) | `curl http://127.0.0.1:3001/` on the server, re-check proxy config |
 | Disk filling | image layers from old pulls | `sudo docker image prune` (only removes images not used by a running container) |
-| Log says `read-only file system` | the app tried to write outside `/app/data` | report it to the Rad Games team — do **not** simply delete `read_only: true`; the fix belongs in the image |
+| Log says `read-only file system` | the app tried to write outside `/app/data` | tell me and I'll get a fix built. Do **not** simply delete `read_only: true`; the fix belongs in the image |
 | Log says `operation not permitted` at start | `cap_drop: [ALL]` on a future image that needs a capability | the start-up `sudo` line is expected and harmless (see §5); if a *different* permission error blocks boot, remove the `cap_drop` block for that service and note why |
 
-Escalation: any change to the **code or the images** comes from the Rad Games team as a new
-digest. IT should not modify containers in place (no `docker exec` edits, no rebuilds) — that
+Escalation: any change to the **code or the images** comes from me as a new pinned digest.
+Please do not modify containers in place (no `docker exec` edits, no rebuilds), because that
 would make the deployment unreproducible.
 
 ---
 
 ## 11. OPTIONAL alternative: Caddy in front (do not mix modes)
 
-**Primary deployment mode is §2–§8:** containers on loopback + IDX's own proxy issuing the
-certificates. Use Caddy **only** if IDX decides it does not want to run TLS itself.
+**Primary deployment mode is §2 to §8:** containers on loopback plus IDX's own proxy issuing
+the certificates. Use Caddy **only** if IDX decides it does not want to run TLS itself.
 
 If and only if that decision is made:
 
@@ -388,14 +389,14 @@ sudo docker compose -f docker-compose.caddy.yml up -d
 same hardening, and adds a Caddy container that obtains and auto-renews Let's Encrypt
 certificates for both hostnames (needs public DNS + 80/443 reachable from the internet).
 
-**Pick one mode only.** Running both means two things fight over ports 80/443 — and if IDX's
+**Pick one mode only.** Running both means two things fight over ports 80/443, and if IDX's
 proxy and Caddy both answer, certificate issuance fails. `docker-compose.caddy.yml` is a
 complete standalone file: it must never be combined with `docker-compose.yml` in the same
 `docker compose up`. Never run `docker compose -f docker-compose.yml -f
-docker-compose.caddy.yml` — the two files bind the same ports.
+docker-compose.caddy.yml`; the two files bind the same ports.
 
 Responsibilities in Caddy mode: certificate renewal is automatic (Caddy), and the certificate
-material lives in the `caddy_data` volume — back that volume up too, or you will re-issue
+material lives in the `caddy_data` volume. Back that volume up too, or you will re-issue
 certificates on restore (harmless, just rate-limited if done repeatedly).
 
 ---
@@ -405,12 +406,12 @@ certificates on restore (harmless, just rate-limited if done repeatedly).
 The image boots by copying a bundled seed database into `/app/data` **only when no database
 exists yet**. That seed is an old snapshot (August 2026) and contains nine score rows with
 nicknames from that period. It does **not** show on the leaderboard, because the board only
-ever displays the current UTC month — but the rows physically exist on a brand-new volume
+ever displays the current UTC month, but the rows physically exist on a brand-new volume
 until the next monthly rollover purges them.
 
 Two options, both fine:
 
-- **Leave it** — invisible to players, purged automatically at the next 1st-of-month rollover.
+- **Leave it:** invisible to players, purged automatically at the next 1st-of-month rollover.
 - **Start genuinely clean** (recommended if IDX prefers that no inherited row exists), run
   once, before the first `docker compose up -d` that patients will see:
 
@@ -440,10 +441,10 @@ Two options, both fine:
 
 ## 13. Who to ask
 
-| Topic | Owner |
+| Topic | Contact |
 |---|---|
-| New image digests, code changes, product behaviour | Rad Games team (owner: Megan) |
-| Admin passcode value | IDX / owner — generated once, stored in a password manager |
+| New image digests, code changes, product behaviour | me: I publish a new pinned digest with each release |
+| Admin passcode value | me: generated once, held in my password manager |
 | Backups, retention, disk, patching, certificate issuance | IDX IT |
 | DNS records | IDX IT (Netregistry zones) |
-| Network access to the server (SSH, Tailscale) | IDX IT — SSH key auth only, over the Tailscale 100.x address |
+| Network access to the server (SSH, Tailscale) | IDX IT: SSH key auth only, over the Tailscale 100.x address |

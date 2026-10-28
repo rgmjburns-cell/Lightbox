@@ -1,21 +1,21 @@
-# Rad Games — IDX self-host stack (2 brands on one Linux server)
+# IDX self-host stack: Imaging Queensland + The Xray Group on one Linux server
 #
 # This server runs TWO containers only:
 #   * imaging-queensland  -> host 127.0.0.1:3001 -> container :3000
 #   * the-xray-group      -> host 127.0.0.1:3002 -> container :3000
-# The neutral Rad Games "master" instance stays on Railway and is NOT part of
-# this file (owner decision, 8 Oct 2026).
+# The separate unbranded master instance stays on Railway and is NOT part of
+# this file (decided 8 Oct 2026).
 #
 # Deploy model: PULL. Both images are pinned BY DIGEST from the public Docker Hub
-# repository rgmjburns/lightbox-play, so the server fetches exactly the build we
-# verified — no build step here, no inbound access from our side.
+# repository rgmjburns/lightbox-play, so the server fetches exactly the build I
+# verified. There is no build step here and no inbound access from my side.
 #
 # Ports are published on the loopback interface ONLY. Nothing is reachable from
 # the network until IDX's own reverse proxy (80/443, TLS) forwards to 127.0.0.1:3001
 # / 127.0.0.1:3002. See runbook.md and SECURITY-POSTURE.md.
 #
 # Secrets: LEADERBOARD_ADMIN_PASSCODE comes from the .env file next to this file
-# (see .env.example). It has no default here on purpose — compose refuses to start
+# (see .env.example). It has no default here on purpose, so compose refuses to start
 # if it is missing, so the code's built-in fallback passcode can never go live.
 #
 # Validate before starting:  docker compose config
@@ -26,7 +26,7 @@ name: radgames
 
 x-common: &common
   restart: unless-stopped
-  # ── Hardening ──────────────────────────────────────────────────────────────
+  # --- Hardening -------------------------------------------------------------
   # Read-only root filesystem; only the data volume and the /tmp tmpfs are
   # writable. The app writes its SQLite database and snapshots to /app/data.
   read_only: true
@@ -37,10 +37,10 @@ x-common: &common
   # No Linux capabilities at all. The app only listens on an unprivileged port
   # (3000) and writes to its own data volume, so it needs none.
   # If a future image ever fails to boot with this setting, remove this block and
-  # record why — nothing in the current image requires a capability.
+  # record why. Nothing in the current image requires a capability.
   cap_drop:
     - ALL
-  # ── Resource limits (server has 4 GB RAM / 2 vCPU) ─────────────────────────
+  # --- Resource limits (server has 4 GB RAM / 2 vCPU) ------------------------
   mem_limit: 512m
   memswap_limit: 1g
   pids_limit: 256
@@ -97,7 +97,7 @@ services:
 
 # Named volumes keep each brand's SQLite database (leaderboard.db + backups/)
 # independent of the container, so redeploys and updates never lose it.
-# Back them up by volume name — see runbook.md §9.
+# Back them up by volume name, see runbook.md §9.
 volumes:
   iq_data:
     name: radgames_iq_data
