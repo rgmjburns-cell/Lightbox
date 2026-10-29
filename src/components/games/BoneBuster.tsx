@@ -5,6 +5,16 @@ import brand from "~/lib/brand";
 import AchievementToast from "~/components/AchievementToast";
 import { getPlayerName } from "~/components/Onboarding";
 import { decorativeDuration, prefersReducedMotion } from "~/lib/reducedMotion";
+import {
+  INITIAL_REX_FLIGHT_GATE,
+  REX_FLY_BY_FIRST_MS,
+  REX_FLY_BY_MS,
+  beginCascade,
+  planCascadeRexFlight,
+  planMatchOutcome,
+  type MatchSummary,
+  type RexFlightGate,
+} from "~/lib/boneBusterRex";
 import { addPoints } from "~/lib/points";
 import { submitScore } from "~/lib/leaderboard";
 import LeaderboardEntry from "~/components/LeaderboardEntry";
@@ -117,6 +127,8 @@ const LEVEL_KEY = "boneBusterLevel";
 const MOVES_KEY = "boneBusterMoves";
 const HINTS_KEY = "boneBusterHintsRemaining";
 const INITIAL_HINTS = 5;
+/** Set once the device has seen its first Rex fly-by (the longer, captioned one). */
+const REX_FLY_BY_SEEN_KEY = "boneBusterRexFlySeen";
 
 // ── Hint Scoring ──
 
@@ -165,16 +177,20 @@ function scoreSwap(grid: (Tile | null)[][], a: Position, b: Position): number {
         }
       }
 
-      // Base score — same formula as runMatchCycle (lines 1092-1093)
-      const basePerTile =
-        match.maxStraightLength >= 5 ? 60 : match.maxStraightLength === 4 ? 40 : 20;
-      baseScore += basePerTile * match.length;
+      // Base score + special/burst gating — shared with runMatchCycle via
+      // planMatchOutcome (src/lib/boneBusterRex.ts) so the two mirrors cannot
+      // drift apart. Same formulas as runMatchCycle lines ~1188-1216.
+      const outcome = planMatchOutcome({
+        maxStraightLength: match.maxStraightLength,
+        hasCenter: match.centerPosition !== null,
+      });
+      baseScore += outcome.basePerTile * match.length;
 
       // Special tile creation / Rex burst — same gating as runMatchCycle (lines 1096-1118)
-      if (match.maxStraightLength >= 5 && match.centerPosition) {
+      if (outcome.kind === "rex-burst") {
         pendingRexBurst = match.tileType;
         pendingRexBurstCenter = match.centerPosition;
-      } else if (match.maxStraightLength >= 4) {
+      } else if (outcome.kind === "striped") {
         // Match-4 creates a striped-h tile that stays on board (not removed).
         // It may cascade in a subsequent cycle; scored naturally when matched.
         const mid = Math.floor(match.positions.length / 2);
@@ -815,6 +831,13 @@ export default function BoneBuster() {
   const rexBurstAnimRef = useRef<number | null>(null);
   const [boardShake, setBoardShake] = useState(false);
 
+  // ── Rex fly-by (decorative, no score, no board effect) ──
+  // The overlay is a CSS animation keyed by `id`, so a flight costs one render
+  // when it starts and one when it clears — no per-frame state updates.
+  const [rexFlyBy, setRexFlyBy] = useState<{ id: number; spotlight: boolean } | null>(null);
+  const rexFlightGateRef = useRef<RexFlightGate>(INITIAL_REX_FLIGHT_GATE);
+  const rexFlyByTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Score persistence
   const [highScore, setHighScore] = useState(() => {
     if (typeof window === "undefined") return 0;
@@ -1026,6 +1049,38 @@ export default function BoneBuster() {
     };
   }, []);
 
+  // ── Rex fly-by overlay (celebration only) ──
+
+  const showRexFlyBy = useCallback(() => {
+    // Purely decorative, so it is the one thing a reduce-motion player does not
+    // get: no score, board state or timing depends on it.
+    if (prefersReducedMotion()) return;
+
+    // The first flight a device ever sees runs longer and carries a caption, so
+    // the mascot moment cannot be missed on a first visit.
+    const seen =
+      typeof window !== "undefined" && localStorage.getItem(REX_FLY_BY_SEEN_KEY) === "1";
+    const spotlight = !seen;
+    if (!seen && typeof window !== "undefined") {
+      localStorage.setItem(REX_FLY_BY_SEEN_KEY, "1");
+    }
+
+    if (rexFlyByTimerRef.current) clearTimeout(rexFlyByTimerRef.current);
+    setRexFlyBy({ id: Date.now(), spotlight });
+    setRexMood("excited");
+    rexFlyByTimerRef.current = setTimeout(() => {
+      setRexFlyBy(null);
+      rexFlyByTimerRef.current = null;
+    }, spotlight ? REX_FLY_BY_FIRST_MS : REX_FLY_BY_MS);
+  }, []);
+
+  // Cleanup fly-by timer on unmount
+  useEffect(() => {
+    return () => {
+      if (rexFlyByTimerRef.current) clearTimeout(rexFlyByTimerRef.current);
+    };
+  }, []);
+
   // ── Deadlock check + reshuffle ──
 
   const checkDeadlock = useCallback((currentGrid: (Tile | null)[][]) => {
@@ -1155,6 +1210,8 @@ export default function BoneBuster() {
       const specialEffects: { pos: Position; special: SpecialType; tileType: TileType }[] = [];
       let pendingRexBurst: TileType | null = null;
       let pendingRexBurstCenter: Position | null = null;
+      // Every matched group this wave, for the Rex fly-by gate below.
+      const matchSummaries: MatchSummary[] = [];
 
       // Process special tiles that are already on the board and being matched
       const specialGrid = deepCopyGrid(currentGrid);
@@ -1172,16 +1229,26 @@ export default function BoneBuster() {
           }
         }
 
+        // Score + special-tile / Rex-burst gating. The rules live in
+        // planMatchOutcome so this engine and the hint predictor (scoreSwap)
+        // stay in lockstep.
+        const outcome = planMatchOutcome({
+          maxStraightLength: match.maxStraightLength,
+          hasCenter: match.centerPosition !== null,
+        });
+        matchSummaries.push({
+          maxStraightLength: match.maxStraightLength,
+          hasCenter: match.centerPosition !== null,
+        });
+
         // Score calculation — use maxStraightLength for per-tile rate (Fix 4)
-        const basePerTile =
-          match.maxStraightLength >= 5 ? 60 : match.maxStraightLength === 4 ? 40 : 20;
-        bonusScore += basePerTile * match.length;
+        bonusScore += outcome.basePerTile * match.length;
 
         // Determine special tile creation / rex burst — gated by maxStraightLength (Fix 1)
-        if (match.maxStraightLength >= 5 && match.centerPosition) {
+        if (outcome.kind === "rex-burst") {
           pendingRexBurst = match.tileType;
           pendingRexBurstCenter = match.centerPosition;
-        } else if (match.maxStraightLength >= 4) {
+        } else if (outcome.kind === "striped") {
           const mid = Math.floor(match.positions.length / 2);
           const spawnPos = match.positions[mid];
           const spawnKey = `${spawnPos.row},${spawnPos.col}`;
@@ -1204,6 +1271,19 @@ export default function BoneBuster() {
 
       // Apply chain multiplier — capped at 3x (Fix 4: chain + 1, max 4)
       bonusScore *= Math.min(chain + 1, 4);
+
+      // ── Rex fly-by (decorative only) ──
+      // Decided once per wave, after every match in it is known, so a Super
+      // Burst in the same wave always wins (Rex is already flying for that) and
+      // a wave with several matches still shows at most one flight. No score
+      // and no board effect — see src/lib/boneBusterRex.ts.
+      const flight = planCascadeRexFlight(rexFlightGateRef.current, {
+        matches: matchSummaries,
+        chainCount: chain + 1,
+        now: Date.now(),
+      });
+      rexFlightGateRef.current = flight.gate;
+      if (flight.fly) showRexFlyBy();
 
       // Apply special tile effects (striped tiles)
       for (const effect of specialEffects) {
@@ -1281,7 +1361,7 @@ export default function BoneBuster() {
       // Update grid immediately so the cleared state is visible
       setGrid(deepCopyGrid(clearedGrid));
     },
-    [showCombo, checkDeadlock, checkLevelEnd]
+    [showCombo, checkDeadlock, checkLevelEnd, showRexFlyBy]
   );
 
   // ── Handle tile tap ──
@@ -1335,6 +1415,9 @@ export default function BoneBuster() {
         const matches = findMatches(currentGrid);
         if (matches.length > 0) {
           // Valid swap
+          // One swap = one cascade: bump the fly-by gate so the cascade can
+          // show at most one flight however many waves it runs.
+          rexFlightGateRef.current = beginCascade(rexFlightGateRef.current);
           setGrid(deepCopyGrid(currentGrid));
           const newMoves = currentMoves - 1;
           setMovesLeft(newMoves);
@@ -1637,6 +1720,41 @@ export default function BoneBuster() {
         {/* Rex Burst flash */}
         {rexBurst.active && rexBurst.phase === "burst" && (
           <div className="absolute inset-0 z-20 pointer-events-none bg-white/50 rounded-2xl animate-[flash_0.4s_ease-out]" />
+        )}
+
+        {/* ── Rex fly-by (decorative) ──
+            Plays on a 4+ straight match or a 3-deep cascade, in addition to the
+            Super Burst. No board effect and no points: the overlay is a CSS
+            keyframe driven by `key`, so it re-renders once on start and once on
+            clear rather than on every animation frame. */}
+        {rexFlyBy && (
+          <div
+            key={rexFlyBy.id}
+            className="absolute inset-0 z-30 pointer-events-none overflow-hidden"
+            aria-hidden="true"
+          >
+            <img
+              src={brand.rexImageUrl}
+              alt=""
+              width={64}
+              height={64}
+              draggable={false}
+              className="absolute object-contain"
+              style={{
+                width: 64,
+                height: 64,
+                animation: `rexFlyBy ${
+                  rexFlyBy.spotlight ? REX_FLY_BY_FIRST_MS : REX_FLY_BY_MS
+                }ms cubic-bezier(0.4, 0, 0.6, 1) forwards`,
+                filter: "drop-shadow(0 0 14px rgba(0,140,149,0.8))",
+              }}
+            />
+            {rexFlyBy.spotlight && (
+              <span className="absolute left-1/2 top-[6%] -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-3 py-1 text-sm font-bold text-primary shadow-lg">
+                {brand.mascotName} is flying by!
+              </span>
+            )}
+          </div>
         )}
 
         {/* Board — only render after client hydration to avoid SSR mismatch */}
