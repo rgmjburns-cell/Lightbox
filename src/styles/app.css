@@ -357,8 +357,41 @@ body::after {
   }
 }
 
-/* ── Welcome / Onboarding Animations ── */
+/* ── Bone Buster: Rex fly-by (decorative overlay, no gameplay effect) ──
+   A shallow arc from bottom-left to bottom-right, with a slight banking
+   rotation, so Rex reads as flying across the board rather than sliding. */
+@keyframes rexFlyBy {
+  0% {
+    left: -18%;
+    top: 82%;
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-14deg) scale(0.8);
+  }
+  12% {
+    opacity: 1;
+  }
+  35% {
+    left: 28%;
+    top: 8%;
+    transform: translate(-50%, -50%) rotate(9deg) scale(1.05);
+  }
+  65% {
+    left: 70%;
+    top: 10%;
+    transform: translate(-50%, -50%) rotate(6deg) scale(1.05);
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    left: 118%;
+    top: 78%;
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(16deg) scale(0.85);
+  }
+}
 
+/* ── Welcome / Onboarding Animations ── */
 /* Swirls glow pulse */
 @keyframes welcomeSwirlPulse1 {
   0%, 100% {
