@@ -164,7 +164,7 @@ export interface RexFlightDecision {
  */
 export function planCascadeRexFlight(
   gate: RexFlightGate,
-  input: { matches: MatchSummary[]; chainCount: number; now: number }
+  input: { matches: MatchSummary[]; chainCount: number; now: number },
 ): RexFlightDecision {
   if (input.matches.length === 0) {
     return { fly: false, reason: "no-match", gate };
@@ -179,13 +179,17 @@ export function planCascadeRexFlight(
     return {
       fly: false,
       reason: "rex-burst",
-      gate: { ...gate, flownCascadeId: gate.cascadeId, lastFlightAt: input.now },
+      gate: {
+        ...gate,
+        flownCascadeId: gate.cascadeId,
+        lastFlightAt: input.now,
+      },
     };
   }
 
   const maxStraight = input.matches.reduce(
     (best, m) => Math.max(best, m.maxStraightLength),
-    0
+    0,
   );
   const earned: RexFlightReason | null =
     maxStraight >= REX_FLIGHT_MIN_STRAIGHT
@@ -199,7 +203,10 @@ export function planCascadeRexFlight(
   if (gate.flownCascadeId === gate.cascadeId) {
     return { fly: false, reason: "already-flew", gate };
   }
-  if (gate.lastFlightAt !== null && input.now - gate.lastFlightAt < REX_FLIGHT_COOLDOWN_MS) {
+  if (
+    gate.lastFlightAt !== null &&
+    input.now - gate.lastFlightAt < REX_FLIGHT_COOLDOWN_MS
+  ) {
     return { fly: false, reason: "cooldown", gate };
   }
 

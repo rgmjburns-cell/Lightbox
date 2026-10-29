@@ -1743,6 +1743,12 @@ export default function BoneBuster() {
               style={{
                 width: 64,
                 height: 64,
+                // Resting position = the keyframe's first frame, so the image
+                // never flashes at the board's top-left corner before the
+                // animation starts.
+                left: "-18%",
+                top: "82%",
+                opacity: 0,
                 animation: `rexFlyBy ${
                   rexFlyBy.spotlight ? REX_FLY_BY_FIRST_MS : REX_FLY_BY_MS
                 }ms cubic-bezier(0.4, 0, 0.6, 1) forwards`,

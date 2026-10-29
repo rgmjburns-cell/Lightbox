@@ -36,29 +36,35 @@ import {
 
 const bb = readFileSync(
   fileURLToPath(new URL("../components/games/BoneBuster.tsx", import.meta.url)),
-  "utf8"
+  "utf8",
 );
 
 // ── 1. Match outcomes: the rules both mirrors now share ──
 
 describe("planMatchOutcome", () => {
   test("a plain 3-match scores 20 a tile and leaves nothing behind", () => {
-    expect(planMatchOutcome({ maxStraightLength: 3, hasCenter: true })).toEqual({
-      kind: "plain",
-      basePerTile: 20,
-    });
+    expect(planMatchOutcome({ maxStraightLength: 3, hasCenter: true })).toEqual(
+      {
+        kind: "plain",
+        basePerTile: 20,
+      },
+    );
   });
 
   test("a 4-straight scores 40 a tile and spawns the striped tile", () => {
-    expect(planMatchOutcome({ maxStraightLength: 4, hasCenter: true })).toEqual({
-      kind: "striped",
-      basePerTile: 40,
-    });
+    expect(planMatchOutcome({ maxStraightLength: 4, hasCenter: true })).toEqual(
+      {
+        kind: "striped",
+        basePerTile: 40,
+      },
+    );
   });
 
   test("a 5+ straight scores 60 a tile and is the Super Burst", () => {
     for (const len of [5, 6, 8]) {
-      expect(planMatchOutcome({ maxStraightLength: len, hasCenter: true })).toEqual({
+      expect(
+        planMatchOutcome({ maxStraightLength: len, hasCenter: true }),
+      ).toEqual({
         kind: "rex-burst",
         basePerTile: 60,
       });
@@ -69,7 +75,9 @@ describe("planMatchOutcome", () => {
     // Preserved quirk of the original inline if/else: the per-tile rate and the
     // special-tile decision are independent, so this clears as a striped spawn
     // and still scores 60 a tile.
-    expect(planMatchOutcome({ maxStraightLength: 5, hasCenter: false })).toEqual({
+    expect(
+      planMatchOutcome({ maxStraightLength: 5, hasCenter: false }),
+    ).toEqual({
       kind: "striped",
       basePerTile: 60,
     });
@@ -78,7 +86,9 @@ describe("planMatchOutcome", () => {
   test("an L/T-shaped group scores on its longest straight run, not its size", () => {
     // A 6-tile L whose longest straight is 3 keeps the plain 20 rate — the
     // board-size part of the score is applied by the caller (length * rate).
-    expect(planMatchOutcome({ maxStraightLength: 3, hasCenter: true }).basePerTile).toBe(20);
+    expect(
+      planMatchOutcome({ maxStraightLength: 3, hasCenter: true }).basePerTile,
+    ).toBe(20);
   });
 
   test("the thresholds are the documented ones", () => {
@@ -109,11 +119,17 @@ describe("planCascadeRexFlight — when Rex flies", () => {
 
   test("a 4-straight flies (the striped tile still spawns — planMatchOutcome says so)", () => {
     const gate = beginCascade(INITIAL_REX_FLIGHT_GATE);
-    const d = planCascadeRexFlight(gate, { matches: wave(4), chainCount: 1, now: 1000 });
+    const d = planCascadeRexFlight(gate, {
+      matches: wave(4),
+      chainCount: 1,
+      now: 1000,
+    });
     expect(d.fly).toBe(true);
     expect(d.reason).toBe("straight");
     // The flight does not touch the striped mechanic:
-    expect(planMatchOutcome({ maxStraightLength: 4, hasCenter: true }).kind).toBe("striped");
+    expect(
+      planMatchOutcome({ maxStraightLength: 4, hasCenter: true }).kind,
+    ).toBe("striped");
   });
 
   test("a cascade that reaches chain 3 flies", () => {
@@ -129,7 +145,11 @@ describe("planCascadeRexFlight — when Rex flies", () => {
 
   test("the Super Burst is already a flight, so no second fly-by is stacked on it", () => {
     const gate = beginCascade(INITIAL_REX_FLIGHT_GATE);
-    const d = planCascadeRexFlight(gate, { matches: wave(5), chainCount: 1, now: 1000 });
+    const d = planCascadeRexFlight(gate, {
+      matches: wave(5),
+      chainCount: 1,
+      now: 1000,
+    });
     expect(d.fly).toBe(false);
     expect(d.reason).toBe("rex-burst");
     // …but it still counts as "Rex flew", so the cooldown runs from it.
@@ -161,7 +181,11 @@ describe("planCascadeRexFlight — when Rex flies", () => {
 
   test("an empty wave never flies, however deep the cascade", () => {
     const gate = beginCascade(INITIAL_REX_FLIGHT_GATE);
-    const d = planCascadeRexFlight(gate, { matches: [], chainCount: 9, now: 1000 });
+    const d = planCascadeRexFlight(gate, {
+      matches: [],
+      chainCount: 9,
+      now: 1000,
+    });
     expect(d.fly).toBe(false);
     expect(d.reason).toBe("no-match");
   });
@@ -170,7 +194,11 @@ describe("planCascadeRexFlight — when Rex flies", () => {
 describe("planCascadeRexFlight — the brakes", () => {
   test("once per cascade: a long cascade flies on the first qualifying wave only", () => {
     let gate = beginCascade(INITIAL_REX_FLIGHT_GATE);
-    const first = planCascadeRexFlight(gate, { matches: wave(4), chainCount: 1, now: 1000 });
+    const first = planCascadeRexFlight(gate, {
+      matches: wave(4),
+      chainCount: 1,
+      now: 1000,
+    });
     expect(first.fly).toBe(true);
     gate = first.gate;
 
@@ -188,7 +216,11 @@ describe("planCascadeRexFlight — the brakes", () => {
 
   test("a new cascade may fly again immediately once the cooldown has passed", () => {
     let gate = beginCascade(INITIAL_REX_FLIGHT_GATE);
-    const first = planCascadeRexFlight(gate, { matches: wave(4), chainCount: 1, now: 1000 });
+    const first = planCascadeRexFlight(gate, {
+      matches: wave(4),
+      chainCount: 1,
+      now: 1000,
+    });
     gate = beginCascade(first.gate);
     const later = planCascadeRexFlight(gate, {
       matches: wave(4),
@@ -200,7 +232,11 @@ describe("planCascadeRexFlight — the brakes", () => {
 
   test("the cooldown swallows a qualifying match that comes too soon", () => {
     let gate = beginCascade(INITIAL_REX_FLIGHT_GATE);
-    const first = planCascadeRexFlight(gate, { matches: wave(4), chainCount: 1, now: 1000 });
+    const first = planCascadeRexFlight(gate, {
+      matches: wave(4),
+      chainCount: 1,
+      now: 1000,
+    });
     expect(first.fly).toBe(true);
 
     gate = beginCascade(first.gate);
@@ -226,15 +262,31 @@ describe("planCascadeRexFlight — the brakes", () => {
 
   test("a burst also starts the cooldown", () => {
     const gate = beginCascade(INITIAL_REX_FLIGHT_GATE);
-    const burst = planCascadeRexFlight(gate, { matches: wave(5), chainCount: 1, now: 1000 });
+    const burst = planCascadeRexFlight(gate, {
+      matches: wave(5),
+      chainCount: 1,
+      now: 1000,
+    });
     const next = beginCascade(burst.gate);
-    const tooSoon = planCascadeRexFlight(next, { matches: wave(4), chainCount: 1, now: 2000 });
+    const tooSoon = planCascadeRexFlight(next, {
+      matches: wave(4),
+      chainCount: 1,
+      now: 2000,
+    });
     expect(tooSoon.reason).toBe("cooldown");
   });
 
   test("beginCascade never changes the last flight time", () => {
-    const gate: RexFlightGate = { cascadeId: 7, flownCascadeId: 7, lastFlightAt: 500 };
-    expect(beginCascade(gate)).toEqual({ cascadeId: 8, flownCascadeId: 7, lastFlightAt: 500 });
+    const gate: RexFlightGate = {
+      cascadeId: 7,
+      flownCascadeId: 7,
+      lastFlightAt: 500,
+    };
+    expect(beginCascade(gate)).toEqual({
+      cascadeId: 8,
+      flownCascadeId: 7,
+      lastFlightAt: 500,
+    });
   });
 
   test("the gate is immutable — the caller's object is never mutated", () => {
@@ -318,7 +370,11 @@ describe("how often a patient sees Rex", () => {
     let gate = beginCascade(INITIAL_REX_FLIGHT_GATE);
     let flights = 0;
     for (let chainCount = 1; chainCount <= 20; chainCount++) {
-      const d = planCascadeRexFlight(gate, { matches: wave(4), chainCount, now: 1000 });
+      const d = planCascadeRexFlight(gate, {
+        matches: wave(4),
+        chainCount,
+        now: 1000,
+      });
       gate = d.gate;
       if (d.fly) flights++;
     }
@@ -332,28 +388,36 @@ describe("the two match-clear mirrors", () => {
   test("both mirrors get their match rules from planMatchOutcome", () => {
     const calls = bb.match(/planMatchOutcome\(/g) ?? [];
     expect(calls.length).toBe(2);
-    expect(bb).toContain("// Base score + special/burst gating — shared with runMatchCycle");
-    expect(bb).toContain("// Score + special-tile / Rex-burst gating. The rules live in");
+    expect(bb).toContain(
+      "// Base score + special/burst gating — shared with runMatchCycle",
+    );
+    expect(bb).toContain(
+      "// Score + special-tile / Rex-burst gating. The rules live in",
+    );
   });
 
   test("neither mirror still carries the old inline gating", () => {
     // The pre-change formulas, which must not come back in either copy.
     expect(bb).not.toContain("maxStraightLength >= 5 ? 60");
     expect(bb).not.toContain("match.maxStraightLength === 4 ? 40");
-    expect(bb).not.toMatch(/maxStraightLength\s*>=\s*5\s*&&\s*match\.centerPosition/);
+    expect(bb).not.toMatch(
+      /maxStraightLength\s*>=\s*5\s*&&\s*match\.centerPosition/,
+    );
     expect(bb).not.toMatch(/maxStraightLength\s*>=\s*4\s*\)\s*\{/);
   });
 
   test("both mirrors feed the same two inputs to the shared rule", () => {
     // maxStraightLength + hasCenter (from centerPosition), in both copies.
     const inputs = bb.match(
-      /maxStraightLength: match\.maxStraightLength,\s*\n\s*hasCenter: match\.centerPosition !== null,/g
+      /maxStraightLength: match\.maxStraightLength,\s*\n\s*hasCenter: match\.centerPosition !== null,/g,
     );
     expect(inputs?.length).toBe(3); // two planMatchOutcome calls + the fly-by summary
   });
 
   test("the live engine decides the fly-by once per wave, on the HUD's 1-based chain", () => {
-    expect(bb).toContain("const flight = planCascadeRexFlight(rexFlightGateRef.current, {");
+    expect(bb).toContain(
+      "const flight = planCascadeRexFlight(rexFlightGateRef.current, {",
+    );
     expect(bb).toContain("chainCount: chain + 1,");
     // Decided after the per-match loop, so a burst in the same wave wins.
     const loopEnd = bb.indexOf("// ── Rex fly-by (decorative only) ──");
@@ -363,7 +427,9 @@ describe("the two match-clear mirrors", () => {
   });
 
   test("a cascade is opened on each valid swap, and only there", () => {
-    expect(bb.match(/beginCascade\(rexFlightGateRef\.current\)/g)?.length).toBe(1);
+    expect(bb.match(/beginCascade\(rexFlightGateRef\.current\)/g)?.length).toBe(
+      1,
+    );
     const swap = bb.indexOf("rexFlightGateRef.current = beginCascade(");
     const valid = bb.indexOf("if (matches.length > 0) {", swap - 400);
     expect(valid).toBeGreaterThan(0);
@@ -386,7 +452,9 @@ describe("the two match-clear mirrors", () => {
 
   test("the Super Burst keeps its scoring formula and its own flight", () => {
     // triggerRexBurst is untouched: clearedCount * 50 * (chain + 1).
-    expect(bb).toContain("const burstScore = clearedPositions.length * 50 * (chain + 1);");
+    expect(bb).toContain(
+      "const burstScore = clearedPositions.length * 50 * (chain + 1);",
+    );
     expect(bb).toContain("const duration = decorativeDuration(1200);");
   });
 });
